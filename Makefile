@@ -1,7 +1,7 @@
 BINARY_NAME=mc-tool
 BUILD_DIR=build
 
-.PHONY: build clean install test help
+.PHONY: build build-static build-all clean install test help
 
 # Default target
 all: build
@@ -12,6 +12,26 @@ build:
 	@mkdir -p $(BUILD_DIR)
 	go build -o $(BUILD_DIR)/$(BINARY_NAME) main.go
 	@echo "Build completed: $(BUILD_DIR)/$(BINARY_NAME)"
+
+# Build static binary for portability
+build-static:
+	@echo "Building static $(BINARY_NAME)..."
+	@mkdir -p $(BUILD_DIR)
+	CGO_ENABLED=0 GOOS=linux go build -a -ldflags '-extldflags "-static"' -o $(BUILD_DIR)/$(BINARY_NAME)-static main.go
+	@echo "Static build completed: $(BUILD_DIR)/$(BINARY_NAME)-static"
+
+# Build for multiple platforms
+build-all:
+	@echo "Building $(BINARY_NAME) for multiple platforms..."
+	@mkdir -p $(BUILD_DIR)
+	# Linux static
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -ldflags '-extldflags "-static"' -o $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64 main.go
+	# macOS
+	CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-amd64 main.go
+	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-arm64 main.go
+	# Windows
+	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe main.go
+	@echo "Multi-platform builds completed in $(BUILD_DIR)/"
 
 # Clean build artifacts
 clean:
