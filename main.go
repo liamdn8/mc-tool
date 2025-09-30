@@ -41,6 +41,8 @@ type ObjectInfo struct {
 	LastModified time.Time
 	VersionID    string
 	IsLatest     bool
+	IsDeleteMarker bool
+	StorageClass string
 }
 
 // ComparisonResult represents the result of comparing two objects
@@ -79,11 +81,33 @@ Examples:
 		Run:  runCompare,
 	}
 
+	analyzeCmd := &cobra.Command{
+		Use:   "analyze <alias/bucket/path>",
+		Short: "Analyze object distribution and detect hidden objects",
+		Long: `Analyze object distribution in a MinIO bucket to detect:
+- Current versions vs old versions
+- Delete markers
+- Incomplete multipart uploads
+- Object count and size statistics
+		
+This command helps identify discrepancies between metrics and visible objects.
+
+Examples:
+  mc-tool analyze alias1/bucket1
+  mc-tool analyze --verbose alias1/bucket1/folder`,
+		Args: cobra.ExactArgs(1),
+		Run:  runAnalyze,
+	}
+
 	compareCmd.Flags().BoolVar(&versionsMode, "versions", false, "Compare all object versions (default: compare current versions only)")
 	compareCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Verbose output")
 	compareCmd.Flags().BoolVar(&insecure, "insecure", false, "Skip TLS certificate verification (overrides config setting)")
 
+	analyzeCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Verbose output")
+	analyzeCmd.Flags().BoolVar(&insecure, "insecure", false, "Skip TLS certificate verification (overrides config setting)")
+
 	rootCmd.AddCommand(compareCmd)
+	rootCmd.AddCommand(analyzeCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		log.Fatal(err)
@@ -130,6 +154,48 @@ func runCompare(cmd *cobra.Command, args []string) {
 
 	// Display results
 	displayResults(results)
+}
+
+func runAnalyze(cmd *cobra.Command, args []string) {
+	url := args[0]
+
+	// Parse URL
+	alias, bucket, path, err := parseURL(url)
+	if err != nil {
+		log.Fatalf("Error parsing URL: %v", err)
+	}
+
+	// Load MinIO configuration
+	config, err := loadMCConfig()
+	if err != nil {
+		log.Fatalf("Error loading MC config: %v", err)
+	}
+
+	// Create MinIO client
+	client, err := createMinIOClient(config, alias)
+	if err != nil {
+		log.Fatalf("Error creating MinIO client: %v", err)
+	}
+
+	ctx := context.Background()
+
+	// Get all objects (including all versions and delete markers)
+	objects, err := listObjects(ctx, client, bucket, path)
+	if err != nil {
+		log.Fatalf("Error listing objects: %v", err)
+	}
+
+	// Get incomplete multipart uploads
+	incompleteUploads, err := listIncompleteUploads(ctx, client, bucket, path)
+	if err != nil {
+		log.Fatalf("Error listing incomplete uploads: %v", err)
+	}
+
+	// Analyze object distribution
+	stats := analyzeObjectDistribution(objects)
+
+	// Display analysis results
+	displayAnalysisResults(stats, incompleteUploads, objects)
 }
 
 func parseURL(url string) (alias, bucket, path string, err error) {
@@ -215,16 +281,37 @@ func compareObjects(sourceClient, targetClient *minio.Client, sourceBucket, sour
 	ctx := context.Background()
 	var results []ComparisonResult
 
-	// Get objects from source
-	sourceObjects, err := listObjects(ctx, sourceClient, sourceBucket, sourcePath)
+	// Get objects from source (always gets all versions)
+	allSourceObjects, err := listObjects(ctx, sourceClient, sourceBucket, sourcePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list source objects: %v", err)
 	}
 
-	// Get objects from target
-	targetObjects, err := listObjects(ctx, targetClient, targetBucket, targetPath)
+	// Get objects from target (always gets all versions)
+	allTargetObjects, err := listObjects(ctx, targetClient, targetBucket, targetPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list target objects: %v", err)
+	}
+
+	// Filter objects based on comparison mode
+	var sourceObjects, targetObjects []*ObjectInfo
+	
+	if versionsMode {
+		// Include all versions when in versions mode
+		sourceObjects = allSourceObjects
+		targetObjects = allTargetObjects
+	} else {
+		// Filter to only current versions (non-delete markers with IsLatest = true)
+		for _, obj := range allSourceObjects {
+			if obj.IsLatest && !obj.IsDeleteMarker {
+				sourceObjects = append(sourceObjects, obj)
+			}
+		}
+		for _, obj := range allTargetObjects {
+			if obj.IsLatest && !obj.IsDeleteMarker {
+				targetObjects = append(targetObjects, obj)
+			}
+		}
 	}
 
 	// Create maps for easy lookup
@@ -281,13 +368,11 @@ func compareObjects(sourceClient, targetClient *minio.Client, sourceBucket, sour
 func listObjects(ctx context.Context, client *minio.Client, bucket, prefix string) ([]*ObjectInfo, error) {
 	var objects []*ObjectInfo
 
+	// Always use versioned listing for comprehensive detection
 	opts := minio.ListObjectsOptions{
-		Prefix:    prefix,
-		Recursive: true,
-	}
-
-	if versionsMode {
-		opts.WithVersions = true
+		Prefix:       prefix,
+		Recursive:    true,
+		WithVersions: true, // Always list all versions to detect hidden objects
 	}
 
 	for objInfo := range client.ListObjects(ctx, bucket, opts) {
@@ -296,18 +381,74 @@ func listObjects(ctx context.Context, client *minio.Client, bucket, prefix strin
 		}
 
 		obj := &ObjectInfo{
-			Key:          objInfo.Key,
-			ETag:         objInfo.ETag,
-			Size:         objInfo.Size,
-			LastModified: objInfo.LastModified,
-			VersionID:    objInfo.VersionID,
-			IsLatest:     objInfo.IsLatest,
+			Key:            objInfo.Key,
+			ETag:           objInfo.ETag,
+			Size:           objInfo.Size,
+			LastModified:   objInfo.LastModified,
+			VersionID:      objInfo.VersionID,
+			IsLatest:       objInfo.IsLatest,
+			IsDeleteMarker: objInfo.IsDeleteMarker,
+			StorageClass:   objInfo.StorageClass,
 		}
 
 		objects = append(objects, obj)
 	}
 
 	return objects, nil
+}
+
+// listIncompleteUploads detects incomplete multipart uploads that might affect object counts
+func listIncompleteUploads(ctx context.Context, client *minio.Client, bucket, prefix string) ([]minio.ObjectMultipartInfo, error) {
+	var incompleteUploads []minio.ObjectMultipartInfo
+
+	for uploadInfo := range client.ListIncompleteUploads(ctx, bucket, prefix, true) {
+		if uploadInfo.Err != nil {
+			return nil, uploadInfo.Err
+		}
+		incompleteUploads = append(incompleteUploads, uploadInfo)
+	}
+
+	return incompleteUploads, nil
+}
+
+// analyzeObjectDistribution provides detailed statistics about object versions and states
+func analyzeObjectDistribution(objects []*ObjectInfo) map[string]interface{} {
+	stats := make(map[string]interface{})
+	
+	var totalObjects int
+	var currentVersions int
+	var oldVersions int
+	var deleteMarkers int
+	var totalSize int64
+	var currentSize int64
+	
+	objectVersionCount := make(map[string]int)
+	
+	for _, obj := range objects {
+		totalObjects++
+		totalSize += obj.Size
+		objectVersionCount[obj.Key]++
+		
+		if obj.IsDeleteMarker {
+			deleteMarkers++
+		} else if obj.IsLatest {
+			currentVersions++
+			currentSize += obj.Size
+		} else {
+			oldVersions++
+		}
+	}
+	
+	stats["total_objects"] = totalObjects
+	stats["current_versions"] = currentVersions
+	stats["old_versions"] = oldVersions
+	stats["delete_markers"] = deleteMarkers
+	stats["total_size"] = totalSize
+	stats["current_size"] = currentSize
+	stats["unique_keys"] = len(objectVersionCount)
+	stats["version_distribution"] = objectVersionCount
+	
+	return stats
 }
 
 func compareVersions(key string, sourceObjs, targetObjs []*ObjectInfo) []ComparisonResult {
@@ -445,5 +586,94 @@ func displayResults(results []ComparisonResult) {
 
 	if different > 0 || missingSource > 0 || missingTarget > 0 {
 		os.Exit(1)
+	}
+}
+
+func displayAnalysisResults(stats map[string]interface{}, incompleteUploads []minio.ObjectMultipartInfo, objects []*ObjectInfo) {
+	fmt.Println("Object Distribution Analysis:")
+	fmt.Println("============================")
+	
+	fmt.Printf("Total Objects (all versions): %d\n", stats["total_objects"])
+	fmt.Printf("Current Versions: %d\n", stats["current_versions"])
+	fmt.Printf("Old Versions: %d\n", stats["old_versions"])
+	fmt.Printf("Delete Markers: %d\n", stats["delete_markers"])
+	fmt.Printf("Unique Object Keys: %d\n", stats["unique_keys"])
+	fmt.Printf("Total Size (all versions): %d bytes\n", stats["total_size"])
+	fmt.Printf("Current Version Size: %d bytes\n", stats["current_size"])
+	
+	if len(incompleteUploads) > 0 {
+		fmt.Printf("\nIncomplete Multipart Uploads: %d\n", len(incompleteUploads))
+		if verbose {
+			fmt.Println("\nIncomplete Upload Details:")
+			for _, upload := range incompleteUploads {
+				fmt.Printf("  - %s (ID: %s, Initiated: %s)\n", 
+					upload.Key, upload.UploadID, upload.Initiated.Format("2006-01-02 15:04:05"))
+			}
+		}
+	} else {
+		fmt.Println("\nIncomplete Multipart Uploads: 0")
+	}
+	
+	if verbose && len(objects) > 0 {
+		fmt.Println("\nDetailed Object Analysis:")
+		fmt.Println("========================")
+		
+		// Group objects by key
+		objectsByKey := make(map[string][]*ObjectInfo)
+		for _, obj := range objects {
+			objectsByKey[obj.Key] = append(objectsByKey[obj.Key], obj)
+		}
+		
+		for key, versions := range objectsByKey {
+			fmt.Printf("\nObject: %s\n", key)
+			fmt.Printf("  Total versions: %d\n", len(versions))
+			
+			for i, version := range versions {
+				status := ""
+				if version.IsLatest {
+					status += "[CURRENT]"
+				}
+				if version.IsDeleteMarker {
+					status += "[DELETE_MARKER]"
+				}
+				if status == "" {
+					status = "[OLD_VERSION]"
+				}
+				
+				fmt.Printf("  %d. %s Size: %d, ETag: %s, VersionID: %s, Modified: %s\n",
+					i+1, status, version.Size, version.ETag, version.VersionID, 
+					version.LastModified.Format("2006-01-02 15:04:05"))
+			}
+		}
+	}
+	
+	// Analysis summary
+	fmt.Println("\nPotential Discrepancy Sources:")
+	fmt.Println("==============================")
+	
+	if stats["delete_markers"].(int) > 0 {
+		fmt.Printf("⚠ Found %d delete markers that might not be counted in some metrics\n", stats["delete_markers"])
+	}
+	
+	if len(incompleteUploads) > 0 {
+		fmt.Printf("⚠ Found %d incomplete multipart uploads that might affect object counts\n", len(incompleteUploads))
+	}
+	
+	if stats["old_versions"].(int) > 0 {
+		fmt.Printf("ℹ Found %d old versions (these should not affect current object counts)\n", stats["old_versions"])
+	}
+	
+	currentObjects := stats["current_versions"].(int)
+	totalVersions := stats["total_objects"].(int)
+	
+	fmt.Printf("\nMetrics Comparison:\n")
+	fmt.Printf("- Current objects (should match bucket metrics): %d\n", currentObjects)
+	fmt.Printf("- Total storage entries (all versions): %d\n", totalVersions)
+	fmt.Printf("- Objects with delete markers as current version: %d\n", stats["delete_markers"])
+	
+	if stats["delete_markers"].(int) > 0 || len(incompleteUploads) > 0 {
+		fmt.Println("\n🔍 Recommendation: These hidden objects might explain metric discrepancies")
+	} else {
+		fmt.Println("\n✅ No hidden objects detected - metric discrepancy might be due to other factors")
 	}
 }
