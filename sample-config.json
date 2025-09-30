@@ -1,0 +1,20 @@
+{
+  "version": "10",
+  "aliases": {
+    "test-secure": {
+      "url": "https://secure.example.com",
+      "accessKey": "test-access-key",
+      "secretKey": "test-secret-key",
+      "api": "s3v4",
+      "path": "auto"
+    },
+    "test-insecure": {
+      "url": "https://insecure.example.com",
+      "accessKey": "test-access-key",
+      "secretKey": "test-secret-key",
+      "api": "s3v4",
+      "path": "auto",
+      "insecure": true
+    }
+  }
+}
