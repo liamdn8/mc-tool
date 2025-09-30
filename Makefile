@@ -1,7 +1,7 @@
 BINARY_NAME=mc-tool
 BUILD_DIR=build
 
-.PHONY: build build-static build-all clean install test help
+.PHONY: build build-static build-portable build-all clean install test help
 
 # Default target
 all: build
@@ -19,6 +19,13 @@ build-static:
 	@mkdir -p $(BUILD_DIR)
 	CGO_ENABLED=0 GOOS=linux go build -a -ldflags '-extldflags "-static"' -o $(BUILD_DIR)/$(BINARY_NAME)-static main.go
 	@echo "Static build completed: $(BUILD_DIR)/$(BINARY_NAME)-static"
+
+# Build portable binary (static + stripped for minimum size)
+build-portable:
+	@echo "Building portable $(BINARY_NAME)..."
+	@mkdir -p $(BUILD_DIR)
+	CGO_ENABLED=0 GOOS=linux go build -a -ldflags '-extldflags "-static" -s -w' -o $(BUILD_DIR)/$(BINARY_NAME)-portable main.go
+	@echo "Portable build completed: $(BUILD_DIR)/$(BINARY_NAME)-portable (stripped, maximum compatibility)"
 
 # Build for multiple platforms
 build-all:
