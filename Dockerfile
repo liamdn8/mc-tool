@@ -1,6 +1,6 @@
 FROM alpine:3.20
 
-# Install basic tools
+# Install basic tools including awscurl for MinIO API calls and performance monitoring
 RUN apk add --no-cache \
       bash \
       curl \
@@ -14,22 +14,23 @@ RUN apk add --no-cache \
       iputils \
       net-tools \
       ca-certificates \
-      && update-ca-certificates
+      && update-ca-certificates \
+      && rm -rf /var/cache/apk/*
 
 # Download mc (MinIO client) latest release
 RUN curl -sSL https://dl.min.io/client/mc/release/linux-amd64/mc \
       -o /usr/local/bin/mc \
     && chmod +x /usr/local/bin/mc
 
-# Download golang latest release
-RUN curl -sSL https://go.dev/dl/go1.25.1.linux-amd64.tar.gz \
-    -o /tmp/go.tar.gz \
-    && tar -C /usr/local -xzf /tmp/go.tar.gz \
-    && rm /tmp/go.tar.gz
+# # Download golang latest release
+# RUN curl -sSL https://go.dev/dl/go1.25.1.linux-amd64.tar.gz \
+#     -o /tmp/go.tar.gz \
+#     && tar -C /usr/local -xzf /tmp/go.tar.gz \
+#     && rm /tmp/go.tar.gz
 
-# Set Go environment variables
-ENV GOPATH=/go \
-    PATH=$PATH:/usr/local/go/bin:/go/bin
+# # Set Go environment variables
+# ENV GOPATH=/go \
+#     PATH=$PATH:/usr/local/go/bin:/go/bin
 
 # Copy the mc-tool binary
 COPY build/mc-tool-portable /usr/local/bin/mc-tool

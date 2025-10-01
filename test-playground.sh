@@ -13,7 +13,7 @@ PLAYGROUND_ALIAS="playground"
 BUCKET1="${PLAYGROUND_ALIAS}/mc-tool-delete-test1"
 BUCKET2="${PLAYGROUND_ALIAS}/mc-tool-delete-test2"
 BUCKET3="${PLAYGROUND_ALIAS}/mc-tool-versions-test"
-MC_TOOL="./build/mc-tool"
+MC_TOOL="./build/mc-tool-portable"
 TEST_DIR="/tmp/mc-tool-test"
 
 # Colors for output

@@ -1,4 +1,4 @@
-module mc-tool
+module github.com/liamdn8/mc-tool
 
 go 1.21
 
