@@ -15,6 +15,7 @@ import (
 	"github.com/liamdn8/mc-tool/pkg/client"
 	"github.com/liamdn8/mc-tool/pkg/compare"
 	"github.com/liamdn8/mc-tool/pkg/config"
+	"github.com/liamdn8/mc-tool/pkg/logger"
 	"github.com/liamdn8/mc-tool/pkg/profile"
 	"github.com/liamdn8/mc-tool/pkg/validation"
 	"github.com/liamdn8/mc-tool/pkg/web"
@@ -438,15 +439,35 @@ func runProfile(cmd *cobra.Command, args []string) {
 }
 
 func runWeb(cmd *cobra.Command, args []string) {
-	fmt.Printf("🚀 Starting MC-Tool Web UI on port %d\n", webPort)
-	fmt.Printf("📱 Open your browser at: http://localhost:%d\n", webPort)
+	// Load configuration from environment variables
+	cfg := config.LoadWebConfig()
+
+	// Override port from CLI flag if provided
+	if webPort != 8080 {
+		cfg.Port = webPort
+	}
+
+	// Initialize logger
+	logger.InitGlobalLogger(cfg.LogLevel, cfg.LogFormat)
+
+	logger.GetLogger().Info("Starting MC-Tool Web UI", map[string]interface{}{
+		"port":             cfg.Port,
+		"refresh_interval": cfg.RefreshInterval,
+		"log_level":        cfg.LogLevel,
+	})
+
+	fmt.Printf("🚀 Starting MC-Tool Web UI on port %d\n", cfg.Port)
+	fmt.Printf("📱 Open your browser at: http://localhost:%d\n", cfg.Port)
 	fmt.Printf("🌐 Supported languages: English, Tiếng Việt\n")
 	fmt.Println()
 	fmt.Println("Press Ctrl+C to stop the server")
 	fmt.Println()
 
-	server := web.NewServer(webPort)
+	server := web.NewServer(cfg)
 	if err := server.Start(); err != nil {
+		logger.GetLogger().Error("Failed to start web server", map[string]interface{}{
+			"error": err.Error(),
+		})
 		log.Fatalf("Failed to start web server: %v", err)
 	}
 }

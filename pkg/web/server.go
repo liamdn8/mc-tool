@@ -15,6 +15,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/liamdn8/mc-tool/pkg/config"
+	"github.com/liamdn8/mc-tool/pkg/logger"
 	"github.com/liamdn8/mc-tool/pkg/profile"
 )
 
@@ -23,7 +25,7 @@ var staticFiles embed.FS
 
 // Server represents the web UI server
 type Server struct {
-	port           int
+	config         *config.WebConfig
 	httpServer     *http.Server
 	jobManager     *JobManager
 	executablePath string
@@ -51,7 +53,7 @@ type Job struct {
 }
 
 // NewServer creates a new web server
-func NewServer(port int) *Server {
+func NewServer(cfg *config.WebConfig) *Server {
 	// Get the current executable path
 	execPath, err := os.Executable()
 	if err != nil {
@@ -59,7 +61,7 @@ func NewServer(port int) *Server {
 	}
 
 	return &Server{
-		port:           port,
+		config:         cfg,
 		executablePath: execPath,
 		jobManager: &JobManager{
 			jobs: make(map[string]*Job),
@@ -78,9 +80,35 @@ func (s *Server) Start() error {
 	}
 	// Serve new site replication UI by default
 	mux.HandleFunc("/", s.handleIndex)
-	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
+
+	// Custom static file handler with proper MIME types
+	staticHandler := http.StripPrefix("/static/", http.FileServer(http.FS(staticFS)))
+	mux.HandleFunc("/static/", func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+
+		// Set correct MIME type based on file extension
+		if strings.HasSuffix(path, ".js") {
+			w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+		} else if strings.HasSuffix(path, ".css") {
+			w.Header().Set("Content-Type", "text/css; charset=utf-8")
+		} else if strings.HasSuffix(path, ".html") {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		} else if strings.HasSuffix(path, ".json") {
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		} else if strings.HasSuffix(path, ".png") {
+			w.Header().Set("Content-Type", "image/png")
+		} else if strings.HasSuffix(path, ".jpg") || strings.HasSuffix(path, ".jpeg") {
+			w.Header().Set("Content-Type", "image/jpeg")
+		} else if strings.HasSuffix(path, ".svg") {
+			w.Header().Set("Content-Type", "image/svg+xml")
+		}
+
+		// Serve the file
+		staticHandler.ServeHTTP(w, r)
+	})
 
 	// API endpoints
+	mux.HandleFunc("/healthz", s.handleHealthz)
 	mux.HandleFunc("/api/health", s.handleHealth)
 	mux.HandleFunc("/api/aliases", s.handleGetAliases)
 	mux.HandleFunc("/api/aliases-stats", s.handleGetAliasesWithStats)
@@ -99,15 +127,23 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/replication/status", s.handleReplicationStatus)
 	mux.HandleFunc("/api/replication/compare", s.handleReplicationCompare)
 
+	// Site Replication Management APIs
+	mux.HandleFunc("/api/replication/add", s.handleReplicationAdd)
+	mux.HandleFunc("/api/replication/remove", s.handleReplicationRemove)
+	mux.HandleFunc("/api/replication/resync", s.handleReplicationResync)
+
 	s.httpServer = &http.Server{
-		Addr:         fmt.Sprintf(":%d", s.port),
+		Addr:         fmt.Sprintf(":%d", s.config.Port),
 		Handler:      s.corsMiddleware(s.loggingMiddleware(mux)),
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
 
-	log.Printf("Starting web UI server on http://localhost:%d", s.port)
+	logger.GetLogger().Info("Starting web UI server", map[string]interface{}{
+		"port": s.config.Port,
+		"url":  fmt.Sprintf("http://localhost:%d", s.config.Port),
+	})
 	return s.httpServer.ListenAndServe()
 }
 
@@ -160,6 +196,33 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"status":  "ok",
 		"version": "1.0.0",
 		"time":    time.Now().Format(time.RFC3339),
+	})
+}
+
+func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
+	// Check if mc command is available
+	mcAvailable := false
+	if s.executablePath != "" {
+		cmd := exec.Command(s.executablePath, "version")
+		if err := cmd.Run(); err == nil {
+			mcAvailable = true
+		}
+	}
+
+	// Return 200 if healthy, 503 if unhealthy
+	statusCode := http.StatusOK
+	status := "healthy"
+	if !mcAvailable {
+		statusCode = http.StatusServiceUnavailable
+		status = "unhealthy"
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":       status,
+		"timestamp":    time.Now().Format(time.RFC3339),
+		"mc_available": mcAvailable,
 	})
 }
 
@@ -247,20 +310,53 @@ func (s *Server) handleAliasHealth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Try to ping the alias using mc admin info
+	// Try to get admin info
 	cmd := exec.Command("mc", "admin", "info", alias, "--json")
 	output, err := cmd.CombinedOutput()
 
 	healthy := false
 	message := "Unknown"
+	objectCount := int64(0)
+	totalSize := int64(0)
+	bucketCount := int64(0)
+	serverCount := 0
 
 	if err == nil {
-		// Parse JSON output to check if server is responding
+		// Parse JSON output to extract detailed info
 		var result map[string]interface{}
 		if json.Unmarshal(output, &result) == nil {
-			if result["status"] != nil {
+			if status, ok := result["status"].(string); ok && status == "success" {
 				healthy = true
 				message = "Connected"
+
+				// Extract info object
+				if info, ok := result["info"].(map[string]interface{}); ok {
+					// Get object count
+					if objects, ok := info["objects"].(map[string]interface{}); ok {
+						if count, ok := objects["count"].(float64); ok {
+							objectCount = int64(count)
+						}
+					}
+
+					// Get total size
+					if usage, ok := info["usage"].(map[string]interface{}); ok {
+						if size, ok := usage["size"].(float64); ok {
+							totalSize = int64(size)
+						}
+					}
+
+					// Get bucket count
+					if buckets, ok := info["buckets"].(map[string]interface{}); ok {
+						if count, ok := buckets["count"].(float64); ok {
+							bucketCount = int64(count)
+						}
+					}
+
+					// Get server count
+					if servers, ok := info["servers"].([]interface{}); ok {
+						serverCount = len(servers)
+					}
+				}
 			}
 		}
 	} else {
@@ -275,8 +371,12 @@ func (s *Server) handleAliasHealth(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.respondJSON(w, map[string]interface{}{
-		"healthy": healthy,
-		"message": message,
+		"healthy":     healthy,
+		"message":     message,
+		"objectCount": objectCount,
+		"totalSize":   totalSize,
+		"bucketCount": bucketCount,
+		"serverCount": serverCount,
 	})
 }
 
@@ -463,9 +563,12 @@ func (s *Server) handleReplicationInfo(w http.ResponseWriter, r *http.Request) {
 	var replicationGroupInfo map[string]interface{}
 
 	for _, alias := range aliases {
+		aliasName := alias["name"]
+		aliasURL := alias["url"]
+
 		siteInfo := map[string]interface{}{
-			"alias":              alias["name"],
-			"endpoint":           alias["url"],
+			"alias":              aliasName,
+			"url":                aliasURL, // Use "url" instead of "endpoint" for consistency
 			"healthy":            false,
 			"replicationEnabled": false,
 			"replicationStatus":  "not_configured",
@@ -474,7 +577,7 @@ func (s *Server) handleReplicationInfo(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Check if site replication is enabled for this alias
-		replicateCmd := exec.Command("mc", "admin", "replicate", "info", alias["name"], "--json")
+		replicateCmd := exec.Command("mc", "admin", "replicate", "info", aliasName, "--json")
 		replicateOutput, replicateErr := replicateCmd.CombinedOutput()
 
 		if replicateErr == nil {
@@ -495,17 +598,38 @@ func (s *Server) handleReplicationInfo(w http.ResponseWriter, r *http.Request) {
 					if sitesList, ok := replicateInfo["sites"].([]interface{}); ok {
 						for _, peerSite := range sitesList {
 							if peer, ok := peerSite.(map[string]interface{}); ok {
-								// Try to match by endpoint
-								if endpoint, ok := peer["endpoint"].(string); ok {
-									if strings.Contains(alias["url"], endpoint) || strings.Contains(endpoint, alias["url"]) {
-										if name, ok := peer["name"].(string); ok {
-											siteInfo["siteName"] = name
-										}
-										if deployID, ok := peer["deploymentID"].(string); ok {
-											siteInfo["deploymentID"] = deployID
-										}
-										break
+								// Match by endpoint URL or by alias name from replication info
+								peerEndpoint, _ := peer["endpoint"].(string)
+								peerName, _ := peer["name"].(string)
+
+								// Try multiple matching strategies
+								matched := false
+
+								// Strategy 1: Exact URL match
+								if peerEndpoint == aliasURL {
+									matched = true
+								}
+
+								// Strategy 2: URL contains match (handles trailing slash, port variations)
+								if !matched && peerEndpoint != "" && aliasURL != "" {
+									if strings.Contains(aliasURL, peerEndpoint) || strings.Contains(peerEndpoint, aliasURL) {
+										matched = true
 									}
+								}
+
+								// Strategy 3: Match by alias name if peer name matches
+								if !matched && peerName == aliasName {
+									matched = true
+								}
+
+								if matched {
+									if name, ok := peer["name"].(string); ok && name != "" {
+										siteInfo["siteName"] = name
+									}
+									if deployID, ok := peer["deploymentID"].(string); ok && deployID != "" {
+										siteInfo["deploymentID"] = deployID
+									}
+									break
 								}
 							}
 						}
@@ -521,6 +645,9 @@ func (s *Server) handleReplicationInfo(w http.ResponseWriter, r *http.Request) {
 		// Get admin info for health check
 		adminCmd := exec.Command("mc", "admin", "info", alias["name"], "--json")
 		adminOutput, adminErr := adminCmd.CombinedOutput()
+
+		// Default to unhealthy
+		siteInfo["healthy"] = false
 
 		if adminErr == nil {
 			var adminInfo map[string]interface{}
@@ -1209,6 +1336,222 @@ func (s *Server) runChecklistJob(job *Job, alias, bucket string) {
 	}
 
 	job.complete(resultData, "Checklist completed")
+}
+
+// handleReplicationAdd handles adding sites to replication
+func (s *Server) handleReplicationAdd(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		s.respondError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	var req struct {
+		Aliases []string `json:"aliases"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.respondError(w, http.StatusBadRequest, fmt.Sprintf("Invalid request: %v", err))
+		return
+	}
+
+	if len(req.Aliases) < 2 {
+		s.respondError(w, http.StatusBadRequest, "At least 2 aliases are required")
+		return
+	}
+
+	logger.GetLogger().Info("Adding site replication", map[string]interface{}{
+		"aliases": req.Aliases,
+	})
+
+	// Build mc admin replicate add command
+	args := []string{"admin", "replicate", "add"}
+	args = append(args, req.Aliases...)
+
+	cmd := exec.Command("mc", args...)
+	output, err := cmd.CombinedOutput()
+
+	if err != nil {
+		logger.GetLogger().Error("Failed to add site replication", map[string]interface{}{
+			"error":  err.Error(),
+			"output": string(output),
+		})
+
+		// Parse error message to provide better feedback
+		errorMsg := string(output)
+		var userFriendlyMsg string
+
+		if strings.Contains(errorMsg, "localhost") || strings.Contains(errorMsg, "127.0.0.1") {
+			userFriendlyMsg = "❌ Site Replication Setup Failed\n\n" +
+				"The MinIO servers are configured with localhost endpoints and cannot connect to each other.\n\n" +
+				"📋 Requirements for Site Replication:\n" +
+				"1. Each MinIO server must have a publicly accessible endpoint (not localhost)\n" +
+				"2. All sites must be able to reach each other over the network\n" +
+				"3. Use IP addresses or domain names instead of localhost\n\n" +
+				"🔧 How to fix:\n" +
+				"1. Reconfigure your MinIO aliases with accessible endpoints:\n" +
+				"   Example: mc alias set site1 http://192.168.1.10:9000 accesskey secretkey\n" +
+				"   Example: mc alias set site2 http://192.168.1.11:9000 accesskey secretkey\n\n" +
+				"2. Ensure MinIO servers are started with accessible addresses:\n" +
+				"   Example: MINIO_SERVER_URL=http://192.168.1.10:9000 minio server /data\n\n" +
+				"📖 Technical Details:\n" + errorMsg
+		} else if strings.Contains(errorMsg, "connection refused") {
+			userFriendlyMsg = "❌ Site Replication Setup Failed\n\n" +
+				"Cannot connect to one or more MinIO servers.\n\n" +
+				"Possible causes:\n" +
+				"1. MinIO server is not running\n" +
+				"2. Firewall blocking connections\n" +
+				"3. Wrong port number\n" +
+				"4. Network connectivity issues\n\n" +
+				"📖 Technical Details:\n" + errorMsg
+		} else {
+			userFriendlyMsg = "Failed to add replication:\n\n" + errorMsg
+		}
+
+		s.respondError(w, http.StatusInternalServerError, userFriendlyMsg)
+		return
+	}
+
+	logger.GetLogger().Info("Site replication added successfully", map[string]interface{}{
+		"aliases": req.Aliases,
+		"output":  string(output),
+	})
+
+	s.respondJSON(w, map[string]interface{}{
+		"success": true,
+		"message": "Site replication added successfully",
+		"output":  string(output),
+	})
+}
+
+// handleReplicationRemove handles removing an alias from replication
+func (s *Server) handleReplicationRemove(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		s.respondError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	var req struct {
+		Alias string `json:"alias"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.respondError(w, http.StatusBadRequest, fmt.Sprintf("Invalid request: %v", err))
+		return
+	}
+
+	if req.Alias == "" {
+		s.respondError(w, http.StatusBadRequest, "Alias is required")
+		return
+	}
+
+	logger.GetLogger().Info("Removing site from replication", map[string]interface{}{
+		"alias": req.Alias,
+	})
+
+	// Build mc admin replicate remove command
+	// Note: mc admin replicate rm will remove ALL site replication config
+	// There's no way to remove just one site from the group - it removes the entire replication setup
+	cmd := exec.Command("mc", "admin", "replicate", "rm", req.Alias, "--all", "--force")
+	output, err := cmd.CombinedOutput()
+
+	if err != nil {
+		logger.GetLogger().Error("Failed to remove site from replication", map[string]interface{}{
+			"error":  err.Error(),
+			"output": string(output),
+		})
+		s.respondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to remove site replication: %s", string(output)))
+		return
+	}
+
+	logger.GetLogger().Info("Site replication removed successfully", map[string]interface{}{
+		"alias":  req.Alias,
+		"output": string(output),
+	})
+
+	s.respondJSON(w, map[string]interface{}{
+		"success": true,
+		"message": "Site replication configuration removed successfully",
+		"output":  string(output),
+		"note":    "This removes the entire site replication configuration. All sites need to be re-added to create a new replication group.",
+	})
+}
+
+// handleReplicationResync handles resyncing data between sites
+func (s *Server) handleReplicationResync(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		s.respondError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	var req struct {
+		SourceAlias string `json:"source_alias"`
+		TargetAlias string `json:"target_alias"`
+		Direction   string `json:"direction"` // "resync-from" or "resync-to"
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.respondError(w, http.StatusBadRequest, fmt.Sprintf("Invalid request: %v", err))
+		return
+	}
+
+	if req.SourceAlias == "" {
+		s.respondError(w, http.StatusBadRequest, "Source alias is required")
+		return
+	}
+
+	if req.Direction != "resync-from" && req.Direction != "resync-to" {
+		s.respondError(w, http.StatusBadRequest, "Direction must be 'resync-from' or 'resync-to'")
+		return
+	}
+
+	logger.GetLogger().Info("Starting site replication resync", map[string]interface{}{
+		"source_alias": req.SourceAlias,
+		"target_alias": req.TargetAlias,
+		"direction":    req.Direction,
+	})
+
+	var cmd *exec.Cmd
+	if req.Direction == "resync-from" {
+		// Resync FROM source (pull data from source)
+		if req.TargetAlias == "" {
+			s.respondError(w, http.StatusBadRequest, "Target alias is required for resync-from")
+			return
+		}
+		cmd = exec.Command("mc", "admin", "replicate", "resync", "start",
+			"--deployment-id", req.TargetAlias, req.SourceAlias)
+	} else {
+		// Resync TO target (push data to target)
+		if req.TargetAlias == "" {
+			s.respondError(w, http.StatusBadRequest, "Target alias is required for resync-to")
+			return
+		}
+		cmd = exec.Command("mc", "admin", "replicate", "resync", "start",
+			"--deployment-id", req.TargetAlias, req.SourceAlias)
+	}
+
+	output, err := cmd.CombinedOutput()
+
+	if err != nil {
+		logger.GetLogger().Error("Failed to start resync", map[string]interface{}{
+			"error":  err.Error(),
+			"output": string(output),
+		})
+		s.respondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to start resync: %s", string(output)))
+		return
+	}
+
+	logger.GetLogger().Info("Resync started successfully", map[string]interface{}{
+		"source_alias": req.SourceAlias,
+		"target_alias": req.TargetAlias,
+		"direction":    req.Direction,
+		"output":       string(output),
+	})
+
+	s.respondJSON(w, map[string]interface{}{
+		"success": true,
+		"message": "Resync started successfully",
+		"output":  string(output),
+	})
 }
 
 // JobManager methods

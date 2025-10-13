@@ -47,10 +47,110 @@ services:
     networks:
       - minio-network
 
+  # MinIO Site 3
+  minio-site3:
+    image: minio/minio:latest
+    container_name: minio-site3
+    ports:
+      - "9003:9000"
+      - "9093:9090"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_SITE_NAME: site3
+      MINIO_SITE_REGION: eu-west-1
+    command: server /data --console-address ":9090"
+    volumes:
+      - minio-site3-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - minio-network
+
+  # MinIO Site 4
+  minio-site4:
+    image: minio/minio:latest
+    container_name: minio-site4
+    ports:
+      - "9004:9000"
+      - "9094:9090"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_SITE_NAME: site4
+      MINIO_SITE_REGION: ap-south-1
+    command: server /data --console-address ":9090"
+    volumes:
+      - minio-site4-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - minio-network
+
+  # MinIO Site 5
+  minio-site5:
+    image: minio/minio:latest
+    container_name: minio-site5
+    ports:
+      - "9005:9000"
+      - "9095:9090"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_SITE_NAME: site5
+      MINIO_SITE_REGION: ap-northeast-1
+    command: server /data --console-address ":9090"
+    volumes:
+      - minio-site5-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - minio-network
+
+  # MinIO Site 6
+  minio-site6:
+    image: minio/minio:latest
+    container_name: minio-site6
+    ports:
+      - "9006:9000"
+      - "9096:9090"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_SITE_NAME: site6
+      MINIO_SITE_REGION: sa-east-1
+    command: server /data --console-address ":9090"
+    volumes:
+      - minio-site6-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - minio-network
+
 volumes:
   minio-site1-data:
     driver: local
   minio-site2-data:
+    driver: local
+  minio-site3-data:
+    driver: local
+  minio-site4-data:
+    driver: local
+  minio-site5-data:
+    driver: local
+  minio-site6-data:
     driver: local
 
 networks:

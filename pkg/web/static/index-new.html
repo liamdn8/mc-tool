@@ -3,8 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>MinIO Site Replication Manager</title>
-    <link rel="stylesheet" href="/static/styles-new.css">
+    <link rel="stylesheet" href="/static/styles-new.css?v=3">
 </head>
 <body>
     <div class="app-container">
@@ -125,14 +128,17 @@
                                 <div class="stat-item">
                                     <div class="stat-label" data-i18n="total_sites">Total Sites</div>
                                     <div class="stat-value" id="totalSites">0</div>
+                                    <div class="stat-detail" id="sitesSummary">-</div>
                                 </div>
                                 <div class="stat-item">
                                     <div class="stat-label" data-i18n="synced_buckets">Synced Buckets</div>
                                     <div class="stat-value" id="syncedBuckets">0</div>
+                                    <div class="stat-detail" id="bucketsSummary">Across all sites</div>
                                 </div>
                                 <div class="stat-item">
                                     <div class="stat-label" data-i18n="total_objects">Total Objects</div>
                                     <div class="stat-value" id="totalObjects">0</div>
+                                    <div class="stat-detail" id="totalSize">0 B</div>
                                 </div>
                                 <div class="stat-item">
                                     <div class="stat-label" data-i18n="replication_health">Health</div>
@@ -142,6 +148,19 @@
                                             <span data-i18n="healthy">Healthy</span>
                                         </span>
                                     </div>
+                                    <div class="stat-detail" id="healthSummary">All sites online</div>
+                                </div>
+                            </div>
+                            
+                            <!-- Replication Group Details -->
+                            <div class="replication-details" id="replicationDetails" style="display:none;">
+                                <div class="detail-row">
+                                    <span class="detail-label">Service Account:</span>
+                                    <span class="detail-value" id="serviceAccount">-</span>
+                                </div>
+                                <div class="detail-row">
+                                    <span class="detail-label">Sites in Group:</span>
+                                    <span class="detail-value" id="sitesInGroup">-</span>
                                 </div>
                             </div>
                         </div>
@@ -300,6 +319,6 @@
         </div>
     </div>
 
-    <script src="/static/app-new.js"></script>
+    <script src="/static/app-new.js?v=3"></script>
 </body>
 </html>

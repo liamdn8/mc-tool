@@ -31,6 +31,67 @@ Then open your browser at `http://localhost:8080` for a user-friendly interface 
 - 🔍 Performance profiling
 - ✅ Configuration checklist
 
+#### Web UI Configuration
+
+The web UI can be configured using environment variables:
+
+```bash
+# Basic Configuration
+PORT=8080                    # Web server port (default: 8080)
+REFRESH_INTERVAL=60s         # UI auto-refresh interval (default: 60s)
+
+# Logging
+LOG_LEVEL=info              # Logging level: debug, info, warn, error (default: info)
+LOG_FORMAT=json             # Log format: text or json (default: text)
+
+# Data Storage
+DATA_DIR=./data             # Directory for history and audit logs (default: ./data)
+REFERENCE_CONFIGS_DIR=/app/reference-configs  # Reference configs directory
+
+# Alerts (Coming Soon)
+ALERT_WEBHOOK_URL=https://hooks.slack.com/...  # Webhook URL for alerts
+ALERT_EMAIL_TO=ops@example.com                  # Email address for alerts
+
+# Authentication (Coming Soon)
+AUTH_METHOD=none            # Authentication method: none, basic, oauth2, saml
+```
+
+Example with environment variables:
+```bash
+# JSON logging for production
+LOG_FORMAT=json LOG_LEVEL=info PORT=8080 mc-tool web
+
+# Debug mode with custom port
+LOG_LEVEL=debug PORT=9000 mc-tool web
+```
+
+#### Healthcheck Endpoint
+
+For container orchestration (Kubernetes, Docker Swarm), use the `/healthz` endpoint:
+
+```bash
+curl http://localhost:8080/healthz
+```
+
+Response:
+```json
+{
+  "status": "healthy",
+  "timestamp": "2025-10-13T05:36:14Z",
+  "mc_available": true
+}
+```
+
+Kubernetes example:
+```yaml
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: 8080
+  initialDelaySeconds: 5
+  periodSeconds: 10
+```
+
 See [Web UI Documentation](docs/WEB_UI.md) for more details.
 
 ### Command Line Interface
