@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  # MinIO Site 1
+  minio-site1:
+    image: minio/minio:latest
+    container_name: minio-site1
+    ports:
+      - "9001:9000"
+      - "9091:9090"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_SITE_NAME: site1
+      MINIO_SITE_REGION: us-east-1
+    command: server /data --console-address ":9090"
+    volumes:
+      - minio-site1-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - minio-network
+
+  # MinIO Site 2
+  minio-site2:
+    image: minio/minio:latest
+    container_name: minio-site2
+    ports:
+      - "9002:9000"
+      - "9092:9090"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_SITE_NAME: site2
+      MINIO_SITE_REGION: us-west-1
+    command: server /data --console-address ":9090"
+    volumes:
+      - minio-site2-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - minio-network
+
+volumes:
+  minio-site1-data:
+    driver: local
+  minio-site2-data:
+    driver: local
+
+networks:
+  minio-network:
+    driver: bridge

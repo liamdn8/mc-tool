@@ -1,12 +1,53 @@
 # mc-tool
 
-A comprehensive MinIO client support tool for comparing buckets, analyzing object distributions, and validating bucket configurations.
+A comprehensive MinIO client support tool for comparing buckets, analyzing object distributions, validating bucket configurations, and profiling MinIO servers for performance analysis and memory leak detection.
 
 ## Features
 
+- **🌐 Web UI**: Modern bilingual (English/Vietnamese) web interface for easy operation
 - **Compare Objects**: Compare objects between two MinIO buckets or paths
-- **Analyze Buckets**: Analyze object distribution, versions, and incomplete uploads
+- **Analyze Buckets**: Analyze object distribution, versions, and incomplete uploads  
 - **Configuration Checklist**: Comprehensive bucket configuration validation including event settings and lifecycle policies
+- **Performance Profiling**: CPU, memory, and goroutine profiling for MinIO servers
+- **Memory Leak Detection**: Continuous monitoring and automatic leak detection with configurable thresholds
+
+## Quick Start
+
+### Web UI (Recommended for Operators)
+
+```bash
+# Start the web interface
+mc-tool web
+
+# Or on custom port
+mc-tool web --port 3000
+```
+
+Then open your browser at `http://localhost:8080` for a user-friendly interface with:
+- 🌐 Bilingual support (English & Vietnamese)
+- 📊 Interactive dashboard
+- 🔄 Visual bucket comparison
+- 📈 Bucket analysis with charts
+- 🔍 Performance profiling
+- ✅ Configuration checklist
+
+See [Web UI Documentation](docs/WEB_UI.md) for more details.
+
+### Command Line Interface
+
+```bash
+# Compare buckets
+mc-tool compare alias1/bucket1 alias2/bucket2
+
+# Analyze bucket
+mc-tool analyze alias/bucket
+
+# Profile server
+mc-tool profile heap minio-prod --detect-leaks --duration 5m
+
+# Run checklist
+mc-tool checklist alias/bucket
+```
 
 ## Architecture
 
@@ -24,9 +65,18 @@ mc-tool/
 │   │   └── compare.go
 │   ├── analyze/              # Bucket analysis functionality
 │   │   └── analyze.go
-│   └── validation/           # Bucket configuration validation
-│       └── validation.go
-└── README.md
+│   ├── profile/              # Performance profiling and memory leak detection
+│   │   └── profile.go
+│   ├── validation/           # Bucket configuration validation
+│   │   └── validation.go
+│   └── web/                  # Web UI server and API
+│       ├── server.go
+│       └── static/
+│           ├── index.html
+│           ├── styles.css
+│           └── app.js
+└── docs/
+    └── WEB_UI.md            # Web UI documentation
 ```
 
 ### Package Responsibilities
@@ -35,9 +85,26 @@ mc-tool/
 - **`pkg/client`**: Creates MinIO clients and parses URLs
 - **`pkg/compare`**: Implements object comparison logic and result display
 - **`pkg/analyze`**: Provides bucket analysis including object distribution and incomplete uploads
+- **`pkg/profile`**: Performance profiling and memory leak detection using mc admin/support profile commands
 - **`pkg/validation`**: Validates bucket configurations (versioning, notifications, lifecycle, encryption, policies)
+- **`pkg/web`**: Web server with REST API and bilingual UI for easy operation
 
 ## Usage
+
+### Web UI
+
+Start the web interface for easy, visual operation:
+
+```bash
+mc-tool web
+```
+
+Features:
+- No command-line knowledge required
+- Bilingual interface (English/Vietnamese)
+- Real-time job progress tracking
+- Interactive forms and dropdowns
+- Visual results display
 
 ### Compare Objects
 
@@ -79,6 +146,25 @@ mc-tool checklist --verbose alias/bucket
 
 # Skip TLS certificate verification
 mc-tool checklist --insecure alias/bucket
+```
+
+### Performance Profiling and Memory Leak Detection
+
+```bash
+# Basic heap profile for memory analysis
+mc-tool profile heap minio-prod
+
+# CPU profiling for performance analysis
+mc-tool profile cpu minio-prod --duration 60s
+
+# Memory leak detection with continuous monitoring
+mc-tool profile heap minio-prod --detect-leaks --duration 30m --threshold-mb 100
+
+# Goroutine profiling to detect goroutine leaks
+mc-tool profile goroutine minio-prod --output /tmp/goroutines.pprof
+
+# Use older mc version for compatibility
+mc-tool profile heap minio-prod --mc-path mc-2021
 ```
 
 ### Configuration Validation
@@ -206,102 +292,11 @@ Checking bucket: my-bucket
 4. Test your changes
 5. Submit a pull request
 
+## Documentation
+
+- [Profile Command Guide](docs/PROFILE_COMMAND.md) - Comprehensive profiling and memory leak detection
+- [Debug 403 Resolution](docs/DEBUG_403_RESOLUTION.md) - Understanding authentication differences
+
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
-MinIO client based support tool
-
-A powerful command-line tool for comparing MinIO buckets across different instances with support for versioned objects.
-
-## Features
-
-- Compare objects between two MinIO buckets or paths
-- Support for versioned object comparison with `--versions` flag
-- Default comparison using ETag and size for current object versions
-- Load configuration from existing mc client configuration
-- Detailed comparison results with summary statistics
-- Verbose mode for detailed object information
-
-## Installation
-
-```bash
-git clone <repository-url>
-cd mc-tool
-go mod tidy
-go build -o mc-tool
-```
-
-## Usage
-
-### Basic Comparison (Current Versions Only)
-```bash
-./mc-tool compare alias1/bucket1 alias2/bucket2
-./mc-tool compare alias1/bucket1/folder alias2/bucket2/folder
-```
-
-### Compare All Object Versions
-```bash
-./mc-tool compare --versions alias1/bucket1 alias2/bucket2
-```
-
-### Verbose Output
-```bash
-./mc-tool compare --verbose alias1/bucket1 alias2/bucket2
-./mc-tool compare --versions --verbose alias1/bucket1 alias2/bucket2
-```
-
-### Skip TLS Certificate Verification
-```bash
-./mc-tool compare --insecure alias1/bucket1 alias2/bucket2
-./mc-tool compare --versions --insecure --verbose alias1/bucket1 alias2/bucket2
-```
-
-## Configuration
-
-The tool reads MinIO configuration from the standard mc client configuration file located at `~/.mc/config.json`. Make sure you have configured your aliases using the mc client:
-
-```bash
-mc alias set myalias https://minio.example.com ACCESS_KEY SECRET_KEY
-```
-
-## Comparison Logic
-
-### Default Mode (Current Versions)
-- Compares only the latest version of each object
-- Uses ETag and file size for comparison
-- Objects are considered identical if both ETag and size match
-
-### Versions Mode (`--versions`)
-- Compares all versions of each object by version ID
-- Each version is compared individually
-- Useful for ensuring complete replication including historical versions
-
-## Output
-
-The tool provides:
-- ✓ Identical objects (shown only in verbose mode)
-- ⚠ Different objects with details about differences
-- \- Objects missing in source
-- \+ Objects missing in target
-- Summary statistics
-
-## Exit Codes
-
-- 0: All objects are identical
-- 1: Differences found (different objects, missing objects)
-
-## Examples
-
-```bash
-# Compare two buckets on different MinIO instances
-./mc-tool compare prod/data-bucket staging/data-bucket
-
-# Compare specific paths with version support
-./mc-tool compare --versions prod/backup/2024 staging/backup/2024
-
-# Verbose comparison of current versions
-./mc-tool compare --verbose local/test-bucket remote/test-bucket
-
-# Skip TLS verification for self-signed certificates
-./mc-tool compare --insecure local/test-bucket remote/test-bucket
-```

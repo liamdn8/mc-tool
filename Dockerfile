@@ -22,15 +22,20 @@ RUN curl -sSL https://dl.min.io/client/mc/release/linux-amd64/mc \
       -o /usr/local/bin/mc \
     && chmod +x /usr/local/bin/mc
 
-# # Download golang latest release
-# RUN curl -sSL https://go.dev/dl/go1.25.1.linux-amd64.tar.gz \
-#     -o /tmp/go.tar.gz \
-#     && tar -C /usr/local -xzf /tmp/go.tar.gz \
-#     && rm /tmp/go.tar.gz
+# Download mc (MinIO client) version 2021-11-16 for admin profile support
+RUN curl -sSL https://dl.min.io/client/mc/release/linux-amd64/archive/mc.RELEASE.2021-11-16T20-37-36Z \
+      -o /usr/local/bin/mc-2021 \
+    && chmod +x /usr/local/bin/mc-2021
 
-# # Set Go environment variables
-# ENV GOPATH=/go \
-#     PATH=$PATH:/usr/local/go/bin:/go/bin
+# Download golang latest release
+RUN curl -sSL https://go.dev/dl/go1.25.1.linux-amd64.tar.gz \
+    -o /tmp/go.tar.gz \
+    && tar -C /usr/local -xzf /tmp/go.tar.gz \
+    && rm /tmp/go.tar.gz
+
+# Set Go environment variables
+ENV GOPATH=/go \
+    PATH=$PATH:/usr/local/go/bin:/go/bin
 
 # Copy the mc-tool binary
 COPY build/mc-tool-portable /usr/local/bin/mc-tool
