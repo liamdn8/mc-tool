@@ -1,0 +1,267 @@
+{
+  "test_environments": {
+    "docker_compose": {
+      "description": "Docker Compose test environment with 4 MinIO sites",
+      "services": {
+        "site1": {
+          "image": "minio/minio:latest",
+          "ports": ["9001:9000", "9101:9001"],
+          "environment": {
+            "MINIO_ROOT_USER": "testuser",
+            "MINIO_ROOT_PASSWORD": "testpass123"
+          },
+          "command": "server /data --console-address :9001"
+        },
+        "site2": {
+          "image": "minio/minio:latest", 
+          "ports": ["9002:9000", "9102:9001"],
+          "environment": {
+            "MINIO_ROOT_USER": "testuser",
+            "MINIO_ROOT_PASSWORD": "testpass123"
+          },
+          "command": "server /data --console-address :9001"
+        },
+        "site3": {
+          "image": "minio/minio:latest",
+          "ports": ["9003:9000", "9103:9001"],
+          "environment": {
+            "MINIO_ROOT_USER": "testuser",
+            "MINIO_ROOT_PASSWORD": "testpass123"
+          },
+          "command": "server /data --console-address :9001"
+        },
+        "site4": {
+          "image": "minio/minio:latest",
+          "ports": ["9004:9000", "9104:9001"],
+          "environment": {
+            "MINIO_ROOT_USER": "testuser",
+            "MINIO_ROOT_PASSWORD": "testpass123"
+          },
+          "command": "server /data --console-address :9001"
+        }
+      }
+    },
+    "local_binaries": {
+      "description": "Local MinIO binary test environment",
+      "sites": [
+        {
+          "name": "site1",
+          "port": 9001,
+          "console_port": 9101,
+          "data_dir": "/tmp/mc-tool-test/site1",
+          "endpoint": "http://127.0.0.1:9001"
+        },
+        {
+          "name": "site2", 
+          "port": 9002,
+          "console_port": 9102,
+          "data_dir": "/tmp/mc-tool-test/site2",
+          "endpoint": "http://127.0.0.1:9002"
+        },
+        {
+          "name": "site3",
+          "port": 9003,
+          "console_port": 9103,
+          "data_dir": "/tmp/mc-tool-test/site3",
+          "endpoint": "http://127.0.0.1:9003"
+        },
+        {
+          "name": "site4",
+          "port": 9004,
+          "console_port": 9104,
+          "data_dir": "/tmp/mc-tool-test/site4",
+          "endpoint": "http://127.0.0.1:9004"
+        }
+      ]
+    }
+  },
+  "test_data": {
+    "buckets": [
+      {
+        "name": "test-bucket-1",
+        "versioning": "Enabled",
+        "objects": [
+          {
+            "key": "file1.txt",
+            "size": 1024,
+            "content": "Sample content for file 1"
+          },
+          {
+            "key": "folder/file2.txt",
+            "size": 2048,
+            "content": "Sample content for file 2 in folder"
+          }
+        ]
+      },
+      {
+        "name": "test-bucket-2",
+        "versioning": "Suspended",
+        "lifecycle": {
+          "rules": [
+            {
+              "id": "delete-old-versions",
+              "status": "Enabled",
+              "expiration": {
+                "days": 30
+              }
+            }
+          ]
+        },
+        "objects": [
+          {
+            "key": "data.json",
+            "size": 512,
+            "content": "{\"test\": \"data\", \"timestamp\": \"2025-10-14T10:00:00Z\"}"
+          }
+        ]
+      },
+      {
+        "name": "shared-bucket",
+        "versioning": "Enabled",
+        "policy": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": "*",
+              "Action": "s3:GetObject",
+              "Resource": "arn:aws:s3:::shared-bucket/*"
+            }
+          ]
+        },
+        "objects": [
+          {
+            "key": "public/readme.txt",
+            "size": 256,
+            "content": "This is a shared bucket accessible across all sites"
+          }
+        ]
+      }
+    ]
+  },
+  "test_scenarios": {
+    "smart_removal": {
+      "two_sites_removal": {
+        "description": "Remove one site from 2-site replication (should remove entire config)",
+        "initial_sites": ["site1", "site2"],
+        "target_site": "site2",
+        "expected_command": "mc admin replicate rm site2 --all --force",
+        "expected_result": "entire_config_removed"
+      },
+      "three_sites_removal": {
+        "description": "Remove one site from 3-site replication (should preserve group)",
+        "initial_sites": ["site1", "site2", "site3"],
+        "target_site": "site3",
+        "expected_command": "mc admin replicate rm site1 site3 --force",
+        "expected_result": "site_removed_group_preserved"
+      },
+      "four_sites_removal": {
+        "description": "Remove one site from 4-site replication (should preserve group)",
+        "initial_sites": ["site1", "site2", "site3", "site4"],
+        "target_site": "site4", 
+        "expected_command": "mc admin replicate rm site1 site4 --force",
+        "expected_result": "site_removed_group_preserved"
+      }
+    },
+    "error_handling": {
+      "connection_failures": [
+        {
+          "scenario": "MinIO server down",
+          "error": "connection refused",
+          "expected_status": 500,
+          "expected_message": "Unable to connect to MinIO server"
+        },
+        {
+          "scenario": "Network timeout",
+          "error": "timeout",
+          "expected_status": 408,
+          "expected_message": "Request timed out"
+        },
+        {
+          "scenario": "DNS resolution failure",
+          "error": "no such host",
+          "expected_status": 500,
+          "expected_message": "Cannot resolve host"
+        }
+      ],
+      "permission_errors": [
+        {
+          "scenario": "Invalid credentials",
+          "error": "Access Denied",
+          "expected_status": 401,
+          "expected_message": "Authentication failed"
+        },
+        {
+          "scenario": "Insufficient permissions",
+          "error": "insufficient permissions",
+          "expected_status": 403,
+          "expected_message": "Insufficient permissions"
+        }
+      ],
+      "validation_errors": [
+        {
+          "scenario": "Empty aliases array",
+          "input": {"aliases": []},
+          "expected_status": 400,
+          "expected_message": "At least 2 sites are required"
+        },
+        {
+          "scenario": "Single alias",
+          "input": {"aliases": ["site1"]},
+          "expected_status": 400,
+          "expected_message": "At least 2 sites are required"
+        },
+        {
+          "scenario": "Empty alias for removal",
+          "input": {"alias": ""},
+          "expected_status": 400,
+          "expected_message": "Alias is required"
+        }
+      ]
+    },
+    "ui_integration": {
+      "icon_tests": {
+        "navigation_icons": [
+          "layout-dashboard",
+          "globe", 
+          "folder",
+          "repeat",
+          "check-circle",
+          "settings"
+        ],
+        "action_icons": [
+          "plus",
+          "trash-2",
+          "download",
+          "upload",
+          "refresh-cw"
+        ],
+        "status_icons": [
+          "check-circle",
+          "alert-circle",
+          "x-circle",
+          "clock"
+        ]
+      },
+      "responsive_breakpoints": {
+        "mobile": {"width": 375, "height": 667},
+        "tablet": {"width": 768, "height": 1024},
+        "desktop": {"width": 1920, "height": 1080}
+      }
+    }
+  },
+  "performance_benchmarks": {
+    "api_response_times": {
+      "info_endpoint": {"target": 500, "max": 2000},
+      "status_endpoint": {"target": 1000, "max": 5000},
+      "add_endpoint": {"target": 3000, "max": 10000},
+      "remove_endpoint": {"target": 2000, "max": 8000},
+      "resync_endpoint": {"target": 1000, "max": 5000}
+    },
+    "ui_performance": {
+      "page_load": {"target": 2000, "max": 5000},
+      "icon_render": {"target": 100, "max": 500},
+      "ajax_update": {"target": 1000, "max": 3000}
+    }
+  }
+}

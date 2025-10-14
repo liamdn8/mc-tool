@@ -1,0 +1,197 @@
+{
+  "replication_info_4_sites": {
+    "enabled": true,
+    "sites": [
+      {
+        "name": "site1",
+        "deploymentID": "deployment-1",
+        "endpoint": "https://site1.example.com:9000"
+      },
+      {
+        "name": "site2", 
+        "deploymentID": "deployment-2",
+        "endpoint": "https://site2.example.com:9000"
+      },
+      {
+        "name": "site3",
+        "deploymentID": "deployment-3", 
+        "endpoint": "https://site3.example.com:9000"
+      },
+      {
+        "name": "site4",
+        "deploymentID": "deployment-4",
+        "endpoint": "https://site4.example.com:9000"
+      }
+    ]
+  },
+  "replication_info_2_sites": {
+    "enabled": true,
+    "sites": [
+      {
+        "name": "site1",
+        "deploymentID": "deployment-1",
+        "endpoint": "https://site1.example.com:9000"
+      },
+      {
+        "name": "site2",
+        "deploymentID": "deployment-2",
+        "endpoint": "https://site2.example.com:9000"
+      }
+    ]
+  },
+  "replication_status_healthy": {
+    "replicatedBuckets": 5,
+    "pendingObjects": 0,
+    "failedObjects": 0,
+    "lastSyncTime": "2025-10-14T10:30:00Z",
+    "sites": {
+      "site1": {
+        "status": "healthy",
+        "objectsReplicated": 1000,
+        "bytesReplicated": 1048576
+      },
+      "site2": {
+        "status": "healthy", 
+        "objectsReplicated": 1000,
+        "bytesReplicated": 1048576
+      }
+    }
+  },
+  "replication_status_with_issues": {
+    "replicatedBuckets": 3,
+    "pendingObjects": 25,
+    "failedObjects": 2,
+    "lastSyncTime": "2025-10-14T09:45:00Z",
+    "sites": {
+      "site1": {
+        "status": "healthy",
+        "objectsReplicated": 950,
+        "bytesReplicated": 999424
+      },
+      "site2": {
+        "status": "warning",
+        "objectsReplicated": 925,
+        "bytesReplicated": 973824,
+        "issues": ["Slow network connection", "High object failure rate"]
+      }
+    }
+  },
+  "consistency_check_passed": {
+    "consistent": true,
+    "buckets": {
+      "bucket1": {
+        "versioning": {
+          "site1": "Enabled",
+          "site2": "Enabled"
+        },
+        "policy": {
+          "site1": "consistent",
+          "site2": "consistent"
+        }
+      },
+      "bucket2": {
+        "versioning": {
+          "site1": "Enabled", 
+          "site2": "Enabled"
+        },
+        "lifecycle": {
+          "site1": "configured",
+          "site2": "configured"
+        }
+      }
+    },
+    "inconsistencies": []
+  },
+  "consistency_check_failed": {
+    "consistent": false,
+    "buckets": {
+      "bucket1": {
+        "versioning": {
+          "site1": "Enabled",
+          "site2": "Suspended"
+        },
+        "policy": {
+          "site1": "public-read",
+          "site2": "private"
+        }
+      }
+    },
+    "inconsistencies": [
+      {
+        "bucket": "bucket1",
+        "type": "versioning",
+        "issue": "Versioning mismatch: site1 has 'Enabled' but site2 has 'Suspended'"
+      },
+      {
+        "bucket": "bucket1",
+        "type": "policy",
+        "issue": "Policy mismatch: site1 has 'public-read' but site2 has 'private'"
+      }
+    ]
+  },
+  "error_scenarios": {
+    "connection_refused": {
+      "error": "connection refused",
+      "error_type": "connection_error",
+      "user_message": "Unable to connect to MinIO server",
+      "technical_message": "connection refused",
+      "troubleshooting": [
+        "Check if MinIO server is running",
+        "Verify network connectivity",
+        "Check firewall settings"
+      ]
+    },
+    "access_denied": {
+      "error": "Access Denied",
+      "error_type": "auth_error", 
+      "user_message": "Permission denied",
+      "technical_message": "Access Denied",
+      "troubleshooting": [
+        "Verify access key and secret key",
+        "Check user permissions",
+        "Ensure user has admin privileges"
+      ]
+    },
+    "timeout": {
+      "error": "timeout",
+      "error_type": "timeout_error",
+      "user_message": "Request timed out",
+      "technical_message": "timeout",
+      "troubleshooting": [
+        "Check network latency",
+        "Increase timeout settings",
+        "Verify server performance"
+      ]
+    },
+    "localhost_endpoints": {
+      "error": "localhost endpoints detected",
+      "error_type": "config_error",
+      "user_message": "Localhost endpoints cannot be used for site replication",
+      "troubleshooting": [
+        "Replace localhost with actual IP address or hostname",
+        "Ensure MinIO servers can reach each other over the network",
+        "Use public or accessible hostnames for site replication"
+      ]
+    }
+  },
+  "command_responses": {
+    "replicate_add_success": "Site replication successfully set up for provided sites.\n",
+    "replicate_remove_success": "Following site(s) [site4] were removed successfully\n",
+    "replicate_remove_all_success": "Site replication configuration removed successfully\n",
+    "resync_start_success": "Resync started successfully for specified sites\n"
+  },
+  "test_configurations": {
+    "small_cluster": {
+      "site_count": 2,
+      "sites": ["site1", "site2"]
+    },
+    "medium_cluster": {
+      "site_count": 4,
+      "sites": ["site1", "site2", "site3", "site4"]
+    },
+    "large_cluster": {
+      "site_count": 6,
+      "sites": ["site1", "site2", "site3", "site4", "site5", "site6"]
+    }
+  }
+}

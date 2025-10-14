@@ -9,7 +9,13 @@ A modern, bilingual web interface for MC-Tool that makes MinIO operations access
 - Easy language switching
 - Fully translated UI elements
 
-### 📊 Dashboard
+### � Offline Capability
+- Works completely offline without internet connection
+- Local Lucid Icons integration
+- No CDN dependencies
+- Embedded static assets
+
+### �📊 Dashboard
 - Real-time MC status monitoring
 - Configured aliases overview
 - Active jobs tracking

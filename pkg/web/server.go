@@ -20,7 +20,7 @@ import (
 	"github.com/liamdn8/mc-tool/pkg/profile"
 )
 
-//go:embed static/*
+//go:embed static/build/*
 var staticFiles embed.FS
 
 // Server represents the web UI server
@@ -73,8 +73,8 @@ func NewServer(cfg *config.WebConfig) *Server {
 func (s *Server) Start() error {
 	mux := http.NewServeMux()
 
-	// Serve static files
-	staticFS, err := fs.Sub(staticFiles, "static")
+	// Serve static files from React build
+	staticFS, err := fs.Sub(staticFiles, "static/build")
 	if err != nil {
 		return fmt.Errorf("failed to load static files: %w", err)
 	}
@@ -130,6 +130,7 @@ func (s *Server) Start() error {
 	// Site Replication Management APIs
 	mux.HandleFunc("/api/replication/add", s.handleReplicationAdd)
 	mux.HandleFunc("/api/replication/remove", s.handleReplicationRemove)
+	mux.HandleFunc("/api/replication/remove-site", s.handleReplicationRemoveSite)
 	mux.HandleFunc("/api/replication/resync", s.handleReplicationResync)
 
 	s.httpServer = &http.Server{
@@ -181,8 +182,8 @@ func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
 
 // API Handlers
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
-	// Serve the new site replication UI
-	indexHTML, err := staticFiles.ReadFile("static/index-new.html")
+	// Serve the React app index.html
+	indexHTML, err := staticFiles.ReadFile("static/build/index.html")
 	if err != nil {
 		http.Error(w, "Failed to load index page", http.StatusInternalServerError)
 		return
@@ -1423,7 +1424,7 @@ func (s *Server) handleReplicationAdd(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleReplicationRemove handles removing an alias from replication
+// handleReplicationRemove handles removing entire replication configuration
 func (s *Server) handleReplicationRemove(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		s.respondError(w, http.StatusMethodNotAllowed, "Method not allowed")
@@ -1439,23 +1440,45 @@ func (s *Server) handleReplicationRemove(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// If no alias provided, try to find any alias with replication enabled
 	if req.Alias == "" {
-		s.respondError(w, http.StatusBadRequest, "Alias is required")
-		return
+		aliases, err := s.getMCInternalAliases()
+		if err != nil || len(aliases) == 0 {
+			s.respondError(w, http.StatusBadRequest, "No aliases available for replication removal")
+			return
+		}
+
+		// Find any alias with replication enabled
+		for _, alias := range aliases {
+			aliasName := alias["name"]
+			replicateCmd := exec.Command("mc", "admin", "replicate", "info", aliasName, "--json")
+			if replicateOutput, err := replicateCmd.CombinedOutput(); err == nil {
+				var replicateInfo map[string]interface{}
+				if json.Unmarshal(replicateOutput, &replicateInfo) == nil {
+					if enabled, ok := replicateInfo["enabled"].(bool); ok && enabled {
+						req.Alias = aliasName
+						break
+					}
+				}
+			}
+		}
+
+		if req.Alias == "" {
+			s.respondError(w, http.StatusBadRequest, "No site replication found to remove")
+			return
+		}
 	}
 
-	logger.GetLogger().Info("Removing site from replication", map[string]interface{}{
+	logger.GetLogger().Info("Removing entire site replication", map[string]interface{}{
 		"alias": req.Alias,
 	})
 
-	// Build mc admin replicate remove command
-	// Note: mc admin replicate rm will remove ALL site replication config
-	// There's no way to remove just one site from the group - it removes the entire replication setup
+	// Remove entire replication configuration
 	cmd := exec.Command("mc", "admin", "replicate", "rm", req.Alias, "--all", "--force")
 	output, err := cmd.CombinedOutput()
 
 	if err != nil {
-		logger.GetLogger().Error("Failed to remove site from replication", map[string]interface{}{
+		logger.GetLogger().Error("Failed to remove site replication", map[string]interface{}{
 			"error":  err.Error(),
 			"output": string(output),
 		})
@@ -1472,8 +1495,172 @@ func (s *Server) handleReplicationRemove(w http.ResponseWriter, r *http.Request)
 		"success": true,
 		"message": "Site replication configuration removed successfully",
 		"output":  string(output),
-		"note":    "This removes the entire site replication configuration. All sites need to be re-added to create a new replication group.",
 	})
+}
+
+// handleReplicationRemoveSite handles removing individual sites from replication cluster
+func (s *Server) handleReplicationRemoveSite(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		s.respondError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	var req struct {
+		Alias   string   `json:"alias"`   // Single alias to remove
+		Aliases []string `json:"aliases"` // Multiple aliases to remove (bulk operation)
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.respondError(w, http.StatusBadRequest, fmt.Sprintf("Invalid request: %v", err))
+		return
+	}
+
+	// Determine which aliases to remove
+	var aliasesToRemove []string
+	if req.Alias != "" {
+		aliasesToRemove = []string{req.Alias}
+	} else if len(req.Aliases) > 0 {
+		aliasesToRemove = req.Aliases
+	} else {
+		s.respondError(w, http.StatusBadRequest, "No alias or aliases specified for removal")
+		return
+	}
+
+	logger.GetLogger().Info("Removing sites from replication", map[string]interface{}{
+		"aliases": aliasesToRemove,
+		"count":   len(aliasesToRemove),
+	})
+
+	// First, get replication info to understand current configuration
+	// Use the first alias that's not being removed to get info
+	aliases, err := s.getMCInternalAliases()
+	if err != nil {
+		s.respondError(w, http.StatusInternalServerError, "Failed to get aliases list")
+		return
+	}
+
+	var referenceAlias string
+	for _, alias := range aliases {
+		aliasName := alias["name"]
+		// Check if this alias is NOT in the removal list
+		shouldSkip := false
+		for _, toRemove := range aliasesToRemove {
+			if aliasName == toRemove {
+				shouldSkip = true
+				break
+			}
+		}
+		if !shouldSkip {
+			// Check if it has replication enabled
+			replicateCmd := exec.Command("mc", "admin", "replicate", "info", aliasName, "--json")
+			if replicateOutput, err := replicateCmd.CombinedOutput(); err == nil {
+				var replicateInfo map[string]interface{}
+				if json.Unmarshal(replicateOutput, &replicateInfo) == nil {
+					if enabled, ok := replicateInfo["enabled"].(bool); ok && enabled {
+						referenceAlias = aliasName
+						break
+					}
+				}
+			}
+		}
+	}
+
+	if referenceAlias == "" {
+		// If no reference alias found, check if we're removing all sites
+		// In that case, use the first alias to remove to get info and then remove all
+		if len(aliasesToRemove) > 0 {
+			referenceAlias = aliasesToRemove[0]
+			replicateCmd := exec.Command("mc", "admin", "replicate", "info", referenceAlias, "--json")
+			if replicateOutput, err := replicateCmd.CombinedOutput(); err == nil {
+				var replicateInfo map[string]interface{}
+				if json.Unmarshal(replicateOutput, &replicateInfo) == nil {
+					if enabled, ok := replicateInfo["enabled"].(bool); ok && enabled {
+						// This means we're removing all sites, so remove entire replication
+						cmd := exec.Command("mc", "admin", "replicate", "rm", referenceAlias, "--all", "--force")
+						output, err := cmd.CombinedOutput()
+
+						if err != nil {
+							logger.GetLogger().Error("Failed to remove entire replication", map[string]interface{}{
+								"error":  err.Error(),
+								"output": string(output),
+							})
+							s.respondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to remove replication: %s", string(output)))
+							return
+						}
+
+						logger.GetLogger().Info("All sites removed - entire replication removed", map[string]interface{}{
+							"aliases": aliasesToRemove,
+							"output":  string(output),
+						})
+
+						s.respondJSON(w, map[string]interface{}{
+							"success": true,
+							"message": "All sites removed from replication cluster - entire replication configuration removed",
+							"output":  string(output),
+						})
+						return
+					}
+				}
+			}
+		}
+		s.respondError(w, http.StatusBadRequest, "No suitable reference alias found for site removal")
+		return
+	}
+
+	// Remove each site individually
+	var results []map[string]interface{}
+	var failed []string
+
+	for _, aliasToRemove := range aliasesToRemove {
+		logger.GetLogger().Info("Removing individual site from replication", map[string]interface{}{
+			"site":      aliasToRemove,
+			"reference": referenceAlias,
+		})
+
+		// Remove specific site from replication
+		cmd := exec.Command("mc", "admin", "replicate", "rm", referenceAlias, aliasToRemove, "--force")
+		output, err := cmd.CombinedOutput()
+
+		if err != nil {
+			logger.GetLogger().Error("Failed to remove site from replication", map[string]interface{}{
+				"site":   aliasToRemove,
+				"error":  err.Error(),
+				"output": string(output),
+			})
+			failed = append(failed, aliasToRemove)
+			results = append(results, map[string]interface{}{
+				"alias":   aliasToRemove,
+				"success": false,
+				"error":   string(output),
+			})
+		} else {
+			logger.GetLogger().Info("Site removed from replication successfully", map[string]interface{}{
+				"site":   aliasToRemove,
+				"output": string(output),
+			})
+			results = append(results, map[string]interface{}{
+				"alias":   aliasToRemove,
+				"success": true,
+				"output":  string(output),
+			})
+		}
+	}
+
+	// Prepare response
+	if len(failed) > 0 {
+		s.respondJSON(w, map[string]interface{}{
+			"success": false,
+			"message": fmt.Sprintf("Failed to remove %d out of %d sites", len(failed), len(aliasesToRemove)),
+			"results": results,
+			"failed":  failed,
+		})
+	} else {
+		s.respondJSON(w, map[string]interface{}{
+			"success": true,
+			"message": fmt.Sprintf("Successfully removed %d site(s) from replication cluster", len(aliasesToRemove)),
+			"results": results,
+		})
+	}
 }
 
 // handleReplicationResync handles resyncing data between sites

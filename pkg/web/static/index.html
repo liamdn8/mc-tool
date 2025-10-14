@@ -3,339 +3,301 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MC-Tool Web UI</title>
-    <link rel="stylesheet" href="styles.css?v=3">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>MinIO Site Replication Manager</title>
+    <link rel="stylesheet" href="/static/styles.css?v=5">
+    <!-- Lucid Icons - Local -->
+    <script src="/static/js/lucide.js"></script>
 </head>
 <body>
-    <div class="container">
-        <!-- Header -->
-        <header class="header">
-            <div class="header-content">
-                <h1>
-                    <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                        <polyline points="9 22 9 12 15 12 15 22"></polyline>
-                    </svg>
-                    MC-Tool Web UI
-                </h1>
-                <div class="header-actions">
-                    <select id="languageSelector" class="language-selector">
-                        <option value="en">🇬🇧 English</option>
-                        <option value="vi">🇻🇳 Tiếng Việt</option>
-                    </select>
-                    <button id="refreshBtn" class="btn btn-secondary" data-i18n="refresh">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polyline points="23 4 23 10 17 10"></polyline>
-                            <polyline points="1 20 1 14 7 14"></polyline>
-                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-                        </svg>
-                        Refresh
-                    </button>
+    <div class="app-container">
+        <!-- Top Header -->
+        <header class="app-header">
+            <div class="header-left">
+                <i data-lucide="package" class="app-logo" width="32" height="32"></i>
+                <div class="app-title">
+                    <h1>MinIO Site Replication</h1>
+                    <span class="app-subtitle">Management Console</span>
                 </div>
+            </div>
+            <div class="header-right">
+                <select id="languageSelector" class="language-selector">
+                    <option value="en">🇬🇧 English</option>
+                    <option value="vi">🇻🇳 Tiếng Việt</option>
+                </select>
+                <button id="refreshBtn" class="btn-icon" title="Refresh">
+                    <i data-lucide="refresh-cw" width="20" height="20"></i>
+                </button>
             </div>
         </header>
 
-        <!-- Main Content -->
-        <main class="main-content">
-            <!-- Sidebar Navigation -->
-            <nav class="sidebar">
-                <ul class="nav-menu">
-                    <li class="nav-item active" data-page="dashboard">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <rect x="3" y="3" width="7" height="7"></rect>
-                            <rect x="14" y="3" width="7" height="7"></rect>
-                            <rect x="14" y="14" width="7" height="7"></rect>
-                            <rect x="3" y="14" width="7" height="7"></rect>
+        <!-- Main Layout -->
+        <div class="app-layout">
+            <!-- Sidebar -->
+            <aside class="app-sidebar">
+                <nav class="sidebar-nav">
+                    <a href="#" class="nav-link active" data-page="overview">
+                        <i data-lucide="layout-dashboard" width="20" height="20"></i>
+                        <span data-i18n="overview">Overview</span>
+                    </a>
+                    <a href="#" class="nav-link" data-page="sites">
+                        <i data-lucide="globe" width="20" height="20"></i>
+                        <span data-i18n="sites">Sites</span>
+                    </a>
+                    <a href="#" class="nav-link" data-page="buckets">
+                        <i data-lucide="folder" width="20" height="20"></i>
+                        <span data-i18n="buckets">Buckets</span>
+                    </a>
+                    <a href="#" class="nav-link" data-page="replication">
+                        <i data-lucide="repeat" width="20" height="20"></i>
+                        <span data-i18n="replication">Replication Status</span>
+                    </a>
+                    <a href="#" class="nav-link" data-page="consistency">
+                        <i data-lucide="check-circle" width="20" height="20"></i>
+                        <span data-i18n="consistency">Consistency Check</span>
+                    </a>
+                    <a href="#" class="nav-link" data-page="operations">
+                        <i data-lucide="settings" width="20" height="20"></i>
+                            <path d="m4.2 19.8 4.2-4.2m5.6-5.6 4.2-4.2"></path>
                         </svg>
-                        <span data-i18n="dashboard">Dashboard</span>
-                    </li>
-                    <li class="nav-item" data-page="compare">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polyline points="16 18 22 12 16 6"></polyline>
-                            <polyline points="8 6 2 12 8 18"></polyline>
-                        </svg>
-                        <span data-i18n="compare">Compare</span>
-                    </li>
-                    <li class="nav-item" data-page="analyze">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-                            <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-                            <line x1="12" y1="22.08" x2="12" y2="12"></line>
-                        </svg>
-                        <span data-i18n="analyze">Analyze</span>
-                    </li>
-                    <li class="nav-item" data-page="profile">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <line x1="18" y1="20" x2="18" y2="10"></line>
-                            <line x1="12" y1="20" x2="12" y2="4"></line>
-                            <line x1="6" y1="20" x2="6" y2="14"></line>
-                        </svg>
-                        <span data-i18n="profile">Profile</span>
-                    </li>
-                    <li class="nav-item" data-page="checklist">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polyline points="9 11 12 14 22 4"></polyline>
-                            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
-                        </svg>
-                        <span data-i18n="checklist">Checklist</span>
-                    </li>
-                </ul>
-            </nav>
+                        <span data-i18n="operations">Operations</span>
+                    </a>
+                </nav>
+                
+                <div class="sidebar-footer">
+                    <div class="mc-status">
+                        <span class="status-indicator" id="mcStatusIndicator"></span>
+                        <span id="mcStatusText">MC Ready</span>
+                    </div>
+                </div>
+            </aside>
 
-            <!-- Content Area -->
-            <div class="content-area">
-                <!-- Dashboard Page -->
-                <div id="dashboard-page" class="page active">
-                    <h2 data-i18n="dashboard_title">Dashboard</h2>
-                    <div class="status-cards">
-                        <div class="status-card">
-                            <div class="status-icon status-icon-success">
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                                </svg>
+            <!-- Main Content -->
+            <main class="app-main">
+                <!-- Overview Page -->
+                <div id="overview-page" class="page active">
+                    <div class="page-header">
+                        <h2 data-i18n="site_replication_overview">Site Replication Overview</h2>
+                        <button class="btn-primary" id="addSiteBtn">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                            <span data-i18n="add_site">Add Site</span>
+                        </button>
+                    </div>
+
+                    <!-- Replication Group Info -->
+                    <div class="info-card">
+                        <div class="info-card-header">
+                            <h3 data-i18n="replication_group">Replication Group</h3>
+                            <span class="badge badge-success" id="groupStatus">Active</span>
+                        </div>
+                        <div class="info-card-body">
+                            <div class="stats-grid">
+                                <div class="stat-item">
+                                    <div class="stat-label" data-i18n="total_sites">Total Sites</div>
+                                    <div class="stat-value" id="totalSites">0</div>
+                                    <div class="stat-detail" id="sitesSummary">-</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-label" data-i18n="synced_buckets">Synced Buckets</div>
+                                    <div class="stat-value" id="syncedBuckets">0</div>
+                                    <div class="stat-detail" id="bucketsSummary">Across all sites</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-label" data-i18n="total_objects">Total Objects</div>
+                                    <div class="stat-value" id="totalObjects">0</div>
+                                    <div class="stat-detail" id="totalSize">0 B</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-label" data-i18n="replication_health">Health</div>
+                                    <div class="stat-value">
+                                        <span class="health-indicator" id="healthIndicator">
+                                            <span class="pulse"></span>
+                                            <span data-i18n="healthy">Healthy</span>
+                                        </span>
+                                    </div>
+                                    <div class="stat-detail" id="healthSummary">All sites online</div>
+                                </div>
                             </div>
-                            <div class="status-info">
-                                <h3 data-i18n="mc_status">MC Status</h3>
-                                <p id="mcStatus" class="status-value">Checking...</p>
+                            
+                            <!-- Replication Group Details -->
+                            <div class="replication-details" id="replicationDetails" style="display:none;">
+                                <div class="detail-row">
+                                    <span class="detail-label">Service Account:</span>
+                                    <span class="detail-value" id="serviceAccount">-</span>
+                                </div>
+                                <div class="detail-row">
+                                    <span class="detail-label">Sites in Group:</span>
+                                    <span class="detail-value" id="sitesInGroup">-</span>
+                                </div>
                             </div>
                         </div>
-                        <div class="status-card">
-                            <div class="status-icon status-icon-info">
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                                    <circle cx="12" cy="7" r="4"></circle>
-                                </svg>
-                            </div>
-                            <div class="status-info">
-                                <h3 data-i18n="aliases">Aliases</h3>
-                                <p id="aliasCount" class="status-value">0</p>
-                            </div>
-                        </div>
-                        <div class="status-card">
-                            <div class="status-icon status-icon-warning">
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <circle cx="12" cy="12" r="10"></circle>
-                                    <line x1="12" y1="8" x2="12" y2="12"></line>
-                                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                                </svg>
-                            </div>
-                            <div class="status-info">
-                                <h3 data-i18n="active_jobs">Active Jobs</h3>
-                                <p id="activeJobs" class="status-value">0</p>
-                            </div>
-                        </div>
                     </div>
 
-                    <div class="aliases-section">
-                        <h3 data-i18n="configured_aliases">Configured Aliases</h3>
-                        <div id="aliasesList" class="aliases-list">
-                            <p class="loading" data-i18n="loading">Loading...</p>
+                    <!-- Sites List -->
+                    <div class="section">
+                        <h3 data-i18n="configured_aliases">Configured MinIO Aliases</h3>
+                        <div id="sitesList" class="sites-grid">
+                            <!-- Sites will be loaded here -->
                         </div>
                     </div>
                 </div>
 
-                <!-- Compare Page -->
-                <div id="compare-page" class="page">
-                    <h2 data-i18n="compare_title">Compare Buckets</h2>
-                    <div class="form-card">
-                        <form id="compareForm">
-                            <h3 data-i18n="source">Source</h3>
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label for="compareSourceAlias" data-i18n="select_alias">Select Alias</label>
-                                    <select id="compareSourceAlias" required>
-                                        <option value="">-- Select Alias --</option>
-                                    </select>
-                                </div>
-                                <div class="form-group">
-                                    <label for="compareSourceBucket" data-i18n="select_bucket">Select Bucket</label>
-                                    <select id="compareSourceBucket" required>
-                                        <option value="">-- Select Bucket --</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="form-group">
-                                <label for="compareSourcePath" data-i18n="path_optional">Path (Optional)</label>
-                                <input type="text" id="compareSourcePath" placeholder="folder/subfolder">
-                                <small data-i18n="path_help">Leave empty for root, or specify a folder path</small>
-                            </div>
-
-                            <h3 data-i18n="destination" style="margin-top: 1.5rem;">Destination</h3>
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label for="compareDestAlias" data-i18n="select_alias">Select Alias</label>
-                                    <select id="compareDestAlias" required>
-                                        <option value="">-- Select Alias --</option>
-                                    </select>
-                                </div>
-                                <div class="form-group">
-                                    <label for="compareDestBucket" data-i18n="select_bucket">Select Bucket</label>
-                                    <select id="compareDestBucket" required>
-                                        <option value="">-- Select Bucket --</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="form-group">
-                                <label for="compareDestPath" data-i18n="path_optional">Path (Optional)</label>
-                                <input type="text" id="compareDestPath" placeholder="folder/subfolder">
-                                <small data-i18n="path_help">Leave empty for root, or specify a folder path</small>
-                            </div>
-
-                            <div class="form-group checkbox-group">
-                                <label>
-                                    <input type="checkbox" id="compareRecursive" checked>
-                                    <span data-i18n="recursive">Recursive</span>
-                                </label>
-                            </div>
-                            <button type="submit" class="btn btn-primary" data-i18n="start_comparison">Start Comparison</button>
-                        </form>
+                <!-- Sites Page -->
+                <div id="sites-page" class="page">
+                    <div class="page-header">
+                        <h2 data-i18n="manage_sites">Manage Sites</h2>
                     </div>
-                    <div id="compareResults" class="results-area"></div>
+                    <div id="sitesContent">
+                        <!-- Content -->
+                    </div>
                 </div>
 
-                <!-- Analyze Page -->
-                <div id="analyze-page" class="page">
-                    <h2 data-i18n="analyze_title">Analyze Bucket</h2>
-                    <div class="form-card">
-                        <form id="analyzeForm">
-                            <div class="form-group">
-                                <label for="analyzeAlias" data-i18n="select_alias">Select Alias</label>
-                                <select id="analyzeAlias" required>
-                                    <option value="">-- Select Alias --</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="analyzeBucket" data-i18n="select_bucket">Select Bucket</label>
-                                <select id="analyzeBucket" required>
-                                    <option value="">-- Select Bucket --</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="analyzePrefix" data-i18n="prefix_optional">Prefix (Optional)</label>
-                                <input type="text" id="analyzePrefix" placeholder="folder/path">
-                            </div>
-                            <button type="submit" class="btn btn-primary" data-i18n="start_analysis">Start Analysis</button>
-                        </form>
+                <!-- Buckets Page -->
+                <div id="buckets-page" class="page">
+                    <div class="page-header">
+                        <h2 data-i18n="buckets_overview">Buckets Overview</h2>
+                        <div class="page-header-actions">
+                            <input type="search" class="search-input" placeholder="Search buckets..." id="bucketSearch">
+                        </div>
                     </div>
-                    <div id="analyzeResults" class="results-area"></div>
+                    <div id="bucketsContent">
+                        <!-- Content -->
+                    </div>
                 </div>
 
-                <!-- Profile Page -->
-                <div id="profile-page" class="page">
-                    <h2 data-i18n="profile_title">Profile MinIO Server</h2>
-                    <div class="form-card">
-                        <form id="profileForm">
-                            <div class="form-group">
-                                <label for="profileAlias" data-i18n="select_alias">Select Alias</label>
-                                <select id="profileAlias" required>
-                                    <option value="">-- Select Alias --</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="profileType" data-i18n="profile_type">Profile Type</label>
-                                <select id="profileType" required>
-                                    <option value="heap">Heap (Memory)</option>
-                                    <option value="cpu">CPU</option>
-                                    <option value="goroutine">Goroutine</option>
-                                    <option value="allocs">Allocations</option>
-                                    <option value="block">Block</option>
-                                    <option value="mutex">Mutex</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="profileDuration" data-i18n="duration">Duration</label>
-                                <input type="text" id="profileDuration" value="30s" required>
-                                <small data-i18n="duration_help">Example: 30s, 1m, 5m</small>
-                            </div>
-                            <div class="form-group checkbox-group">
-                                <label>
-                                    <input type="checkbox" id="profileDetectLeaks">
-                                    <span data-i18n="detect_memory_leaks">Detect Memory Leaks</span>
-                                </label>
-                            </div>
-                            <div id="leakDetectionOptions" style="display: none;">
-                                <div class="form-group">
-                                    <label for="profileMonitorInterval" data-i18n="monitor_interval">Monitor Interval</label>
-                                    <input type="text" id="profileMonitorInterval" value="10s">
-                                </div>
-                                <div class="form-group">
-                                    <label for="profileThreshold" data-i18n="threshold_mb">Threshold (MB)</label>
-                                    <input type="number" id="profileThreshold" value="50">
-                                </div>
-                            </div>
-                            <button type="submit" class="btn btn-primary" data-i18n="start_profiling">Start Profiling</button>
-                        </form>
+                <!-- Replication Status Page -->
+                <div id="replication-page" class="page">
+                    <div class="page-header">
+                        <h2 data-i18n="replication_status">Replication Status</h2>
+                        <button class="btn-secondary" id="refreshReplicationBtn">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="23 4 23 10 17 10"></polyline>
+                                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"></path>
+                            </svg>
+                            <span data-i18n="refresh">Refresh</span>
+                        </button>
                     </div>
-                    <div id="profileResults" class="results-area"></div>
+                    <div id="replicationContent">
+                        <!-- Content -->
+                    </div>
                 </div>
 
-                <!-- Checklist Page -->
-                <div id="checklist-page" class="page">
-                    <h2 data-i18n="checklist_title">Bucket Checklist</h2>
-                    <div class="form-card">
-                        <form id="checklistForm">
-                            <div class="form-group">
-                                <label for="checklistAlias" data-i18n="select_alias">Select Alias</label>
-                                <select id="checklistAlias" required>
-                                    <option value="">-- Select Alias --</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="checklistBucket" data-i18n="select_bucket">Select Bucket</label>
-                                <select id="checklistBucket" required>
-                                    <option value="">-- Select Bucket --</option>
-                                </select>
-                            </div>
-                            <button type="submit" class="btn btn-primary" data-i18n="run_checklist">Run Checklist</button>
-                        </form>
+                <!-- Consistency Check Page -->
+                <div id="consistency-page" class="page">
+                    <div class="page-header">
+                        <h2 data-i18n="consistency_check">Consistency Check</h2>
+                        <button class="btn-primary" id="runConsistencyBtn">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                            </svg>
+                            <span data-i18n="run_check">Run Check</span>
+                        </button>
                     </div>
-                    <div id="checklistResults" class="results-area"></div>
+                    <div id="consistencyContent">
+                        <!-- Content -->
+                    </div>
                 </div>
-            </div>
-        </main>
+
+                <!-- Operations Page -->
+                <div id="operations-page" class="page">
+                    <div class="page-header">
+                        <h2 data-i18n="automated_operations">Automated Operations</h2>
+                    </div>
+                    <div id="operationsContent">
+                        <div class="operations-grid">
+                            <div class="operation-card">
+                                <div class="operation-icon">
+                                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polyline points="17 1 21 5 17 9"></polyline>
+                                        <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
+                                        <polyline points="7 23 3 19 7 15"></polyline>
+                                        <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
+                                    </svg>
+                                </div>
+                                <h3 data-i18n="sync_bucket_policies">Sync Bucket Policies</h3>
+                                <p data-i18n="sync_bucket_policies_desc">Automatically sync bucket policies across all sites</p>
+                                <button class="btn-primary" data-operation="sync-policies">
+                                    <span data-i18n="execute">Execute</span>
+                                </button>
+                            </div>
+
+                            <div class="operation-card">
+                                <div class="operation-icon">
+                                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                        <polyline points="14 2 14 8 20 8"></polyline>
+                                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                                        <polyline points="10 9 9 9 8 9"></polyline>
+                                    </svg>
+                                </div>
+                                <h3 data-i18n="sync_lifecycle">Sync Lifecycle Policies</h3>
+                                <p data-i18n="sync_lifecycle_desc">Sync ILM policies across all sites</p>
+                                <button class="btn-primary" data-operation="sync-lifecycle">
+                                    <span data-i18n="execute">Execute</span>
+                                </button>
+                            </div>
+
+                            <div class="operation-card">
+                                <div class="operation-icon">
+                                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                                        <line x1="12" y1="9" x2="12" y2="13"></line>
+                                        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                                    </svg>
+                                </div>
+                                <h3 data-i18n="validate_consistency">Validate Consistency</h3>
+                                <p data-i18n="validate_consistency_desc">Check configuration consistency across sites</p>
+                                <button class="btn-primary" data-operation="validate-consistency">
+                                    <span data-i18n="execute">Execute</span>
+                                </button>
+                            </div>
+
+                            <div class="operation-card">
+                                <div class="operation-icon">
+                                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polyline points="9 11 12 14 22 4"></polyline>
+                                        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                                    </svg>
+                                </div>
+                                <h3 data-i18n="health_check">Health Check</h3>
+                                <p data-i18n="health_check_desc">Verify all sites are healthy and reachable</p>
+                                <button class="btn-primary" data-operation="health-check">
+                                    <span data-i18n="execute">Execute</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
     </div>
 
-    <!-- Job Status Modal -->
+    <!-- Modals -->
     <div id="jobModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3 id="jobModalTitle" data-i18n="job_status">Job Status</h3>
+                <h3 data-i18n="operation_status">Operation Status</h3>
                 <button class="modal-close">&times;</button>
             </div>
             <div class="modal-body">
-                <div class="job-info">
-                    <p><strong data-i18n="job_id">Job ID:</strong> <span id="modalJobId"></span></p>
-                    <p><strong data-i18n="status">Status:</strong> <span id="modalJobStatus" class="badge"></span></p>
-                    <p><strong data-i18n="progress">Progress:</strong> <span id="modalJobProgress"></span>%</p>
-                    <p><strong data-i18n="message">Message:</strong> <span id="modalJobMessage"></span></p>
-                </div>
-                <div class="progress-bar">
-                    <div id="modalProgressBar" class="progress-fill"></div>
-                </div>
-                <div id="modalJobOutput" class="job-output"></div>
-                <div id="modalJobResult" class="job-result"></div>
+                <div id="jobStatus"></div>
             </div>
         </div>
     </div>
 
-    <!-- Bucket Detail Modal -->
-    <div id="bucketModal" class="modal" onclick="if(event.target.id==='bucketModal')closeBucketModal()">
-        <div class="modal-content modal-large">
-            <div class="modal-header">
-                <h3 id="bucketModalTitle">Buckets</h3>
-                <button class="modal-close" onclick="closeBucketModal()">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div id="bucketsList" class="buckets-container">
-                    <p class="loading">Loading...</p>
-                </div>
-                <div id="bucketPagination" class="pagination"></div>
-            </div>
-        </div>
-    </div>
-    </div>
-
-    <script src="app.js?v=3"></script>
+    <!-- Load modular JavaScript structure -->
+    <script type="module" src="/static/js/app.js?v=5"></script>
+    <script>
+        // Initialize Lucide icons
+        document.addEventListener('DOMContentLoaded', function() {
+            lucide.createIcons();
+        });
+    </script>
 </body>
 </html>

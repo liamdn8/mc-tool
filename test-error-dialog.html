@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Error Dialog Test</title>
+    <style>
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            animation: fadeIn 0.2s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            max-width: 500px;
+            width: 90%;
+            max-height: 90%;
+            overflow: hidden;
+        }
+
+        /* Error Dialog Styles */
+        .error-dialog {
+            z-index: 3000;
+        }
+
+        .error-modal {
+            max-width: 700px;
+            width: 95%;
+        }
+
+        .modal-header {
+            padding: 20px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .error-header {
+            background: #FFF3F3;
+            border-bottom: 2px solid #dc3545;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: #dc3545;
+        }
+
+        .error-header svg {
+            flex-shrink: 0;
+        }
+
+        .error-header h3 {
+            color: #dc3545;
+            margin: 0;
+        }
+
+        .modal-body {
+            padding: 20px;
+        }
+
+        .error-message {
+            background: #F5F5F5;
+            padding: 16px;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+            font-family: monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+            overflow-x: auto;
+        }
+
+        .modal-footer {
+            padding: 20px;
+            text-align: right;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .btn-primary {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .btn-primary:hover {
+            background: #0056b3;
+        }
+
+        .test-button {
+            padding: 10px 20px;
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Error Dialog Test</h1>
+    <button class="test-button" onclick="showTestError()">Test Error Dialog</button>
+
+    <script>
+        function showErrorDialog(title, message) {
+            const dialog = document.createElement('div');
+            dialog.className = 'modal-overlay error-dialog';
+            dialog.innerHTML = `
+                <div class="modal error-modal">
+                    <div class="modal-header error-header">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="8" x2="12" y2="12"></line>
+                            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                        </svg>
+                        <h3>${title}</h3>
+                    </div>
+                    <div class="modal-body">
+                        <pre class="error-message">${message}</pre>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn-primary" id="closeErrorDialog">OK</button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(dialog);
+            
+            dialog.querySelector('#closeErrorDialog').onclick = () => {
+                document.body.removeChild(dialog);
+            };
+            
+            // Close on overlay click
+            dialog.onclick = (e) => {
+                if (e.target === dialog) {
+                    document.body.removeChild(dialog);
+                }
+            };
+            
+            // Close on Escape key
+            const handleEscape = (e) => {
+                if (e.key === 'Escape') {
+                    document.body.removeChild(dialog);
+                    document.removeEventListener('keydown', handleEscape);
+                }
+            };
+            document.addEventListener('keydown', handleEscape);
+        }
+
+        function showTestError() {
+            showErrorDialog(
+                'Site Replication Setup Failed', 
+                `❌ Site Replication Setup Failed
+
+The MinIO servers are configured with localhost endpoints and cannot connect to each other.
+
+📋 Requirements for Site Replication:
+1. Each MinIO server must have a publicly accessible endpoint (not localhost)
+2. All sites must be able to reach each other over the network
+3. Use IP addresses or domain names instead of localhost
+
+🔧 How to fix:
+1. Reconfigure your MinIO aliases with accessible endpoints:
+   Example: mc alias set site1 http://192.168.1.10:9000 accesskey secretkey
+   Example: mc alias set site2 http://192.168.1.11:9000 accesskey secretkey
+
+2. Ensure MinIO servers are started with accessible addresses:
+   Example: MINIO_SERVER_URL=http://192.168.1.10:9000 minio server /data
+
+📖 Technical Details:
+mc: <ERROR> Unable to add sites for replication. Error received when contacting a peer site (unable to create admin client for site1: Remote service endpoint http://localhost:9001 not available
+	remote target is offline for endpoint http://localhost:9001).`
+            );
+        }
+    </script>
+</body>
+</html>
