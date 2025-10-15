@@ -1,5 +1,4 @@
 package integration
-package integration
 
 import (
 	"encoding/json"
@@ -7,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"time"
 )
 
@@ -20,12 +18,12 @@ type TestEnvironment struct {
 
 // TestSite represents a MinIO site for testing
 type TestSite struct {
-	Name     string
-	Alias    string
-	Endpoint string
+	Name      string
+	Alias     string
+	Endpoint  string
 	AccessKey string
 	SecretKey string
-	Port     int
+	Port      int
 }
 
 // SetupTestEnvironment creates a complete test environment with multiple MinIO sites
@@ -72,11 +70,11 @@ func (env *TestEnvironment) StartMinIOSites() error {
 		}
 
 		// Start MinIO server in background
-		cmd := exec.Command("minio", "server", 
+		cmd := exec.Command("minio", "server",
 			"--address", fmt.Sprintf(":%d", site.Port),
 			"--console-address", fmt.Sprintf(":%d", site.Port+100),
 			dataDir)
-		
+
 		cmd.Env = append(os.Environ(),
 			fmt.Sprintf("MINIO_ROOT_USER=%s", site.AccessKey),
 			fmt.Sprintf("MINIO_ROOT_PASSWORD=%s", site.SecretKey),
@@ -101,12 +99,12 @@ func (env *TestEnvironment) ConfigureMCClient() error {
 	os.Setenv("MC_CONFIG_DIR", env.McConfigDir)
 
 	for _, site := range env.Sites {
-		cmd := exec.Command("mc", "alias", "set", site.Alias, 
+		cmd := exec.Command("mc", "alias", "set", site.Alias,
 			site.Endpoint, site.AccessKey, site.SecretKey)
 		cmd.Env = append(os.Environ(), fmt.Sprintf("MC_CONFIG_DIR=%s", env.McConfigDir))
-		
+
 		if output, err := cmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("failed to configure mc alias for %s: %v, output: %s", 
+			return fmt.Errorf("failed to configure mc alias for %s: %v, output: %s",
 				site.Name, err, string(output))
 		}
 	}
@@ -141,34 +139,34 @@ func (env *TestEnvironment) SetupReplication() error {
 // CreateTestBuckets creates test buckets with sample data
 func (env *TestEnvironment) CreateTestBuckets() error {
 	buckets := []string{"test-bucket-1", "test-bucket-2", "shared-bucket"}
-	
+
 	for _, site := range env.Sites {
 		for _, bucket := range buckets {
 			// Create bucket
 			cmd := exec.Command("mc", "mb", fmt.Sprintf("%s/%s", site.Alias, bucket))
 			cmd.Env = append(os.Environ(), fmt.Sprintf("MC_CONFIG_DIR=%s", env.McConfigDir))
-			
+
 			if output, err := cmd.CombinedOutput(); err != nil {
-				return fmt.Errorf("failed to create bucket %s on %s: %v, output: %s", 
+				return fmt.Errorf("failed to create bucket %s on %s: %v, output: %s",
 					bucket, site.Name, err, string(output))
 			}
 
 			// Add sample files
 			testFile := filepath.Join(env.TempDir, fmt.Sprintf("test-%s-%s.txt", site.Name, bucket))
-			content := fmt.Sprintf("Test content for %s on %s\nTimestamp: %s", 
+			content := fmt.Sprintf("Test content for %s on %s\nTimestamp: %s",
 				bucket, site.Name, time.Now().Format(time.RFC3339))
-			
+
 			if err := os.WriteFile(testFile, []byte(content), 0644); err != nil {
 				return fmt.Errorf("failed to create test file: %v", err)
 			}
 
 			// Upload file
-			cmd = exec.Command("mc", "cp", testFile, 
+			cmd = exec.Command("mc", "cp", testFile,
 				fmt.Sprintf("%s/%s/", site.Alias, bucket))
 			cmd.Env = append(os.Environ(), fmt.Sprintf("MC_CONFIG_DIR=%s", env.McConfigDir))
-			
+
 			if output, err := cmd.CombinedOutput(); err != nil {
-				return fmt.Errorf("failed to upload test file to %s/%s: %v, output: %s", 
+				return fmt.Errorf("failed to upload test file to %s/%s: %v, output: %s",
 					site.Name, bucket, err, string(output))
 			}
 		}
@@ -275,20 +273,20 @@ func (env *TestEnvironment) VerifyReplicationStatus() (bool, error) {
 // WaitForReplicationSync waits for replication to sync across all sites
 func (env *TestEnvironment) WaitForReplicationSync(timeout time.Duration) error {
 	start := time.Now()
-	
+
 	for time.Since(start) < timeout {
 		synced, err := env.checkReplicationSync()
 		if err != nil {
 			return err
 		}
-		
+
 		if synced {
 			return nil
 		}
-		
+
 		time.Sleep(5 * time.Second)
 	}
-	
+
 	return fmt.Errorf("replication sync timeout after %v", timeout)
 }
 
@@ -331,7 +329,7 @@ func (env *TestEnvironment) checkReplicationSync() (bool, error) {
 func (env *TestEnvironment) waitForMinIOServer(site TestSite) error {
 	timeout := 30 * time.Second
 	start := time.Now()
-	
+
 	for time.Since(start) < timeout {
 		cmd := exec.Command("mc", "admin", "info", site.Endpoint)
 		if err := cmd.Run(); err == nil {
@@ -339,7 +337,7 @@ func (env *TestEnvironment) waitForMinIOServer(site TestSite) error {
 		}
 		time.Sleep(1 * time.Second)
 	}
-	
+
 	return fmt.Errorf("MinIO server %s did not start within timeout", site.Name)
 }
 

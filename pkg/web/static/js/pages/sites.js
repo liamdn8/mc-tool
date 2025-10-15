@@ -1,5 +1,5 @@
 // Sites page functionality - Site Replication Management
-import { loadSiteReplicationInfo, addSitesToReplication, removeSiteFromReplication } from '../utils/api.js';
+import { loadSiteReplicationInfo, addSitesToReplication, removeSiteFromReplication, removeIndividualSiteFromReplication } from '../utils/api.js';
 import { showNotification, showErrorDialog, showSiteSelectionDialog, handleReplicationSuccess, handleReplicationError } from '../utils/helpers.js';
 
 let selectedAliases = [];
@@ -12,7 +12,39 @@ export async function renderSitesPage(sites) {
         const { replicationInfo } = await loadSiteReplicationInfo();
         const isConfigured = replicationInfo.enabled === true;
         
+        // Calculate summary statistics
+        const totalSites = sites.length;
+        const configuredSites = sites.filter(site => site.replicationStatus === 'configured').length;
+        const healthySites = sites.filter(site => site.healthy).length;
+        const availableSites = totalSites - configuredSites;
+        
         container.innerHTML = `
+            ${isConfigured ? `
+                <!-- Summary Statistics Section -->
+                <div class="stats-summary">
+                    <div class="stat-card">
+                        <div class="stat-value">${configuredSites}</div>
+                        <div class="stat-label">Sites in Cluster</div>
+                        <div class="stat-summary">Active replication sites</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${healthySites}</div>
+                        <div class="stat-label">Healthy Sites</div>
+                        <div class="stat-summary">Sites responding normally</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${availableSites}</div>
+                        <div class="stat-label">Available to Add</div>
+                        <div class="stat-summary">Sites ready for replication</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${replicationInfo.sites ? replicationInfo.sites.length : 0}</div>
+                        <div class="stat-label">Total Endpoints</div>
+                        <div class="stat-summary">Configured replication endpoints</div>
+                    </div>
+                </div>
+            ` : ''}
+            
             <div class="info-card">
                 <div class="info-card-header">
                     <h3 data-i18n="site_replication_config">Site Replication Configuration</h3>
@@ -59,19 +91,60 @@ export async function renderSitesPage(sites) {
                             <!-- Add Sites to Existing Cluster -->
                             <div class="add-sites-section">
                                 <h5 data-i18n="add_sites_to_cluster">Add Sites to Existing Cluster</h5>
-                                <div class="available-sites">
-                                    ${sites.filter(site => site.replicationStatus !== 'configured').map(site => `
-                                        <label class="site-checkbox-label">
-                                            <input type="checkbox" class="add-site-checkbox" value="${site.alias}">
-                                            <span>${site.alias} (${site.url})</span>
-                                            <span class="site-status ${site.healthy ? 'healthy' : 'unhealthy'}">${site.healthy ? '●' : '●'}</span>
-                                        </label>
-                                    `).join('')}
+                                
+                                <div class="table-container">
+                                    <table class="table">
+                                        <thead>
+                                            <tr>
+                                                <th style="width: 40px;">
+                                                    <input type="checkbox" id="selectAllAvailable" title="Select all available sites">
+                                                </th>
+                                                <th>Site Name</th>
+                                                <th>Endpoint</th>
+                                                <th>Health</th>
+                                                <th>Status</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${sites.filter(site => site.replicationStatus !== 'configured').map(site => `
+                                                <tr>
+                                                    <td>
+                                                        <input type="checkbox" class="add-site-checkbox" value="${site.alias}">
+                                                    </td>
+                                                    <td>
+                                                        <div class="site-name">${site.alias}</div>
+                                                    </td>
+                                                    <td>
+                                                        <div class="site-url">${site.url}</div>
+                                                    </td>
+                                                    <td>
+                                                        <span class="badge badge-${site.healthy ? 'success' : 'danger'}">
+                                                            ${site.healthy ? '● Healthy' : '● Unhealthy'}
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        <span class="badge badge-warning">Available</span>
+                                                    </td>
+                                                    <td>
+                                                        <button class="btn-primary btn-sm" onclick="addSingleSite('${site.alias}')" 
+                                                                title="Add this site to replication cluster">
+                                                            <i data-lucide="plus" width="14" height="14"></i>
+                                                            Add
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            `).join('')}
+                                        </tbody>
+                                    </table>
                                 </div>
-                                <button class="btn-primary" id="addToClusterBtn" disabled>
-                                    <i data-lucide="plus" width="16" height="16"></i>
-                                    <span data-i18n="add_to_cluster">Add to Cluster</span>
-                                </button>
+                                
+                                <div class="add-sites-actions">
+                                    <button class="btn-primary" id="addToClusterBtn" disabled>
+                                        <i data-lucide="plus" width="16" height="16"></i>
+                                        <span data-i18n="add_selected_to_cluster">Add Selected to Cluster</span>
+                                    </button>
+                                </div>
                             </div>
 
                             <!-- Current Cluster Sites -->
@@ -84,41 +157,64 @@ export async function renderSitesPage(sites) {
                                     </button>
                                 </div>
                             
-                                <div class="sites-grid">
-                                    ${sites.filter(site => site.replicationStatus === 'configured').map(site => `
-                                        <div class="site-management-card">
-                                            <div class="site-management-header">
-                                                <label class="site-select-label">
-                                                    <input type="checkbox" class="remove-site-checkbox" value="${site.alias}">
-                                                    <div class="site-info">
-                                                        <div class="site-name">${site.alias}</div>
+                                <div class="table-container">
+                                    <table class="table">
+                                        <thead>
+                                            <tr>
+                                                <th style="width: 40px;">
+                                                    <input type="checkbox" id="selectAllSites" title="Select all sites">
+                                                </th>
+                                                <th>Site Name</th>
+                                                <th>Endpoint</th>
+                                                <th>Status</th>
+                                                <th>Health</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${sites.filter(site => site.replicationStatus === 'configured').map(site => `
+                                                <tr>
+                                                    <td>
+                                                        <input type="checkbox" class="remove-site-checkbox" value="${site.alias}">
+                                                    </td>
+                                                    <td>
+                                                        <div class="site-info">
+                                                            <div class="site-name">${site.alias}</div>
+                                                        </div>
+                                                    </td>
+                                                    <td>
                                                         <div class="site-url">${site.url}</div>
-                                                    </div>
-                                                </label>
-                                                <span class="badge badge-success">✓ Active</span>
-                                            </div>
-                                            
-                                            <div class="site-management-actions">
-                                                <button class="btn-icon" onclick="resyncSite('${site.alias}', 'resync-from')" 
-                                                        title="Resync FROM this site (pull data)">
-                                                    <i data-lucide="download" width="16" height="16"></i>
-                                                    <span data-i18n="resync_from">Resync From</span>
-                                                </button>
-                                                
-                                                <button class="btn-icon" onclick="resyncSite('${site.alias}', 'resync-to')" 
-                                                        title="Resync TO this site (push data)">
-                                                    <i data-lucide="upload" width="16" height="16"></i>
-                                                    <span data-i18n="resync_to">Resync To</span>
-                                                </button>
-                                                
-                                                <button class="btn-danger-icon" onclick="removeSite('${site.alias}')" 
-                                                        title="Remove from replication cluster">
-                                                    <i data-lucide="trash-2" width="16" height="16"></i>
-                                                    <span data-i18n="remove">Remove</span>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    `).join('')}
+                                                    </td>
+                                                    <td>
+                                                        <span class="badge badge-success">✓ Active</span>
+                                                    </td>
+                                                    <td>
+                                                        <span class="badge badge-${site.healthy ? 'success' : 'danger'}">
+                                                            ${site.healthy ? '● Healthy' : '● Unhealthy'}
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        <div class="action-buttons">
+                                                            <button class="btn-icon" onclick="resyncSite('${site.alias}', 'resync-from')" 
+                                                                    title="Resync FROM this site (pull data)">
+                                                                <i data-lucide="download" width="16" height="16"></i>
+                                                            </button>
+                                                            
+                                                            <button class="btn-icon" onclick="resyncSite('${site.alias}', 'resync-to')" 
+                                                                    title="Resync TO this site (push data)">
+                                                                <i data-lucide="upload" width="16" height="16"></i>
+                                                            </button>
+                                                            
+                                                            <button class="btn-danger-icon" onclick="removeIndividualSite('${site.alias}')" 
+                                                                    title="Remove this site from replication cluster">
+                                                                <i data-lucide="trash-2" width="16" height="16"></i>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            `).join('')}
+                                        </tbody>
+                                    </table>
                                 </div>
                             </div>
                         </div>
@@ -222,6 +318,32 @@ function setupReplicationManagement() {
             selectedToRemove = [];
         };
     }
+    
+    // Setup select all checkboxes
+    const selectAllSites = document.getElementById('selectAllSites');
+    const selectAllAvailable = document.getElementById('selectAllAvailable');
+    
+    if (selectAllSites) {
+        selectAllSites.addEventListener('change', (e) => {
+            const checkboxes = document.querySelectorAll('.remove-site-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = e.target.checked;
+                const event = new Event('change', { bubbles: true });
+                checkbox.dispatchEvent(event);
+            });
+        });
+    }
+    
+    if (selectAllAvailable) {
+        selectAllAvailable.addEventListener('change', (e) => {
+            const checkboxes = document.querySelectorAll('.add-site-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = e.target.checked;
+                const event = new Event('change', { bubbles: true });
+                checkbox.dispatchEvent(event);
+            });
+        });
+    }
 }
 
 function updateSelectedList() {
@@ -322,9 +444,9 @@ Are you sure you want to proceed?`;
     removeBtn.innerHTML = '<span class="loading-spinner"></span> Removing...';
     
     try {
-        // Remove sites one by one
+        // Remove sites one by one using the new individual site removal API
         for (const siteAlias of sitesToRemove) {
-            const { response, data } = await removeSiteFromReplication(siteAlias);
+            const { response, data } = await removeIndividualSiteFromReplication(siteAlias);
             
             if (!response.ok || data.error) {
                 throw new Error(`Failed to remove ${siteAlias}: ${data.error || 'Unknown error'}`);
@@ -342,6 +464,36 @@ Are you sure you want to proceed?`;
 }
 
 // Export for global access
+window.removeIndividualSite = async function(alias) {
+    const warningMsg = `⚠️ WARNING: Remove Individual Site from Replication
+
+This will remove ONLY the site "${alias}" from the replication cluster.
+
+✅ What will happen:
+• Site "${alias}" will be removed from replication
+• Other sites in the cluster will continue replicating
+• Existing data on "${alias}" will remain
+
+Are you sure you want to remove "${alias}" from replication?`;
+
+    if (!confirm(warningMsg)) {
+        return;
+    }
+    
+    try {
+        const { response, data } = await removeIndividualSiteFromReplication(alias);
+        
+        if (response.ok) {
+            let message = data.message || `Site "${alias}" removed from replication successfully`;
+            handleReplicationSuccess(message);
+        } else {
+            handleReplicationError('Remove Site Failed', data, response);
+        }
+    } catch (error) {
+        handleReplicationError('Remove Site Failed', error, null);
+    }
+};
+
 window.removeSite = async function(alias) {
     const warningMsg = `⚠️ WARNING: Remove Site Replication Configuration
 
@@ -429,5 +581,25 @@ window.resyncSite = async function(alias, direction) {
     } catch (error) {
         console.error('Error starting resync:', error);
         showNotification('error', 'Error starting resync operation');
+    }
+};
+
+// Add single site to replication cluster
+window.addSingleSite = async function(alias) {
+    const warningMsg = `Add site "${alias}" to replication cluster?
+
+This will add the site "${alias}" to the existing replication cluster.
+
+Are you sure you want to proceed?`;
+
+    if (!confirm(warningMsg)) {
+        return;
+    }
+    
+    try {
+        await addSitesToExistingCluster([alias]);
+    } catch (error) {
+        console.error('Error adding single site:', error);
+        showNotification('error', 'Error adding site to cluster');
     }
 };

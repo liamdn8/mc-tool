@@ -1,5 +1,4 @@
 package integration
-package integration
 
 import (
 	"bytes"
@@ -7,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os/exec"
 	"strings"
 	"testing"
 
@@ -18,11 +16,11 @@ import (
 // TestSmartSiteRemoval_TwoSitesScenario tests removal when only 2 sites exist
 func TestSmartSiteRemoval_TwoSitesScenario(t *testing.T) {
 	tests := []struct {
-		name               string
-		targetSite         string
+		name                string
+		targetSite          string
 		mockReplicationInfo map[string]interface{}
-		expectedCommand    []string
-		expectedResponse   map[string]interface{}
+		expectedCommand     []string
+		expectedResponse    map[string]interface{}
 	}{
 		{
 			name:       "Remove site from 2-site replication (should remove entire config)",
@@ -84,11 +82,11 @@ func TestSmartSiteRemoval_TwoSitesScenario(t *testing.T) {
 // TestSmartSiteRemoval_MultipleSitesScenario tests removal when 3+ sites exist
 func TestSmartSiteRemoval_MultipleSitesScenario(t *testing.T) {
 	tests := []struct {
-		name               string
-		targetSite         string
+		name                string
+		targetSite          string
 		mockReplicationInfo map[string]interface{}
-		expectedCommand    []string
-		expectedResponse   map[string]interface{}
+		expectedCommand     []string
+		expectedResponse    map[string]interface{}
 	}{
 		{
 			name:       "Remove site from 4-site replication (should preserve group)",
@@ -170,12 +168,12 @@ func TestSmartSiteRemoval_MultipleSitesScenario(t *testing.T) {
 // TestSmartSiteRemoval_EdgeCases tests edge cases and error scenarios
 func TestSmartSiteRemoval_EdgeCases(t *testing.T) {
 	tests := []struct {
-		name               string
-		targetSite         string
+		name                string
+		targetSite          string
 		mockReplicationInfo map[string]interface{}
-		mockError          error
-		expectedStatusCode int
-		expectedError      string
+		mockError           error
+		expectedStatusCode  int
+		expectedError       string
 	}{
 		{
 			name:       "Site not found in replication group",
@@ -191,15 +189,15 @@ func TestSmartSiteRemoval_EdgeCases(t *testing.T) {
 			expectedError:      "Site 'nonexistent' not found in replication group",
 		},
 		{
-			name:               "No replication group exists",
-			targetSite:         "site1",
+			name:                "No replication group exists",
+			targetSite:          "site1",
 			mockReplicationInfo: map[string]interface{}{"enabled": false},
 			expectedStatusCode:  http.StatusBadRequest,
 			expectedError:       "No replication group found",
 		},
 		{
-			name:               "MinIO command execution fails",
-			targetSite:         "site1",
+			name:       "MinIO command execution fails",
+			targetSite: "site1",
 			mockReplicationInfo: map[string]interface{}{
 				"enabled": true,
 				"sites": []interface{}{
@@ -330,15 +328,15 @@ func (m *MockCommandExecutor) ExecuteCommand(args ...string) ([]byte, error) {
 // createTestHandler creates a test HTTP handler with mocked command executor
 func createTestHandler(executor *MockCommandExecutor) http.Handler {
 	mux := http.NewServeMux()
-	
+
 	mux.HandleFunc("/api/replication/remove", func(w http.ResponseWriter, r *http.Request) {
 		// This would be replaced with actual handler implementation
 		// For now, simulate the smart removal logic
-		
+
 		var req struct {
 			Alias string `json:"alias"`
 		}
-		
+
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "Invalid JSON", http.StatusBadRequest)
 			return

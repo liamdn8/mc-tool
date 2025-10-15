@@ -1,0 +1,23 @@
+2025-10-15T10:44:34Z [info] Starting MC-Tool Web UI {"log_level":"info","port":8080,"refresh_interval":60000000000}
+🚀 Starting MC-Tool Web UI on port 8080
+📱 Open your browser at: http://localhost:8080
+🌐 Supported languages: English, Tiếng Việt
+
+Press Ctrl+C to stop the server
+
+2025-10-15T10:44:34Z [info] Starting web UI server {"port":8080,"url":"http://localhost:8080"}
+2025/10/15 17:44:36 GET / 21.418µs
+2025/10/15 17:46:43 GET / 23.37µs
+2025/10/15 17:46:43 GET /static/bundle.js 2.95023ms
+2025/10/15 17:46:43 GET /.well-known/appspecific/com.chrome.devtools.json 19.165µs
+2025/10/15 17:46:43 GET /favicon.ico 60.408µs
+2025/10/15 17:46:44 GET /api/aliases 805.5866ms
+2025/10/15 17:46:44 GET /api/replication/info 730.348931ms
+2025/10/15 17:46:48 GET /api/operations/buckets 100.928785ms
+2025/10/15 17:46:52 GET /api/operations/path-suggestions 92.876867ms
+2025-10-15T10:46:55Z [info] Starting bucket comparison {"dest":"site2","path":"compare-test","source":"site1"}
+2025-10-15T10:46:55Z [info] Bucket comparison completed {"different":0,"onlyInDest":0,"onlyInSource":0}
+2025/10/15 17:46:55 POST /api/operations/compare 138.267996ms
+2025-10-15T10:47:09Z [info] Starting bucket comparison {"dest":"site3","path":"compare-test","source":"site1"}
+2025-10-15T10:47:09Z [info] Bucket comparison completed {"different":0,"onlyInDest":0,"onlyInSource":0}
+2025/10/15 17:47:09 POST /api/operations/compare 148.147731ms

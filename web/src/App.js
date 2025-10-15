@@ -4,9 +4,6 @@ import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import OverviewPage from './pages/OverviewPage';
 import SitesPage from './pages/SitesPage';
-import BucketsPage from './pages/BucketsPage';
-import ReplicationPage from './pages/ReplicationPage';
-import ConsistencyPage from './pages/ConsistencyPage';
 import OperationsPage from './pages/OperationsPage';
 import { loadAliases, loadSiteReplicationInfo } from './utils/api';
 
@@ -42,11 +39,30 @@ function App() {
         }
     };
 
+    const refreshData = async () => {
+        try {
+            // Load aliases (sites) - non-blocking refresh
+            const sitesData = await loadAliases();
+            setSites(sitesData);
+            
+            // Load site replication info
+            const replicationData = await loadSiteReplicationInfo();
+            setReplicationInfo(replicationData.replicationInfo);
+            
+            // Update sites data with replication info
+            if (replicationData.sites && replicationData.sites.length > 0) {
+                setSites(replicationData.sites);
+            }
+        } catch (error) {
+            console.error('Error refreshing data:', error);
+        }
+    };
+
     const renderCurrentPage = () => {
         const pageProps = {
             sites,
             replicationInfo,
-            onRefresh: loadInitialData
+            onRefresh: refreshData // Use data refresh instead of full reload
         };
 
         switch (currentPage) {
@@ -54,12 +70,6 @@ function App() {
                 return <OverviewPage {...pageProps} />;
             case 'sites':
                 return <SitesPage {...pageProps} />;
-            case 'buckets':
-                return <BucketsPage {...pageProps} />;
-            case 'replication':
-                return <ReplicationPage {...pageProps} />;
-            case 'consistency':
-                return <ConsistencyPage {...pageProps} />;
             case 'operations':
                 return <OperationsPage {...pageProps} />;
             default:

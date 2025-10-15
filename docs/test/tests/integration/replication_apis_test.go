@@ -1,5 +1,4 @@
 package integration
-package integration
 
 import (
 	"bytes"
@@ -7,9 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,10 +15,10 @@ import (
 // TestReplicationInfoAPI tests the /api/replication/info endpoint
 func TestReplicationInfoAPI(t *testing.T) {
 	tests := []struct {
-		name               string
+		name                string
 		mockReplicationInfo map[string]interface{}
-		expectedResponse   map[string]interface{}
-		expectedStatusCode int
+		expectedResponse    map[string]interface{}
+		expectedStatusCode  int
 	}{
 		{
 			name: "Valid replication group info",
@@ -41,7 +38,7 @@ func TestReplicationInfoAPI(t *testing.T) {
 				},
 			},
 			expectedResponse: map[string]interface{}{
-				"enabled": true,
+				"enabled":    true,
 				"totalSites": float64(2),
 				"sites": []interface{}{
 					map[string]interface{}{
@@ -193,12 +190,12 @@ func TestReplicationStatusAPI(t *testing.T) {
 				"lastSyncTime":      "2025-10-14T10:30:00Z",
 				"sites": map[string]interface{}{
 					"site1": map[string]interface{}{
-						"status":           "healthy",
+						"status":            "healthy",
 						"objectsReplicated": float64(1000),
 						"bytesReplicated":   float64(1048576),
 					},
 					"site2": map[string]interface{}{
-						"status":           "healthy",
+						"status":            "healthy",
 						"objectsReplicated": float64(1000),
 						"bytesReplicated":   float64(1048576),
 					},
@@ -315,9 +312,9 @@ func TestReplicationResyncAPI(t *testing.T) {
 // TestReplicationCompareAPI tests the /api/replication/compare endpoint
 func TestReplicationCompareAPI(t *testing.T) {
 	tests := []struct {
-		name               string
+		name                string
 		mockCompareResponse map[string]interface{}
-		expectedStatusCode int
+		expectedStatusCode  int
 	}{
 		{
 			name: "Consistent configuration across sites",

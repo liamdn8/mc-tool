@@ -2,14 +2,21 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, RefreshCw, Download, Upload, X } from 'lucide-react';
 import { useI18n } from '../utils/i18n';
 import { getBadgeClass, getStatusText } from '../utils/helpers';
+import SplitBrainWarning from '../components/SplitBrainWarning';
 import { 
     loadAliases, 
     loadSiteReplicationInfo, 
-    addSitesToReplication, 
+    addSitesToReplication,
+    addSitesToReplicationSmart, 
     loadReplicationStatus, 
     resyncReplication,
     removeSiteFromReplication,
-    removeBulkSitesFromReplication
+    removeBulkSitesFromReplication,
+    removeIndividualSiteFromReplication,
+    removeSiteFromReplicationSmart,
+    removeBulkSitesFromReplicationSmart,
+    removeIndividualSiteFromReplicationSmart,
+    checkSplitBrainStatus
 } from '../utils/api';
 
 const SitesPage = ({ sites, replicationInfo, onRefresh }) => {
@@ -43,7 +50,7 @@ const SitesPage = ({ sites, replicationInfo, onRefresh }) => {
 
         setIsAddingReplication(true);
         try {
-            await addSiteReplication(selectedAliases);
+            await addSitesToReplication(selectedAliases);
             setSelectedAliases([]);
             onRefresh();
         } catch (error) {
@@ -77,13 +84,78 @@ const SitesPage = ({ sites, replicationInfo, onRefresh }) => {
             return;
         }
 
+        // Check for split brain first
+        try {
+            const splitBrainStatus = await checkSplitBrainStatus();
+            if (splitBrainStatus.splitBrainDetected) {
+                let errorMsg = '⚠️ SPLIT BRAIN DETECTED - Cannot add sites!\n\n';
+                errorMsg += `${splitBrainStatus.clusterCount} separate clusters found.\n`;
+                errorMsg += 'Please resolve the split brain scenario first.\n\n';
+                errorMsg += 'Check the warning above for detailed instructions.';
+                alert(errorMsg);
+                return;
+            }
+        } catch (error) {
+            console.error('Error checking split brain status:', error);
+            // Continue with operation if check fails
+        }
+
+        const siteCount = selectedSitesToAdd.length;
+        const confirmMessage = siteCount === 1 
+            ? `Add site "${selectedSitesToAdd[0]}" to replication cluster using smart detection?`
+            : `Add ${siteCount} sites (${selectedSitesToAdd.join(', ')}) to replication cluster using smart detection?`;
+
+        if (!window.confirm(confirmMessage)) {
+            return;
+        }
+
+        console.log('Adding sites to cluster (smart):', selectedSitesToAdd);
         setIsAddingToCluster(true);
         try {
-            await addSitesToReplication(selectedSitesToAdd);
+            const result = await addSitesToReplicationSmart(selectedSitesToAdd);
             setSelectedSitesToAdd([]);
-            onRefresh();
-            alert('Sites added to cluster successfully');
+            
+            // Show detailed result to user
+            let message = `Smart cluster operation for ${siteCount} site${siteCount > 1 ? 's' : ''} completed:\n\n`;
+            if (result.data) {
+                message += `Operation: ${result.data.action || result.data.operation}\n`;
+                if (result.data.clustersFound !== undefined) {
+                    message += `Clusters detected: ${result.data.clustersFound}\n`;
+                }
+                
+                // Handle new sites added
+                if (result.data.newAliases && result.data.newAliases.length > 0) {
+                    message += `✅ Sites added: ${result.data.newAliases.join(', ')}\n`;
+                }
+                
+                // Handle sites already in cluster
+                if (result.data.alreadyInCluster && result.data.alreadyInCluster.length > 0) {
+                    message += `⚠️ Already in cluster: ${result.data.alreadyInCluster.join(', ')}\n`;
+                }
+                
+                // Show cluster info
+                if (result.data.existingCluster && result.data.existingCluster.sites) {
+                    message += `Total sites in cluster: ${result.data.existingCluster.sites.length}\n`;
+                }
+                
+                // Handle result message
+                if (result.data.message) {
+                    message += `\n${result.data.message}\n`;
+                }
+                
+                // Show warnings
+                if (result.data.warnings && result.data.warnings.length > 0) {
+                    message += `\nWarnings:\n${result.data.warnings.join('\n')}`;
+                }
+            }
+            
+            // Add delay for backend operation to complete
+            setTimeout(() => {
+                onRefresh();
+            }, 500);
+            alert(message);
         } catch (error) {
+            console.error('Error adding sites to cluster:', error);
             alert(`Error adding sites to cluster: ${error.message}`);
         } finally {
             setIsAddingToCluster(false);
@@ -93,9 +165,27 @@ const SitesPage = ({ sites, replicationInfo, onRefresh }) => {
     const handleRemoveSiteFromCluster = async (alias) => {
         if (window.confirm(`Are you sure you want to remove ${alias} from the replication cluster?`)) {
             try {
-                await removeSiteFromReplication(alias);
-                onRefresh();
-                alert(`${alias} removed from cluster successfully`);
+                const result = await removeIndividualSiteFromReplicationSmart(alias);
+                
+                // Show detailed result
+                let message = `Site "${alias}" removal completed:\n\n`;
+                if (result.results && result.results.length > 0) {
+                    const siteResult = result.results[0];
+                    if (siteResult.success) {
+                        message += `✅ Successfully removed from cluster\n`;
+                        if (siteResult.message) {
+                            message += `${siteResult.message}\n`;
+                        }
+                    } else {
+                        message += `❌ Failed to remove: ${siteResult.error || 'Unknown error'}`;
+                    }
+                }
+                
+                // Add a small delay to ensure backend operation completes
+                setTimeout(() => {
+                    onRefresh();
+                }, 500);
+                alert(message);
             } catch (error) {
                 alert(`Error removing ${alias} from cluster: ${error.message}`);
             }
@@ -108,14 +198,87 @@ const SitesPage = ({ sites, replicationInfo, onRefresh }) => {
             return;
         }
 
-        if (window.confirm(`Remove ${selectedSitesToRemove.length} sites from replication cluster?`)) {
+        if (window.confirm(`Remove ${selectedSitesToRemove.length} sites from replication cluster using smart removal?`)) {
             try {
-                await removeBulkSitesFromReplication(selectedSitesToRemove);
+                const result = await removeBulkSitesFromReplicationSmart(selectedSitesToRemove);
                 setSelectedSitesToRemove([]);
-                onRefresh();
-                alert('Selected sites removed from cluster successfully');
+                
+                // Show detailed result
+                let message = `Bulk removal of ${selectedSitesToRemove.length} sites completed:\n\n`;
+                if (result.results && result.results.length > 0) {
+                    const successful = result.results.filter(r => r.success);
+                    const failed = result.results.filter(r => !r.success);
+                    
+                    if (successful.length > 0) {
+                        message += `✅ Successfully removed: ${successful.map(r => r.alias).join(', ')}\n`;
+                    }
+                    if (failed.length > 0) {
+                        message += `❌ Failed to remove: ${failed.map(r => r.alias).join(', ')}\n`;
+                        message += `\nErrors:\n${failed.map(r => `- ${r.alias}: ${r.error}`).join('\n')}`;
+                    }
+                }
+                
+                // Add delay for backend operation to complete
+                setTimeout(() => {
+                    onRefresh();
+                }, 500);
+                alert(message);
             } catch (error) {
                 alert(`Error removing sites from cluster: ${error.message}`);
+            }
+        }
+    };
+
+    const handleAddSingleSiteToCluster = async (alias) => {
+        // Check for split brain first
+        try {
+            const splitBrainStatus = await checkSplitBrainStatus();
+            if (splitBrainStatus.splitBrainDetected) {
+                let errorMsg = '⚠️ SPLIT BRAIN DETECTED - Cannot add sites!\n\n';
+                errorMsg += `${splitBrainStatus.clusterCount} separate clusters found.\n`;
+                errorMsg += 'Please resolve the split brain scenario first.\n\n';
+                errorMsg += 'Check the warning above for detailed instructions.';
+                alert(errorMsg);
+                return;
+            }
+        } catch (error) {
+            console.error('Error checking split brain status:', error);
+            // Continue with operation if check fails
+        }
+
+        if (window.confirm(`Add site "${alias}" to replication cluster using smart detection?`)) {
+            console.log('Adding single site to cluster (smart):', alias);
+            try {
+                const result = await addSitesToReplicationSmart([alias]);
+                
+                // Show detailed result to user for single site add
+                let message = `Smart add operation for "${alias}" completed:\n\n`;
+                if (result.data) {
+                    message += `Operation: ${result.data.action}\n`;
+                    if (result.data.clustersFound !== undefined) {
+                        message += `Clusters detected: ${result.data.clustersFound}\n`;
+                    }
+                    if (result.data.alreadyInCluster && result.data.alreadyInCluster.includes(alias)) {
+                        message += `⚠️ "${alias}" was already in the cluster\n`;
+                    } else if (result.data.newAliases && result.data.newAliases.includes(alias)) {
+                        message += `✅ "${alias}" successfully added to cluster\n`;
+                    }
+                    if (result.data.existingCluster) {
+                        message += `Total sites in cluster: ${result.data.existingCluster.sites ? result.data.existingCluster.sites.length : 'unknown'}\n`;
+                    }
+                    if (result.data.warnings && result.data.warnings.length > 0) {
+                        message += `\nWarnings:\n${result.data.warnings.join('\n')}`;
+                    }
+                }
+                
+                // Add delay for backend operation to complete
+                setTimeout(() => {
+                    onRefresh();
+                }, 500);
+                alert(message);
+            } catch (error) {
+                console.error('Error adding single site:', error);
+                alert(`Error adding ${alias} to cluster: ${error.message}`);
             }
         }
     };
@@ -156,11 +319,43 @@ const SitesPage = ({ sites, replicationInfo, onRefresh }) => {
         }
     };
 
+    // Calculate summary statistics
+    const totalSites = sites.length;
+    const configuredSites = sites.filter(site => site.replicationStatus === 'configured').length;
+    const healthySites = sites.filter(site => site.healthy).length;
+    const availableSites = totalSites - configuredSites;
+
     return (
         <div>
             <div className="card-header">
                 <h2 className="card-title">{t('sites')}</h2>
             </div>
+
+            {/* Summary Statistics Section */}
+            {hasReplication && (
+                <div className="stats-summary">
+                    <div className="stat-card">
+                        <div className="stat-value">{configuredSites}</div>
+                        <div className="stat-label">Sites in Cluster</div>
+                        <div className="stat-summary">Active replication sites</div>
+                    </div>
+                    <div className="stat-card">
+                        <div className="stat-value">{healthySites}</div>
+                        <div className="stat-label">Healthy Sites</div>
+                        <div className="stat-summary">Sites responding normally</div>
+                    </div>
+                    <div className="stat-card">
+                        <div className="stat-value">{availableSites}</div>
+                        <div className="stat-label">Available to Add</div>
+                        <div className="stat-summary">Sites ready for replication</div>
+                    </div>
+                    <div className="stat-card">
+                        <div className="stat-value">{replicationInfo?.sites?.length || 0}</div>
+                        <div className="stat-label">Total Endpoints</div>
+                        <div className="stat-summary">Configured replication endpoints</div>
+                    </div>
+                </div>
+            )}
 
             <div className="card">
                 <div className="card-header">
@@ -170,6 +365,9 @@ const SitesPage = ({ sites, replicationInfo, onRefresh }) => {
                     )}
                 </div>
 
+                {/* Split Brain Warning Component */}
+                <SplitBrainWarning onRefresh={onRefresh} />
+
                 {!hasReplication ? (
                     <div>
                         <p className="card-subtitle">{t('setup_replication_desc')}</p>
@@ -178,14 +376,14 @@ const SitesPage = ({ sites, replicationInfo, onRefresh }) => {
                             <label className="form-label">{t('select_aliases')}</label>
                             <div style={{ marginBottom: '16px' }}>
                                 {sites.map(site => (
-                                    <label key={site.alias} style={{ display: 'block', marginBottom: '8px' }}>
-                                        <input 
+                                    <label key={site.name} style={{ display: 'block', marginBottom: '8px' }}>
+                                        <input
                                             type="checkbox"
-                                            checked={selectedAliases.includes(site.alias)}
-                                            onChange={() => handleAliasToggle(site.alias)}
+                                            checked={selectedAliases.includes(site.name)}
+                                            onChange={() => handleAliasToggle(site.name)}
                                             style={{ marginRight: '8px' }}
                                         />
-                                        {site.alias} ({site.url})
+                                        {site.name} ({site.url})
                                     </label>
                                 ))}
                             </div>
@@ -234,61 +432,111 @@ const SitesPage = ({ sites, replicationInfo, onRefresh }) => {
                                 <div className="card-header">
                                     <h4 className="card-title">{t('add_sites_to_cluster')}</h4>
                                 </div>
-                                <div>
-                                    <div style={{ display: 'grid', gap: '8px', marginBottom: '16px' }}>
-                                        {sites.filter(s => !s.replicationEnabled).map(site => (
-                                            <label key={site.alias} style={{ 
-                                                display: 'flex', 
-                                                alignItems: 'center', 
-                                                padding: '8px 12px', 
-                                                border: '1px solid var(--border-color)', 
-                                                borderRadius: '6px',
-                                                backgroundColor: selectedSitesToAdd.includes(site.alias) ? 'var(--primary-light)' : 'transparent',
-                                                cursor: 'pointer',
-                                                gap: '12px'
-                                            }}>
-                                                <input 
-                                                    type="checkbox"
-                                                    checked={selectedSitesToAdd.includes(site.alias)}
-                                                    onChange={() => handleSiteToAddToggle(site.alias)}
-                                                    style={{ margin: 0, flexShrink: 0 }}
-                                                />
-                                                <div style={{ flex: 1, minWidth: 0 }}>
-                                                    <div style={{ fontWeight: 'bold', marginBottom: '2px' }}>{site.alias}</div>
-                                                    <div style={{ 
-                                                        fontSize: '0.875rem', 
-                                                        color: 'var(--text-muted)',
-                                                        overflow: 'hidden',
-                                                        textOverflow: 'ellipsis',
-                                                        whiteSpace: 'nowrap',
-                                                        marginBottom: '2px'
-                                                    }}>{site.url}</div>
-                                                    {site.deploymentID && (
-                                                        <div style={{ 
-                                                            fontSize: '0.75rem', 
-                                                            color: 'var(--text-muted)',
-                                                            fontFamily: 'monospace',
-                                                            overflow: 'hidden',
-                                                            textOverflow: 'ellipsis',
-                                                            whiteSpace: 'nowrap'
-                                                        }}>
-                                                            ID: {site.deploymentID}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                <span className={`badge ${site.healthy ? 'badge-success' : 'badge-danger'}`} style={{ flexShrink: 0 }}>
-                                                    {site.healthy ? '● Healthy' : '● Unhealthy'}
-                                                </span>
-                                            </label>
-                                        ))}
+                                
+                                {/* Smart Add Info Box */}
+                                <div style={{ 
+                                    padding: '12px 16px', 
+                                    background: '#e8f4fd', 
+                                    border: '1px solid #b8daff',
+                                    borderRadius: '4px',
+                                    margin: '16px',
+                                    fontSize: '0.875rem'
+                                }}>
+                                    <strong>🧠 Smart Add Feature:</strong> Automatically detects existing clusters and intelligently:
+                                    <ul style={{ margin: '8px 0 0 20px', padding: 0 }}>
+                                        <li>Creates new cluster if no clusters exist</li>
+                                        <li>Adds to existing cluster if one cluster found</li>
+                                        <li>Prevents split-brain scenarios with multiple clusters</li>
+                                        <li>Filters out sites already in clusters</li>
+                                    </ul>
+                                </div>
+                                
+                                <div className="table-container">
+                                    <table className="table">
+                                        <thead>
+                                            <tr>
+                                                <th style={{ width: '40px' }}>
+                                                    <input 
+                                                        type="checkbox" 
+                                                        onChange={(e) => {
+                                                            const availableSites = sites.filter(s => !s.replicationEnabled);
+                                                            if (e.target.checked) {
+                                                                setSelectedSitesToAdd(availableSites.map(site => site.name));
+                                                            } else {
+                                                                setSelectedSitesToAdd([]);
+                                                            }
+                                                        }}
+                                                        title="Select all available sites"
+                                                    />
+                                                </th>
+                                                <th style={{ width: '200px' }}>Site Name</th>
+                                                <th style={{ width: '250px' }}>Endpoint</th>
+                                                <th style={{ width: '100px' }}>Health</th>
+                                                <th style={{ width: '100px' }}>Status</th>
+                                                <th style={{ width: '120px' }}>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {sites.filter(s => !s.replicationEnabled).map(site => (
+                                                <tr key={site.name}>
+                                                    <td>
+                                                        <input 
+                                                            type="checkbox"
+                                                            checked={selectedSitesToAdd.includes(site.name)}
+                                                            onChange={() => handleSiteToAddToggle(site.name)}
+                                                        />
+                                                    </td>
+                                                    <td>
+                                                        <div className="site-name" style={{ fontWeight: 'bold' }}>{site.name}</div>
+                                                    </td>
+                                                    <td>
+                                                        <div className="site-url" style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>{site.url}</div>
+                                                    </td>
+                                                    <td>
+                                                        <span className={`badge ${site.healthy ? 'badge-success' : 'badge-danger'}`}>
+                                                            {site.healthy ? '● Healthy' : '● Unhealthy'}
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        <span className="badge badge-warning">Available</span>
+                                                    </td>
+                                                    <td>
+                                                        <button 
+                                                            className="btn btn-primary btn-sm"
+                                                            onClick={() => handleAddSingleSiteToCluster(site.name)}
+                                                            title="Smart add this site to replication cluster with automatic cluster detection"
+                                                        >
+                                                            <Plus size={14} />
+                                                            Smart Add
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                
+                                <div className="add-sites-actions">
+                                    <div className="selection-info" style={{ marginBottom: '10px', fontSize: '0.875rem', color: 'var(--text-muted)' }}>
+                                        {selectedSitesToAdd.length === 0 ? (
+                                            "Select sites to add to replication cluster"
+                                        ) : selectedSitesToAdd.length === 1 ? (
+                                            `1 site selected: ${selectedSitesToAdd[0]}`
+                                        ) : (
+                                            `${selectedSitesToAdd.length} sites selected: ${selectedSitesToAdd.join(', ')}`
+                                        )}
                                     </div>
                                     <button 
                                         className="btn btn-primary"
                                         onClick={handleAddToCluster}
                                         disabled={selectedSitesToAdd.length === 0 || isAddingToCluster}
+                                        title={selectedSitesToAdd.length === 0 ? "Select at least one site" : `Add ${selectedSitesToAdd.length} site${selectedSitesToAdd.length > 1 ? 's' : ''} using smart detection`}
                                     >
                                         <Plus size={16} />
-                                        {isAddingToCluster ? 'Adding...' : t('add_to_cluster')}
+                                        {isAddingToCluster ? 'Adding...' : 
+                                         selectedSitesToAdd.length === 0 ? t('add_selected_to_cluster') :
+                                         selectedSitesToAdd.length === 1 ? `Smart Add "${selectedSitesToAdd[0]}"` :
+                                         `Smart Add ${selectedSitesToAdd.length} Sites`}
                                     </button>
                                 </div>
                             </div>
@@ -310,77 +558,103 @@ const SitesPage = ({ sites, replicationInfo, onRefresh }) => {
                                 )}
                             </div>
 
-                            <div style={{ display: 'grid', gap: '12px' }}>
-                                {sites.filter(site => site.replicationEnabled).map(site => (
-                                    <div key={site.alias} style={{ 
-                                        display: 'flex', 
-                                        alignItems: 'center', 
-                                        padding: '12px 16px', 
-                                        border: '1px solid var(--border-color)', 
-                                        borderRadius: '8px',
-                                        backgroundColor: 'var(--card-bg)',
-                                        gap: '12px'
-                                    }}>
-                                        <input 
-                                            type="checkbox"
-                                            checked={selectedSitesToRemove.includes(site.alias)}
-                                            onChange={() => handleSiteToRemoveToggle(site.alias)}
-                                            style={{ flexShrink: 0 }}
-                                        />
-                                        <div style={{ flex: 1, minWidth: 0 }}>
-                                            <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>{site.alias}</div>
-                                            <div style={{ 
-                                                fontSize: '0.875rem', 
-                                                color: 'var(--text-muted)',
-                                                overflow: 'hidden',
-                                                textOverflow: 'ellipsis',
-                                                whiteSpace: 'nowrap',
-                                                marginBottom: '2px'
-                                            }}>{site.url}</div>
-                                            {site.deploymentID && (
-                                                <div style={{ 
-                                                    fontSize: '0.75rem', 
-                                                    color: 'var(--text-muted)',
-                                                    fontFamily: 'monospace',
-                                                    overflow: 'hidden',
-                                                    textOverflow: 'ellipsis',
-                                                    whiteSpace: 'nowrap'
-                                                }}>
-                                                    ID: {site.deploymentID}
-                                                </div>
-                                            )}
-                                        </div>
-                                        <span className={`badge ${getBadgeClass(site.replicationStatus)}`} style={{ flexShrink: 0 }}>
-                                            ✓ Active
-                                        </span>
-                                        <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
-                                            <button 
-                                                className="btn-icon"
-                                                onClick={() => handleQuickResync(site.alias, 'from')}
-                                                title="Resync FROM this site"
-                                                style={{ padding: '6px' }}
-                                            >
-                                                <Download size={14} />
-                                            </button>
-                                            <button 
-                                                className="btn-icon"
-                                                onClick={() => handleQuickResync(site.alias, 'to')}
-                                                title="Resync TO this site"
-                                                style={{ padding: '6px' }}
-                                            >
-                                                <Upload size={14} />
-                                            </button>
-                                            <button 
-                                                className="btn-icon"
-                                                style={{ color: 'var(--danger-color)', padding: '6px' }}
-                                                onClick={() => handleRemoveSiteFromCluster(site.alias)}
-                                                title="Remove from cluster"
-                                            >
-                                                <X size={14} />
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))}
+                            <div className="table-container">
+                                <table className="table">
+                                    <thead>
+                                        <tr>
+                                            <th style={{ width: '40px' }}>
+                                                <input 
+                                                    type="checkbox" 
+                                                    onChange={(e) => {
+                                                        const clusterSites = sites.filter(site => site.replicationEnabled);
+                                                        if (e.target.checked) {
+                                                            setSelectedSitesToRemove(clusterSites.map(site => site.name));
+                                                        } else {
+                                                            setSelectedSitesToRemove([]);
+                                                        }
+                                                    }}
+                                                    title="Select all sites"
+                                                />
+                                            </th>
+                                            <th style={{ width: '200px' }}>Site Name</th>
+                                            <th style={{ width: '250px' }}>Endpoint</th>
+                                            <th style={{ width: '100px' }}>Health</th>
+                                            <th style={{ width: '100px' }}>Status</th>
+                                            <th style={{ width: '120px' }}>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {sites.filter(site => site.replicationEnabled).map(site => (
+                                            <tr key={site.name}>
+                                                <td>
+                                                    <input 
+                                                        type="checkbox"
+                                                        checked={selectedSitesToRemove.includes(site.name)}
+                                                        onChange={(e) => {
+                                                            if (e.target.checked) {
+                                                                setSelectedSitesToRemove(prev => [...prev, site.name]);
+                                                            } else {
+                                                                setSelectedSitesToRemove(prev => prev.filter(a => a !== site.name));
+                                                            }
+                                                        }}
+                                                    />
+                                                </td>
+                                                <td>
+                                                    <div>
+                                                        <div className="site-name" style={{ fontWeight: 'bold', marginBottom: '2px' }}>{site.name}</div>
+                                                        {site.deploymentID && (
+                                                            <div style={{ 
+                                                                fontSize: '0.75rem', 
+                                                                color: 'var(--text-muted)',
+                                                                fontFamily: 'monospace'
+                                                            }}>
+                                                                ID: {site.deploymentID}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <div className="site-url" style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>{site.url}</div>
+                                                </td>
+                                                <td>
+                                                    <span className={`badge ${site.healthy ? 'badge-success' : 'badge-danger'}`}>
+                                                        {site.healthy ? '● Healthy' : '● Unhealthy'}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <span className="badge badge-success">✓ Active</span>
+                                                </td>
+                                                <td>
+                                                    <div className="action-buttons">
+                                                        <button 
+                                                            className="btn-icon"
+                                                            onClick={() => handleResyncSite(site.name, 'from')}
+                                                            title="Resync FROM this site (pull data)"
+                                                        >
+                                                            <Download size={16} />
+                                                        </button>
+                                                        
+                                                        <button 
+                                                            className="btn-icon"
+                                                            onClick={() => handleResyncSite(site.name, 'to')}
+                                                            title="Resync TO this site (push data)"
+                                                        >
+                                                            <Upload size={16} />
+                                                        </button>
+                                                        
+                                                        <button 
+                                                            className="btn-danger-icon"
+                                                            onClick={() => handleRemoveSiteFromCluster(site.name)}
+                                                            title="Remove this site from replication cluster"
+                                                        >
+                                                            <Trash2 size={16} />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>
@@ -415,8 +689,8 @@ const SitesPage = ({ sites, replicationInfo, onRefresh }) => {
                                 >
                                     <option value="">Select source site...</option>
                                     {sites.filter(s => s.replicationEnabled).map(site => (
-                                        <option key={site.alias} value={site.alias}>
-                                            {site.alias} ({site.url})
+                                        <option key={site.name} value={site.name}>
+                                            {site.name} ({site.url})
                                         </option>
                                     ))}
                                 </select>
@@ -430,9 +704,9 @@ const SitesPage = ({ sites, replicationInfo, onRefresh }) => {
                                     onChange={(e) => setResyncToSite(e.target.value)}
                                 >
                                     <option value="">Select target site...</option>
-                                    {sites.filter(s => s.replicationEnabled && s.alias !== resyncFromSite).map(site => (
-                                        <option key={site.alias} value={site.alias}>
-                                            {site.alias} ({site.url})
+                                    {sites.filter(s => s.replicationEnabled && s.name !== resyncFromSite).map(site => (
+                                        <option key={site.name} value={site.name}>
+                                            {site.name} ({site.url})
                                         </option>
                                     ))}
                                 </select>

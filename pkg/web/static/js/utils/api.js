@@ -131,6 +131,16 @@ export async function removeSiteFromReplication(alias) {
     return { response, data };
 }
 
+// New function for removing individual sites from replication cluster
+export async function removeIndividualSiteFromReplication(alias) {
+    const { response, data } = await apiCall('/api/replication/remove-site', {
+        method: 'POST',
+        body: JSON.stringify({ alias })
+    });
+    
+    return { response, data };
+}
+
 export async function loadBucketsForAllSites(sites) {
     const allBuckets = [];
     

@@ -97,10 +97,10 @@ const ReplicationPage = ({ sites, replicationInfo, onRefresh }) => {
                                     </thead>
                                     <tbody>
                                         {sites.filter(site => site.replicationEnabled).map(site => (
-                                            <tr key={site.alias}>
+                                            <tr key={site.name}>
                                                 <td>
                                                     <div>
-                                                        <strong>{site.alias}</strong>
+                                                        <strong>{site.name}</strong>
                                                         <br />
                                                         <small style={{ color: 'var(--text-muted)' }}>{site.url}</small>
                                                     </div>
@@ -119,7 +119,7 @@ const ReplicationPage = ({ sites, replicationInfo, onRefresh }) => {
                                                     {formatDate(site.lastSync)}
                                                 </td>
                                                 <td>
-                                                    {replicationStatus?.sites?.[site.alias]?.bucketCount || 0}
+                                                    {replicationStatus?.sites?.[site.name]?.bucketCount || 0}
                                                 </td>
                                             </tr>
                                         ))}

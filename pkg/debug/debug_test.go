@@ -1,7 +1,6 @@
 package debug
 
 import (
-	"strings"
 	"testing"
 	"time"
 )
@@ -59,9 +58,9 @@ runtime.gopark(0x0, 0x0, 0x0, 0x0, 0x0)
 
 func TestIsLikelyLeak(t *testing.T) {
 	testCases := []struct {
-		name     string
+		name      string
 		goroutine GoroutineInfo
-		expected bool
+		expected  bool
 	}{
 		{
 			name: "Goroutine with gopark",

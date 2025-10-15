@@ -2,9 +2,6 @@ import React from 'react';
 import { 
     LayoutDashboard, 
     Globe, 
-    Folder, 
-    GitBranch, 
-    CheckCircle, 
     Settings,
     Circle
 } from 'lucide-react';
@@ -23,21 +20,6 @@ const Sidebar = ({ currentPage, onPageChange }) => {
             id: 'sites', 
             icon: Globe, 
             label: t('sites') 
-        },
-        { 
-            id: 'buckets', 
-            icon: Folder, 
-            label: t('buckets') 
-        },
-        { 
-            id: 'replication', 
-            icon: GitBranch, 
-            label: t('replication') 
-        },
-        { 
-            id: 'consistency', 
-            icon: CheckCircle, 
-            label: t('consistency') 
         },
         { 
             id: 'operations', 

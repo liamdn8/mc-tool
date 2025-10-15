@@ -1,9 +1,11 @@
 #!/bin/bash
 
-# Build script for React web UI
+# Build script for MC-Tool Web UI
+# This script builds the React app and copies it to the correct location for Go embedding
+
 set -e
 
-echo "Building React web UI..."
+echo "🔨 Building React app..."
 
 # Change to web directory
 cd web
@@ -17,6 +19,16 @@ fi
 # Build the React app
 echo "Building React app..."
 npm run build
+
+echo "📁 Copying React build to Go embed location..."
+cd ..
+cp -r web/build/* pkg/web/static/build/
+
+echo "🔧 Building Go application..."
+go build -o mc-tool
+
+echo "✅ Build completed successfully!"
+echo "🚀 You can now run: ./mc-tool web --port 8080"
 
 # Copy built files to pkg/web/static for embedding
 echo "Copying built files..."

@@ -42,16 +42,16 @@ export async function loadSiteReplicationInfo() {
         };
         
         let sites = [];
-        if (data.aliases && data.aliases.length > 0) {
-            sites = data.aliases.map(aliasData => ({
-                alias: aliasData.alias,
-                url: aliasData.url || aliasData.endpoint,
-                healthy: aliasData.healthy === true,
-                replicationEnabled: aliasData.replicationEnabled === true,
-                replicationStatus: aliasData.replicationStatus || 'not_configured',
-                siteName: aliasData.siteName || '',
-                deploymentID: aliasData.deploymentID || '',
-                serverCount: aliasData.serverCount || 0
+        if (data.sites && data.sites.length > 0) {
+            sites = data.sites.map(siteData => ({
+                name: siteData.name || siteData.alias,
+                url: siteData.url || siteData.endpoint,
+                healthy: siteData.healthy === true,
+                replicationEnabled: siteData.replicationEnabled === true,
+                replicationStatus: siteData.replicationStatus || 'not_configured',
+                siteName: siteData.siteName || '',
+                deploymentID: siteData.deploymentID || '',
+                serverCount: siteData.serverCount || 0
             }));
         }
         
@@ -118,19 +118,6 @@ export async function loadBuckets(alias) {
     } catch (error) {
         console.error(`Error loading buckets for ${alias}:`, error);
         return [];
-    }
-}
-
-export async function addSiteReplication(aliases) {
-    try {
-        const { response, data } = await apiCall('/api/replication/add', {
-            method: 'POST',
-            body: JSON.stringify({ aliases })
-        });
-        return data;
-    } catch (error) {
-        console.error('Error adding site replication:', error);
-        throw error;
     }
 }
 
@@ -212,6 +199,19 @@ export async function addSitesToReplication(aliases) {
     }
 }
 
+export async function addSitesToReplicationSmart(aliases) {
+    try {
+        const { response, data } = await apiCall('/api/replication/add-smart', {
+            method: 'POST',
+            body: JSON.stringify({ aliases })
+        });
+        return data;
+    } catch (error) {
+        console.error('Error adding sites to replication (smart):', error);
+        throw error;
+    }
+}
+
 export async function removeSiteFromReplication(alias) {
     try {
         const { response, data } = await apiCall('/api/replication/remove-site', {
@@ -234,6 +234,46 @@ export async function removeBulkSitesFromReplication(aliases) {
         return data;
     } catch (error) {
         console.error('Error removing sites from replication:', error);
+        throw error;
+    }
+}
+
+export async function removeSiteFromReplicationSmart(alias) {
+    try {
+        const { response, data } = await apiCall('/api/replication/remove-site-smart', {
+            method: 'POST',
+            body: JSON.stringify({ alias })
+        });
+        return data;
+    } catch (error) {
+        console.error('Error removing site from replication (smart):', error);
+        throw error;
+    }
+}
+
+export async function removeBulkSitesFromReplicationSmart(aliases) {
+    try {
+        const { response, data } = await apiCall('/api/replication/remove-site-smart', {
+            method: 'POST',
+            body: JSON.stringify({ aliases })
+        });
+        return data;
+    } catch (error) {
+        console.error('Error removing sites from replication (smart):', error);
+        throw error;
+    }
+}
+
+// Alias for individual site removal for clarity
+export const removeIndividualSiteFromReplication = removeSiteFromReplication;
+export const removeIndividualSiteFromReplicationSmart = removeSiteFromReplicationSmart;
+
+export async function checkSplitBrainStatus() {
+    try {
+        const { response, data } = await apiCall('/api/replication/split-brain-check');
+        return data;
+    } catch (error) {
+        console.error('Error checking split brain status:', error);
         throw error;
     }
 }

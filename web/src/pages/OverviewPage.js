@@ -89,8 +89,8 @@ const OverviewPage = ({ sites, replicationInfo }) => {
                         </thead>
                         <tbody>
                             {sites.map(site => (
-                                <tr key={site.alias}>
-                                    <td>{site.alias}</td>
+                                <tr key={site.name}>
+                                    <td>{site.name}</td>
                                     <td>{site.url}</td>
                                     <td>
                                         <span className={`badge ${site.healthy ? 'badge-success' : 'badge-danger'}`}>
