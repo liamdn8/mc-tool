@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { I18nProvider } from './utils/i18n';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import OverviewPage from './pages/OverviewPage';
 import SitesPage from './pages/SitesPage';
 import OperationsPage from './pages/OperationsPage';
+import CompareOperations from './components/operations/CompareOperations';
+import ChecklistOperations from './components/operations/ChecklistOperations';
+import SiteOperations from './components/operations/SiteOperations';
 import { loadAliases, loadSiteReplicationInfo } from './utils/api';
 
 function App() {
-    const [currentPage, setCurrentPage] = useState('overview');
     const [sites, setSites] = useState([]);
     const [replicationInfo, setReplicationInfo] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -58,45 +61,39 @@ function App() {
         }
     };
 
-    const renderCurrentPage = () => {
-        const pageProps = {
-            sites,
-            replicationInfo,
-            onRefresh: refreshData // Use data refresh instead of full reload
-        };
-
-        switch (currentPage) {
-            case 'overview':
-                return <OverviewPage {...pageProps} />;
-            case 'sites':
-                return <SitesPage {...pageProps} />;
-            case 'operations':
-                return <OperationsPage {...pageProps} />;
-            default:
-                return <OverviewPage {...pageProps} />;
-        }
+    const pageProps = {
+        sites,
+        replicationInfo,
+        onRefresh: refreshData
     };
 
     return (
         <I18nProvider>
-            <div className="app-container">
-                <Header onRefresh={loadInitialData} />
-                <div className="app-layout">
-                    <Sidebar 
-                        currentPage={currentPage} 
-                        onPageChange={setCurrentPage} 
-                    />
-                    <main className="app-main">
-                        {loading ? (
-                            <div className="loading">
-                                <div className="spinner"></div>
-                            </div>
-                        ) : (
-                            renderCurrentPage()
-                        )}
-                    </main>
+            <Router>
+                <div className="app-container">
+                    <Header onRefresh={loadInitialData} />
+                    <div className="app-layout">
+                        <Sidebar />
+                        <main className="app-main">
+                            {loading ? (
+                                <div className="loading">
+                                    <div className="spinner"></div>
+                                </div>
+                            ) : (
+                                <Routes>
+                                    <Route path="/" element={<Navigate to="/overview" replace />} />
+                                    <Route path="/overview" element={<OverviewPage {...pageProps} />} />
+                                    <Route path="/sites" element={<SitesPage {...pageProps} />} />
+                                    <Route path="/operations" element={<OperationsPage {...pageProps} />} />
+                                    <Route path="/operations/compare" element={<CompareOperations sites={sites} />} />
+                                    <Route path="/operations/checklist" element={<ChecklistOperations />} />
+                                    <Route path="/operations/site-operations" element={<SiteOperations hasReplication={replicationInfo?.enabled} />} />
+                                </Routes>
+                            )}
+                        </main>
+                    </div>
                 </div>
-            </div>
+            </Router>
         </I18nProvider>
     );
 }

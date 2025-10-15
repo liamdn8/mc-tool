@@ -159,6 +159,34 @@ body {
     font-weight: 500;
 }
 
+/* Sub-navigation */
+.sub-nav {
+    background: var(--bg-secondary);
+    border-left: 3px solid var(--border-color);
+    margin-left: 24px;
+}
+
+.sub-nav-link {
+    padding: 8px 16px 8px 32px !important;
+    font-size: 14px;
+    border-left: none !important;
+    background: transparent;
+}
+
+.sub-nav-link:hover {
+    background: var(--bg-primary);
+}
+
+.sub-nav-link.active {
+    background: var(--primary-color);
+    color: white;
+    font-weight: 500;
+}
+
+.sub-nav-link.active:hover {
+    background: var(--primary-color);
+}
+
 .sidebar-footer {
     margin-top: auto;
     padding: 16px 24px;
