@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/liamdn8/mc-tool/pkg/web/services"
@@ -86,9 +87,10 @@ func (h *OperationsHandler) HandleHealthCheck(w http.ResponseWriter, r *http.Req
 
 // CompareRequest represents the request for comparing aliases
 type CompareRequest struct {
-	SourceAlias string `json:"sourceAlias"`
-	DestAlias   string `json:"destAlias"`
-	Path        string `json:"path"`
+	SourceAlias    string `json:"sourceAlias"`
+	DestAlias      string `json:"destAlias"`
+	Path           string `json:"path"`
+	CompareVersion bool   `json:"compareVersion"` // Include version comparison
 }
 
 // HandleCompare handles POST /api/operations/compare
@@ -109,7 +111,7 @@ func (h *OperationsHandler) HandleCompare(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	result, err := h.operationsService.CompareBuckets(req.SourceAlias, req.DestAlias, req.Path)
+	result, err := h.operationsService.CompareBuckets(req.SourceAlias, req.DestAlias, req.Path, req.CompareVersion)
 	if err != nil {
 		h.RespondError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -186,6 +188,48 @@ func (h *OperationsHandler) HandleGetPathSuggestions(w http.ResponseWriter, r *h
 		"alias":  alias,
 		"bucket": bucket,
 		"paths":  paths,
+	}
+
+	h.RespondJSON(w, result)
+}
+
+// HandleGetBucketVersioning handles GET /api/operations/bucket-versioning?sourceAlias=<alias>&destAlias=<alias>&bucket=<bucket>
+func (h *OperationsHandler) HandleGetBucketVersioning(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		h.RespondError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	sourceAlias := r.URL.Query().Get("sourceAlias")
+	destAlias := r.URL.Query().Get("destAlias")
+	bucket := r.URL.Query().Get("bucket")
+
+	if sourceAlias == "" || destAlias == "" || bucket == "" {
+		h.RespondError(w, http.StatusBadRequest, "sourceAlias, destAlias, and bucket parameters are required")
+		return
+	}
+
+	// Check versioning status for both aliases
+	sourceVersioning, err := h.operationsService.GetBucketVersioningStatus(sourceAlias, bucket)
+	if err != nil {
+		h.RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to check source versioning: %v", err))
+		return
+	}
+
+	destVersioning, err := h.operationsService.GetBucketVersioningStatus(destAlias, bucket)
+	if err != nil {
+		h.RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to check destination versioning: %v", err))
+		return
+	}
+
+	result := map[string]interface{}{
+		"sourceAlias":         sourceAlias,
+		"destAlias":           destAlias,
+		"bucket":              bucket,
+		"sourceVersioning":    sourceVersioning,
+		"destVersioning":      destVersioning,
+		"bothVersioned":       sourceVersioning && destVersioning,
+		"versioningSupported": sourceVersioning || destVersioning,
 	}
 
 	h.RespondJSON(w, result)

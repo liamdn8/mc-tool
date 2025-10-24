@@ -7,11 +7,18 @@ const CompareOperations = ({ sites }) => {
         sourceAlias: '',
         destAlias: '',
         bucket: '',
-        path: ''
+        path: '',
+        compareVersion: false
     });
     const [availableBuckets, setAvailableBuckets] = useState({});
     const [pathSuggestions, setPathSuggestions] = useState([]);
     const [isRunning, setIsRunning] = useState(false);
+    const [versioningStatus, setVersioningStatus] = useState({
+        bothVersioned: false,
+        sourceVersioning: false,
+        destVersioning: false,
+        checked: false
+    });
 
     // Pagination states
     const [pagination, setPagination] = useState({
@@ -62,6 +69,52 @@ const CompareOperations = ({ sites }) => {
         }
     };
 
+    // Check bucket versioning status
+    const checkBucketVersioning = async (sourceAlias, destAlias, bucket) => {
+        if (!sourceAlias || !destAlias || !bucket) {
+            setVersioningStatus({
+                bothVersioned: false,
+                sourceVersioning: false,
+                destVersioning: false,
+                checked: false
+            });
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/operations/bucket-versioning?sourceAlias=${encodeURIComponent(sourceAlias)}&destAlias=${encodeURIComponent(destAlias)}&bucket=${encodeURIComponent(bucket)}`);
+            if (response.ok) {
+                const result = await response.json();
+                setVersioningStatus({
+                    bothVersioned: result.bothVersioned,
+                    sourceVersioning: result.sourceVersioning,
+                    destVersioning: result.destVersioning,
+                    checked: true
+                });
+                
+                // If versioning is not available on both sides, disable the compareVersion option
+                if (!result.bothVersioned && compareFormData.compareVersion) {
+                    setCompareFormData(prev => ({ ...prev, compareVersion: false }));
+                }
+            } else {
+                setVersioningStatus({
+                    bothVersioned: false,
+                    sourceVersioning: false,
+                    destVersioning: false,
+                    checked: true
+                });
+            }
+        } catch (error) {
+            console.error('Failed to check bucket versioning:', error);
+            setVersioningStatus({
+                bothVersioned: false,
+                sourceVersioning: false,
+                destVersioning: false,
+                checked: true
+            });
+        }
+    };
+
     const handleSourceAliasChange = (alias) => {
         setCompareFormData(prev => ({ 
             ...prev, 
@@ -84,6 +137,20 @@ const CompareOperations = ({ sites }) => {
         } else {
             setPathSuggestions([]);
         }
+        
+        // Check versioning when bucket changes and both aliases are selected
+        if (compareFormData.sourceAlias && compareFormData.destAlias && bucket) {
+            checkBucketVersioning(compareFormData.sourceAlias, compareFormData.destAlias, bucket);
+        }
+    };
+
+    const handleDestAliasChange = (alias) => {
+        setCompareFormData(prev => ({ ...prev, destAlias: alias }));
+        
+        // Check versioning when dest alias changes and bucket is selected
+        if (compareFormData.sourceAlias && alias && compareFormData.bucket) {
+            checkBucketVersioning(compareFormData.sourceAlias, alias, compareFormData.bucket);
+        }
     };
 
     const executeCompare = async () => {
@@ -95,7 +162,8 @@ const CompareOperations = ({ sites }) => {
                 body: JSON.stringify({
                     sourceAlias: compareFormData.sourceAlias,
                     destAlias: compareFormData.destAlias,
-                    path: compareFormData.bucket + (compareFormData.path ? '/' + compareFormData.path : '')
+                    path: compareFormData.bucket + (compareFormData.path ? '/' + compareFormData.path : ''),
+                    compareVersion: compareFormData.compareVersion
                 })
             });
             
@@ -321,6 +389,19 @@ const CompareOperations = ({ sites }) => {
             <div style={{ marginTop: '20px', padding: '16px', border: '1px solid #e9ecef', borderRadius: '8px', backgroundColor: '#fafafa' }}>
                 <h5 style={{ margin: '0 0 16px 0', color: '#495057' }}>
                     📊 Comparison Results
+                    {compareFormData.compareVersion && (
+                        <span style={{ 
+                            fontSize: '12px', 
+                            marginLeft: '12px', 
+                            backgroundColor: '#e3f2fd', 
+                            color: '#1976d2',
+                            padding: '4px 8px',
+                            borderRadius: '12px',
+                            fontWeight: 'normal'
+                        }}>
+                            Version comparison enabled
+                        </span>
+                    )}
                 </h5>
                 
                 {/* Summary Section First */}
@@ -447,7 +528,7 @@ const CompareOperations = ({ sites }) => {
                                 </label>
                                 <select 
                                     value={compareFormData.destAlias}
-                                    onChange={(e) => setCompareFormData(prev => ({ ...prev, destAlias: e.target.value }))}
+                                    onChange={(e) => handleDestAliasChange(e.target.value)}
                                     style={{ 
                                         width: '100%', 
                                         padding: '8px', 
@@ -514,6 +595,45 @@ const CompareOperations = ({ sites }) => {
                                     ))}
                                 </datalist>
                             </div>
+                        </div>
+
+                        {/* Version Comparison Option */}
+                        <div style={{ marginBottom: '16px' }}>
+                            <label style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                gap: '8px', 
+                                fontSize: '14px', 
+                                fontWeight: '500',
+                                cursor: versioningStatus.bothVersioned ? 'pointer' : 'not-allowed',
+                                opacity: versioningStatus.bothVersioned ? 1 : 0.6
+                            }}>
+                                <input 
+                                    type="checkbox"
+                                    checked={compareFormData.compareVersion}
+                                    onChange={(e) => setCompareFormData(prev => ({ ...prev, compareVersion: e.target.checked }))}
+                                    disabled={!versioningStatus.bothVersioned}
+                                    style={{ 
+                                        width: '16px', 
+                                        height: '16px',
+                                        cursor: versioningStatus.bothVersioned ? 'pointer' : 'not-allowed'
+                                    }}
+                                />
+                                <span>Compare all versions</span>
+                                <span style={{ 
+                                    fontSize: '12px', 
+                                    color: '#6c757d',
+                                    fontWeight: 'normal'
+                                }}>
+                                    {versioningStatus.checked ? (
+                                        versioningStatus.bothVersioned ? 
+                                            '(Both buckets have versioning enabled)' :
+                                            versioningStatus.sourceVersioning || versioningStatus.destVersioning ?
+                                                '(Versioning only enabled on one side)' :
+                                                '(Versioning not enabled on either bucket)'
+                                    ) : '(Checking versioning status...)'}
+                                </span>
+                            </label>
                         </div>
 
                         <button 

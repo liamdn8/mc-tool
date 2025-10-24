@@ -145,6 +145,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/operations/checklist", s.handlers.Operations.HandleChecklist)
 	mux.HandleFunc("/api/operations/buckets", s.handlers.Operations.HandleGetBuckets)
 	mux.HandleFunc("/api/operations/path-suggestions", s.handlers.Operations.HandleGetPathSuggestions)
+	mux.HandleFunc("/api/operations/bucket-versioning", s.handlers.Operations.HandleGetBucketVersioning)
 
 	s.httpServer = &http.Server{
 		Addr:         fmt.Sprintf(":%d", s.config.Port),

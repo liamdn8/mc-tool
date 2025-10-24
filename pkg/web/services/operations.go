@@ -334,11 +334,12 @@ func (os *OperationsService) HealthCheck() (map[string]interface{}, error) {
 }
 
 // CompareBuckets compares content between two aliases
-func (os *OperationsService) CompareBuckets(sourceAlias, destAlias, path string) (map[string]interface{}, error) {
+func (os *OperationsService) CompareBuckets(sourceAlias, destAlias, path string, compareVersion bool) (map[string]interface{}, error) {
 	logger.GetLogger().Info("Starting bucket comparison", map[string]interface{}{
-		"source": sourceAlias,
-		"dest":   destAlias,
-		"path":   path,
+		"source":         sourceAlias,
+		"dest":           destAlias,
+		"path":           path,
+		"compareVersion": compareVersion,
 	})
 
 	// Build mc-tool compare command
@@ -353,8 +354,14 @@ func (os *OperationsService) CompareBuckets(sourceAlias, destAlias, path string)
 		dest = destAlias
 	}
 
-	// Use mc-tool compare command with --insecure flag
-	cmd = exec.Command("./mc-tool", "compare", "--insecure", source, dest)
+	// Use mc-tool compare command with --insecure flag and optionally --versions
+	args := []string{"compare", "--insecure"}
+	if compareVersion {
+		args = append(args, "--versions")
+	}
+	args = append(args, source, dest)
+
+	cmd = exec.Command("./mc-tool", args...)
 
 	output, err := cmd.CombinedOutput()
 	outputStr := string(output)
@@ -419,10 +426,8 @@ func (os *OperationsService) CompareBuckets(sourceAlias, destAlias, path string)
 					onlyInDest = append(onlyInDest, filename)
 				}
 			} else if strings.HasPrefix(line, "⚠") {
-				// Different content - handle Unicode properly
-				// Remove the warning symbol and leading space
-				content := strings.TrimSpace(line[len("⚠"):])
-				parts := strings.SplitN(content, " - ", 2)
+				// Different content
+				parts := strings.SplitN(line[1:], " - ", 2)
 				if len(parts) > 0 {
 					filename := strings.TrimSpace(parts[0])
 					description := "Content differs"
@@ -492,6 +497,26 @@ func (os *OperationsService) GetBucketsForAlias(alias string) ([]string, error) 
 	}
 
 	return buckets, nil
+}
+
+// GetBucketVersioningStatus checks if versioning is enabled for a bucket
+func (os *OperationsService) GetBucketVersioningStatus(alias, bucket string) (bool, error) {
+	cmd := exec.Command("mc", "version", "info", alias+"/"+bucket)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		// If command fails, assume versioning is not supported or disabled
+		return false, nil
+	}
+
+	outputStr := string(output)
+	// Check if versioning is enabled
+	if strings.Contains(outputStr, "Versioning: Enabled") ||
+		strings.Contains(outputStr, "versioning is enabled") ||
+		strings.Contains(outputStr, "Status: Enabled") {
+		return true, nil
+	}
+
+	return false, nil
 }
 
 // GetPathSuggestionsForBucket returns path suggestions for a specific bucket
