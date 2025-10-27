@@ -13,13 +13,17 @@ import (
 type OperationsService struct {
 	minioService       *MinIOService
 	replicationService *ReplicationService
+	buckets            *bucketService
 }
 
 // NewOperationsService creates a new operations service
 func NewOperationsService(minioService *MinIOService, replicationService *ReplicationService) *OperationsService {
+	buckets := newBucketService(minioService, minioService, mcBucketInspector{}, mcVersionChecker{})
+
 	return &OperationsService{
 		minioService:       minioService,
 		replicationService: replicationService,
+		buckets:            buckets,
 	}
 }
 
@@ -471,83 +475,17 @@ func (os *OperationsService) CompareBuckets(sourceAlias, destAlias, path string,
 
 // GetBucketsForAlias returns list of buckets for a specific alias
 func (os *OperationsService) GetBucketsForAlias(alias string) ([]string, error) {
-	cmd := exec.Command("mc", "ls", alias, "--json")
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return nil, fmt.Errorf("failed to list buckets for alias %s: %v", alias, err)
-	}
-
-	var buckets []string
-	lines := strings.Split(string(output), "\n")
-
-	for _, line := range lines {
-		if strings.TrimSpace(line) == "" {
-			continue
-		}
-
-		var bucketInfo map[string]interface{}
-		if err := json.Unmarshal([]byte(line), &bucketInfo); err != nil {
-			continue
-		}
-
-		if bucketInfo["type"] == "folder" {
-			bucketName := strings.TrimSuffix(bucketInfo["key"].(string), "/")
-			buckets = append(buckets, bucketName)
-		}
-	}
-
-	return buckets, nil
+	return os.buckets.ListBuckets(alias)
 }
 
 // GetBucketVersioningStatus checks if versioning is enabled for a bucket
 func (os *OperationsService) GetBucketVersioningStatus(alias, bucket string) (bool, error) {
-	cmd := exec.Command("mc", "version", "info", alias+"/"+bucket)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		// If command fails, assume versioning is not supported or disabled
-		return false, nil
-	}
-
-	outputStr := string(output)
-	// Check if versioning is enabled
-	if strings.Contains(outputStr, "Versioning: Enabled") ||
-		strings.Contains(outputStr, "versioning is enabled") ||
-		strings.Contains(outputStr, "Status: Enabled") {
-		return true, nil
-	}
-
-	return false, nil
+	return os.buckets.CheckVersioning(alias, bucket)
 }
 
 // GetPathSuggestionsForBucket returns path suggestions for a specific bucket
 func (os *OperationsService) GetPathSuggestionsForBucket(alias, bucket string) ([]string, error) {
-	cmd := exec.Command("mc", "ls", alias+"/"+bucket, "--json")
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		// If bucket doesn't exist or is empty, return empty suggestions
-		return []string{}, nil
-	}
-
-	var paths []string
-	lines := strings.Split(string(output), "\n")
-
-	for _, line := range lines {
-		if strings.TrimSpace(line) == "" {
-			continue
-		}
-
-		var pathInfo map[string]interface{}
-		if err := json.Unmarshal([]byte(line), &pathInfo); err != nil {
-			continue
-		}
-
-		if pathInfo["type"] == "folder" {
-			pathName := strings.TrimSuffix(pathInfo["key"].(string), "/")
-			paths = append(paths, pathName)
-		}
-	}
-
-	return paths, nil
+	return os.buckets.SuggestPaths(alias, bucket)
 }
 
 // ConfigurationChecklist performs comprehensive configuration checks
