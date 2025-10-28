@@ -186,6 +186,50 @@ export async function resyncSiteReplication(fromSite, toSite) {
     }
 }
 
+export async function loadReplicationResyncOptions() {
+    try {
+        const { response, data } = await apiCall('/api/operations/resync/options');
+        if (!response.ok) {
+            throw new Error(data?.error || 'Failed to load replication resync options');
+        }
+        return data;
+    } catch (error) {
+        console.error('Error loading replication resync options:', error);
+        throw error;
+    }
+}
+
+export async function startReplicationResyncOperation(sourceAlias, targetAlias) {
+    try {
+        const payload = { sourceAlias, targetAlias };
+        const { response, data } = await apiCall('/api/operations/resync/start', {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+        if (!response.ok) {
+            throw new Error(data?.error || 'Failed to start replication resync');
+        }
+        return data;
+    } catch (error) {
+        console.error('Error starting replication resync operation:', error);
+        throw error;
+    }
+}
+
+export async function fetchReplicationResyncStatus(sourceAlias, targetAlias) {
+    try {
+        const query = `sourceAlias=${encodeURIComponent(sourceAlias)}&targetAlias=${encodeURIComponent(targetAlias)}`;
+        const { response, data } = await apiCall(`/api/operations/resync/status?${query}`);
+        if (!response.ok) {
+            throw new Error(data?.error || 'Failed to fetch replication resync status');
+        }
+        return data;
+    } catch (error) {
+        console.error('Error fetching replication resync status:', error);
+        throw error;
+    }
+}
+
 export async function addSitesToReplication(aliases) {
     try {
         const { response, data } = await apiCall('/api/replication/add', {

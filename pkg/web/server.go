@@ -137,6 +137,9 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/replication/resync", s.handlers.Replication.HandleReplicationResync)
 
 	// Operations APIs
+	mux.HandleFunc("/api/operations/resync/options", s.handlers.Operations.HandleGetResyncOptions)
+	mux.HandleFunc("/api/operations/resync/start", s.handlers.Operations.HandleStartResync)
+	mux.HandleFunc("/api/operations/resync/status", s.handlers.Operations.HandleGetResyncStatus)
 	mux.HandleFunc("/api/operations/sync-policies", s.handlers.Operations.HandleSyncPolicies)
 	mux.HandleFunc("/api/operations/sync-lifecycle", s.handlers.Operations.HandleSyncLifecycle)
 	mux.HandleFunc("/api/operations/validate-consistency", s.handlers.Operations.HandleValidateConsistency)

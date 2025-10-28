@@ -138,6 +138,12 @@ type ClusterInfo struct {
 	Enabled      bool                     `json:"enabled"`
 }
 
+// clusterAliasInfo describes metadata about an alias within a replication cluster.
+type clusterAliasInfo struct {
+	Cluster *ClusterInfo
+	Site    map[string]interface{}
+}
+
 // DetectReplicationClusters detects existing replication clusters and potential split brain scenarios
 func (rs *ReplicationService) DetectReplicationClusters() ([]ClusterInfo, error) {
 	aliases, err := rs.minioService.GetAliases()
@@ -196,6 +202,31 @@ func (rs *ReplicationService) DetectReplicationClusters() ([]ClusterInfo, error)
 	}
 
 	return clusters, nil
+}
+
+// GetClusterAliasIndex builds a lookup table mapping alias names to their cluster metadata.
+func (rs *ReplicationService) GetClusterAliasIndex() (map[string]clusterAliasInfo, []ClusterInfo, error) {
+	clusters, err := rs.DetectReplicationClusters()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	aliasIndex := make(map[string]clusterAliasInfo)
+	for i := range clusters {
+		cluster := &clusters[i]
+		for _, site := range cluster.Sites {
+			name, _ := site["name"].(string)
+			if name == "" {
+				continue
+			}
+			aliasIndex[name] = clusterAliasInfo{
+				Cluster: cluster,
+				Site:    site,
+			}
+		}
+	}
+
+	return aliasIndex, clusters, nil
 }
 
 // CheckSplitBrainStatus checks for split brain scenarios and provides detailed warnings
@@ -261,6 +292,7 @@ func (rs *ReplicationService) CheckSplitBrainStatus() (map[string]interface{}, e
 
 	return result, nil
 }
+
 func (rs *ReplicationService) AddSiteReplicationSmart(aliases []string) (map[string]interface{}, error) {
 	if len(aliases) == 0 {
 		return nil, fmt.Errorf("no aliases provided")
@@ -365,6 +397,167 @@ func (rs *ReplicationService) AddSiteReplicationSmart(aliases []string) (map[str
 
 	result["success"] = true
 	result["message"] = fmt.Sprintf("Added %d new sites to existing cluster. Total sites: %d", len(newAliases), len(allAliases))
+
+	return result, nil
+}
+
+func (rs *ReplicationService) GetReplicationResyncStatus(sourceAlias, targetAlias string) (map[string]interface{}, error) {
+	if sourceAlias == "" || targetAlias == "" {
+		return nil, fmt.Errorf("source and target aliases are required")
+	}
+
+	cmd := exec.Command("mc", "admin", "replicate", "resync", "status", "--json", sourceAlias, targetAlias)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get resync status: %s", strings.TrimSpace(string(output)))
+	}
+
+	trimmed := strings.TrimSpace(string(output))
+	result := map[string]interface{}{
+		"rawOutput": trimmed,
+	}
+
+	summaryOrder := []struct {
+		key   string
+		label string
+	}{
+		{"resyncID", "ResyncID"},
+		{"status", "Status"},
+		{"objects", "Objects"},
+		{"versions", "Versions"},
+		{"failedObjects", "FailedObjects"},
+		{"throughput", "Throughput"},
+		{"iops", "IOPs"},
+		{"transferred", "Transferred"},
+		{"elapsed", "Elapsed"},
+		{"currentObject", "CurrObjName"},
+	}
+
+	summaryValues := map[string]string{}
+
+	if trimmed != "" {
+		lines := strings.Split(trimmed, "\n")
+		var reports []map[string]interface{}
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+
+			var entry map[string]interface{}
+			if err := json.Unmarshal([]byte(line), &entry); err == nil {
+				reports = append(reports, entry)
+			}
+		}
+
+		if len(reports) > 0 {
+			result["reports"] = reports
+
+			latest := reports[len(reports)-1]
+			copyField := func(destKey string, keys ...string) {
+				for _, key := range keys {
+					if value, ok := latest[key]; ok {
+						result[destKey] = value
+						summaryValues[destKey] = fmt.Sprintf("%v", value)
+						return
+					}
+				}
+			}
+
+			copyField("resyncID", "resyncID", "resyncId", "ResyncID")
+			copyField("status", "status", "Status")
+			copyField("objects", "objects", "Objects")
+			copyField("versions", "versions", "Versions")
+			copyField("failedObjects", "failedObjects", "FailedObjects")
+			copyField("throughput", "throughput", "Throughput")
+			copyField("iops", "iops", "IOPs", "iops_per_second")
+			copyField("transferred", "transferred", "Transferred")
+			copyField("elapsed", "elapsed", "Elapsed")
+			copyField("currentObject", "currObjName", "currentObject", "CurrObjName")
+		}
+	}
+
+	prettyCmd := exec.Command("mc", "admin", "replicate", "resync", "status", sourceAlias, targetAlias)
+	prettyOutput, prettyErr := prettyCmd.CombinedOutput()
+	if len(prettyOutput) > 0 {
+		pretty := strings.TrimSpace(string(prettyOutput))
+		if pretty != "" {
+			result["prettyOutput"] = pretty
+
+			applySummary := func(destKey string, value string) {
+				if value == "" {
+					return
+				}
+				if _, exists := summaryValues[destKey]; exists {
+					return
+				}
+				result[destKey] = value
+				summaryValues[destKey] = value
+			}
+
+			lines := strings.Split(pretty, "\n")
+			for _, line := range lines {
+				line = strings.TrimSpace(line)
+				if line == "" || !strings.Contains(line, ":") {
+					continue
+				}
+
+				parts := strings.SplitN(line, ":", 2)
+				if len(parts) != 2 {
+					continue
+				}
+
+				label := strings.TrimSpace(parts[0])
+				value := strings.TrimSpace(parts[1])
+				if value == "" {
+					continue
+				}
+
+				normalized := strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(label, " ", ""), "_", ""))
+				switch normalized {
+				case "resyncid":
+					applySummary("resyncID", value)
+				case "status":
+					applySummary("status", value)
+				case "objects":
+					applySummary("objects", value)
+				case "versions":
+					applySummary("versions", value)
+				case "failedobjects":
+					applySummary("failedObjects", value)
+				case "throughput":
+					applySummary("throughput", value)
+				case "iops":
+					applySummary("iops", value)
+				case "transferred":
+					applySummary("transferred", value)
+				case "elapsed":
+					applySummary("elapsed", value)
+				case "currobjname", "currentobjname", "currobject", "currentobject":
+					applySummary("currentObject", value)
+				}
+			}
+		}
+	}
+	if prettyErr != nil {
+		logger.GetLogger().Warn("mc resync status (pretty) returned error", map[string]interface{}{"error": prettyErr.Error()})
+	}
+
+	if len(summaryValues) > 0 {
+		var summaryBuilder strings.Builder
+		for _, item := range summaryOrder {
+			if value, exists := summaryValues[item.key]; exists {
+				summaryBuilder.WriteString(item.label)
+				summaryBuilder.WriteString(":\t")
+				summaryBuilder.WriteString(value)
+				summaryBuilder.WriteString("\n")
+			}
+		}
+		summaryText := strings.TrimSpace(summaryBuilder.String())
+		if summaryText != "" {
+			result["summaryText"] = summaryText
+		}
+	}
 
 	return result, nil
 }
@@ -732,4 +925,19 @@ func (rs *ReplicationService) ResyncSites(sourceAlias, targetAlias, direction st
 	})
 
 	return nil
+}
+
+// StartReplicationResync triggers a resync between two aliases in the same replication cluster.
+func (rs *ReplicationService) StartReplicationResync(sourceAlias, targetAlias string) (string, error) {
+	if sourceAlias == "" || targetAlias == "" {
+		return "", fmt.Errorf("source and target aliases are required")
+	}
+
+	cmd := exec.Command("mc", "admin", "replicate", "resync", "start", sourceAlias, targetAlias)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("failed to start resync: %s", strings.TrimSpace(string(output)))
+	}
+
+	return strings.TrimSpace(string(output)), nil
 }
