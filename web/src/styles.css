@@ -372,6 +372,27 @@ body {
     color: var(--danger-color);
 }
 
+.badge-info {
+    background: #E3F2FD;
+    color: #2196F3;
+}
+
+.badge-secondary {
+    background: #F5F5F5;
+    color: #757575;
+}
+
+.badge-checking {
+    background: #FFF9E6;
+    color: #FFA726;
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
 /* Loading spinner */
 .loading {
     display: flex;

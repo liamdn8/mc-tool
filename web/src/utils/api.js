@@ -35,6 +35,50 @@ export async function loadAliases() {
     }
 }
 
+// Check health of a specific alias (fast, with timeout)
+export async function checkAliasHealth(alias) {
+    try {
+        const { response, data } = await apiCall(`/api/alias-health-fast?alias=${alias}`);
+        return {
+            alias: alias,
+            healthy: data.healthy || false,
+            status: data.status || 'unknown',
+            error: data.error || null
+        };
+    } catch (error) {
+        console.error(`Error checking health for ${alias}:`, error);
+        return {
+            alias: alias,
+            healthy: false,
+            status: 'error',
+            error: error.message
+        };
+    }
+}
+
+// Check health for all aliases in parallel
+export async function checkAllAliasesHealth(aliases) {
+    const healthChecks = aliases.map(alias => 
+        checkAliasHealth(alias.name || alias.alias)
+    );
+    
+    try {
+        const results = await Promise.all(healthChecks);
+        const healthMap = {};
+        results.forEach(result => {
+            healthMap[result.alias] = {
+                healthy: result.healthy,
+                status: result.status,
+                error: result.error
+            };
+        });
+        return healthMap;
+    } catch (error) {
+        console.error('Error checking aliases health:', error);
+        return {};
+    }
+}
+
 export async function loadSiteReplicationInfo() {
     try {
         const { response, data } = await apiCall('/api/replication/info');

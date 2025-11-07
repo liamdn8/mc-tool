@@ -109,6 +109,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/aliases", s.handlers.Site.HandleGetAliases)
 	mux.HandleFunc("/api/aliases-stats", s.handlers.Site.HandleGetAliasesWithStats)
 	mux.HandleFunc("/api/alias-health", s.handlers.Site.HandleAliasHealth)
+	mux.HandleFunc("/api/alias-health-fast", s.handlers.Site.HandleAliasHealthFast)
 	mux.HandleFunc("/api/sites", s.handlers.Site.HandleSites)
 	mux.HandleFunc("/api/sites/health", s.handlers.Site.HandleSiteHealth)
 

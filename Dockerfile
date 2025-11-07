@@ -38,7 +38,7 @@ ENV GOPATH=/go \
     PATH=$PATH:/usr/local/go/bin:/go/bin
 
 # Copy the mc-tool binary
-COPY build/mc-tool-portable /usr/local/bin/mc-tool
+COPY mc-tool /usr/local/bin/mc-tool
 RUN chmod +x /usr/local/bin/mc-tool
 
 # Create a non-root user to run the tool

@@ -32,13 +32,12 @@ func (h *SiteHandler) getMCInternalAliases() ([]map[string]interface{}, error) {
 			continue
 		}
 
-		healthy, status := h.getAliasHealthStatus(aliasName)
-
+		// Return immediately with "checking" status - let frontend check health async
 		alias := map[string]interface{}{
 			"name":    aliasName,
 			"url":     aliasURL,
-			"healthy": healthy,
-			"status":  status,
+			"healthy": false,
+			"status":  "checking",
 		}
 
 		if accessKey, ok := aliasData["accessKey"].(string); ok {

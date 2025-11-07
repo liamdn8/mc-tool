@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, RefreshCw } from 'lucide-react';
 import { useI18n } from '../utils/i18n';
 import SplitBrainWarning from '../components/SplitBrainWarning';
+import { getHealthBadgeClass, getHealthBadgeText } from '../utils/healthStatus';
 import { 
     loadAliases, 
     loadSiteReplicationInfo, 
@@ -18,7 +19,7 @@ import {
     checkSplitBrainStatus
 } from '../utils/api';
 
-const SitesPage = ({ sites, replicationInfo, onRefresh }) => {
+const SitesPage = ({ sites, replicationInfo, checkingReplication, onRefresh }) => {
     const { t } = useI18n();
     const [selectedAliases, setSelectedAliases] = useState([]);
     const [selectedSitesToAdd, setSelectedSitesToAdd] = useState([]);
@@ -27,6 +28,25 @@ const SitesPage = ({ sites, replicationInfo, onRefresh }) => {
     const [isAddingToCluster, setIsAddingToCluster] = useState(false);
     const [showResyncModal, setShowResyncModal] = useState(false);
     const [resyncFromSite, setResyncFromSite] = useState('');
+
+    // Helper function to get replication status badge based on health and replication state
+    const getReplicationStatusBadge = (site) => {
+        // If site is not healthy (timeout, error, unhealthy), show Unknown
+        if (site.status === 'checking') {
+            return <span className="badge badge-checking">{t('status_checking', '◌ Checking...')}</span>;
+        }
+        
+        if (!site.healthy || site.status === 'timeout' || site.status === 'error' || site.status === 'unhealthy') {
+            return <span className="badge badge-secondary">{t('status_unknown', '? Unknown')}</span>;
+        }
+        
+        // If healthy, show appropriate replication status
+        if (site.replicationEnabled || site.replicationStatus === 'configured') {
+            return <span className="badge badge-success">{t('status_active', '✓ Active')}</span>;
+        } else {
+            return <span className="badge badge-warning">{t('status_available', 'Available')}</span>;
+        }
+    };
     const [resyncToSite, setResyncToSite] = useState('');
 
     const hasReplication = replicationInfo && replicationInfo.enabled;
@@ -410,7 +430,8 @@ const SitesPage = ({ sites, replicationInfo, onRefresh }) => {
     // Calculate summary statistics
     const totalSites = sites.length;
     const configuredSites = sites.filter(site => site.replicationStatus === 'configured').length;
-    const healthySites = sites.filter(site => site.healthy).length;
+    const healthySites = sites.filter(site => site.healthy && site.status === 'healthy').length;
+    const checkingSites = sites.filter(site => site.status === 'checking').length;
     const availableSites = totalSites - configuredSites;
 
     return (
@@ -428,7 +449,10 @@ const SitesPage = ({ sites, replicationInfo, onRefresh }) => {
                         <div className="stat-summary">{t('sites_stats_in_cluster_summary', 'Active replication sites')}</div>
                     </div>
                     <div className="stat-card">
-                        <div className="stat-value">{healthySites}</div>
+                        <div className="stat-value">
+                            {healthySites}
+                            {checkingSites > 0 && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '4px' }}>({checkingSites} {t('status_checking', 'checking...')})</span>}
+                        </div>
                         <div className="stat-label">{t('sites_stats_healthy_label', 'Healthy Sites')}</div>
                         <div className="stat-summary">{t('sites_stats_healthy_summary', 'Sites responding normally')}</div>
                     </div>
@@ -456,24 +480,92 @@ const SitesPage = ({ sites, replicationInfo, onRefresh }) => {
                 {/* Split Brain Warning Component */}
                 <SplitBrainWarning onRefresh={onRefresh} />
 
-                {!hasReplication ? (
+                {checkingReplication ? (
+                    <div>
+                        <div style={{ padding: '16px', textAlign: 'center', background: 'var(--bg-secondary)', borderRadius: '8px', marginBottom: '20px' }}>
+                            <div className="spinner" style={{ margin: '0 auto 12px', width: '20px', height: '20px', borderWidth: '2px' }}></div>
+                            <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '0.875rem' }}>
+                                {t('checking_replication_status', 'Checking replication configuration...')}
+                            </p>
+                        </div>
+                        
+                        {/* Show sites table even while checking replication */}
+                        {sites.length > 0 && (
+                            <div className="card" style={{ marginTop: '20px' }}>
+                                <div className="card-header">
+                                    <h4 className="card-title">{t('available_aliases', 'Available Aliases')}</h4>
+                                    <span className="badge badge-info">{sites.length} {t('aliases_total', 'total')}</span>
+                                </div>
+                                <div className="table-container">
+                                    <table className="table">
+                                        <thead>
+                                            <tr>
+                                                <th style={{ width: '200px' }}>{t('column_site_name', 'Site Name')}</th>
+                                                <th style={{ width: '300px' }}>{t('column_endpoint', 'Endpoint')}</th>
+                                                <th style={{ width: '120px' }}>{t('column_health', 'Health')}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {sites.map(site => (
+                                                <tr key={site.name}>
+                                                    <td>
+                                                        <div className="site-name" style={{ fontWeight: '600' }}>{site.name}</div>
+                                                    </td>
+                                                    <td>
+                                                        <div className="site-url" style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>{site.url}</div>
+                                                    </td>
+                                                    <td>
+                                                        <span className={`badge ${getHealthBadgeClass(site.status)}`}>
+                                                            {getHealthBadgeText(site.status, t)}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                ) : !hasReplication ? (
                     <div>
                         <p className="card-subtitle">{t('setup_replication_desc')}</p>
                         
                         <div className="form-group">
                             <label className="form-label">{t('select_aliases')}</label>
                             <div style={{ marginBottom: '16px' }}>
-                                {sites.map(site => (
-                                    <label key={site.name} style={{ display: 'block', marginBottom: '8px' }}>
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedAliases.includes(site.name)}
-                                            onChange={() => handleAliasToggle(site.name)}
-                                            style={{ marginRight: '8px' }}
-                                        />
-                                        {site.name} ({site.url})
-                                    </label>
-                                ))}
+                                {sites.map(site => {
+                                    const isDisabled = !site.healthy || site.status === 'checking' || site.status === 'timeout' || site.status === 'error';
+                                    return (
+                                        <label 
+                                            key={site.name} 
+                                            style={{ 
+                                                display: 'block', 
+                                                marginBottom: '8px',
+                                                opacity: isDisabled ? 0.5 : 1,
+                                                cursor: isDisabled ? 'not-allowed' : 'pointer'
+                                            }}
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedAliases.includes(site.name)}
+                                                onChange={() => handleAliasToggle(site.name)}
+                                                disabled={isDisabled}
+                                                style={{ marginRight: '8px' }}
+                                            />
+                                            {site.name} ({site.url})
+                                            {isDisabled && (
+                                                <span style={{ 
+                                                    marginLeft: '8px', 
+                                                    fontSize: '0.875rem',
+                                                    color: 'var(--text-muted)'
+                                                }}>
+                                                    - {site.status === 'checking' ? t('status_checking', 'Checking...') : t('status_unhealthy', 'Unhealthy')}
+                                                </span>
+                                            )}
+                                        </label>
+                                    );
+                                })}
                             </div>
                         </div>
 
@@ -547,14 +639,14 @@ const SitesPage = ({ sites, replicationInfo, onRefresh }) => {
                                                     <input 
                                                         type="checkbox" 
                                                         onChange={(e) => {
-                                                            const availableSites = sites.filter(s => !s.replicationEnabled);
+                                                            const availableSites = sites.filter(s => !s.replicationEnabled && s.healthy && s.status === 'healthy');
                                                             if (e.target.checked) {
                                                                 setSelectedSitesToAdd(availableSites.map(site => site.name));
                                                             } else {
                                                                 setSelectedSitesToAdd([]);
                                                             }
                                                         }}
-                                                            title={t('tooltip_select_all_available', 'Select all available sites')}
+                                                        title={t('tooltip_select_all_healthy', 'Select all healthy available sites')}
                                                     />
                                                 </th>
                                                     <th style={{ width: '200px' }}>{t('column_site_name', 'Site Name')}</th>
@@ -565,41 +657,46 @@ const SitesPage = ({ sites, replicationInfo, onRefresh }) => {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {sites.filter(s => !s.replicationEnabled).map(site => (
-                                                <tr key={site.name}>
-                                                    <td>
-                                                        <input 
-                                                            type="checkbox"
-                                                            checked={selectedSitesToAdd.includes(site.name)}
-                                                            onChange={() => handleSiteToAddToggle(site.name)}
-                                                        />
-                                                    </td>
-                                                    <td>
-                                                        <div className="site-name" style={{ fontWeight: 'bold' }}>{site.name}</div>
-                                                    </td>
-                                                    <td>
-                                                        <div className="site-url" style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>{site.url}</div>
-                                                    </td>
-                                                    <td>
-                                                        <span className={`badge ${site.healthy ? 'badge-success' : 'badge-danger'}`}>
-                                                            {site.healthy ? t('badge_healthy_icon', '● Healthy') : t('badge_unhealthy_icon', '● Unhealthy')}
-                                                        </span>
-                                                    </td>
-                                                    <td>
-                                                        <span className="badge badge-warning">{t('status_available', 'Available')}</span>
-                                                    </td>
-                                                    <td>
-                                                        <button 
-                                                            className="btn btn-primary btn-sm"
-                                                            onClick={() => handleAddSingleSiteToCluster(site.name)}
-                                                            title={t('tooltip_smart_add_single', 'Smart add this site to replication cluster with automatic cluster detection')}
-                                                        >
-                                                            <Plus size={14} />
-                                                            {t('button_smart_add', 'Smart Add')}
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            ))}
+                                            {sites.filter(s => !s.replicationEnabled).map(site => {
+                                                const isDisabled = !site.healthy || site.status === 'checking' || site.status === 'timeout' || site.status === 'error';
+                                                return (
+                                                    <tr key={site.name} style={{ opacity: isDisabled ? 0.6 : 1 }}>
+                                                        <td>
+                                                            <input 
+                                                                type="checkbox"
+                                                                checked={selectedSitesToAdd.includes(site.name)}
+                                                                onChange={() => handleSiteToAddToggle(site.name)}
+                                                                disabled={isDisabled}
+                                                            />
+                                                        </td>
+                                                        <td>
+                                                            <div className="site-name" style={{ fontWeight: 'bold' }}>{site.name}</div>
+                                                        </td>
+                                                        <td>
+                                                            <div className="site-url" style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>{site.url}</div>
+                                                        </td>
+                                                        <td>
+                                                            <span className={`badge ${getHealthBadgeClass(site.status)}`}>
+                                                                {getHealthBadgeText(site.status, t)}
+                                                            </span>
+                                                        </td>
+                                                        <td>
+                                                            {getReplicationStatusBadge(site)}
+                                                        </td>
+                                                        <td>
+                                                            <button 
+                                                                className="btn btn-primary btn-sm"
+                                                                onClick={() => handleAddSingleSiteToCluster(site.name)}
+                                                                disabled={isDisabled}
+                                                                title={isDisabled ? t('tooltip_site_unavailable', 'Site is not healthy or checking') : t('tooltip_smart_add_single', 'Smart add this site to replication cluster with automatic cluster detection')}
+                                                            >
+                                                                <Plus size={14} />
+                                                                {t('button_smart_add', 'Smart Add')}
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
                                         </tbody>
                                     </table>
                                 </div>
@@ -715,12 +812,12 @@ const SitesPage = ({ sites, replicationInfo, onRefresh }) => {
                                                     <div className="site-url" style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>{site.url}</div>
                                                 </td>
                                                 <td>
-                                                    <span className={`badge ${site.healthy ? 'badge-success' : 'badge-danger'}`}>
-                                                        {site.healthy ? t('badge_healthy_icon', '● Healthy') : t('badge_unhealthy_icon', '● Unhealthy')}
+                                                    <span className={`badge ${getHealthBadgeClass(site.status)}`}>
+                                                        {getHealthBadgeText(site.status, t)}
                                                     </span>
                                                 </td>
                                                 <td>
-                                                    <span className="badge badge-success">{t('status_active', '✓ Active')}</span>
+                                                    {getReplicationStatusBadge(site)}
                                                 </td>
                                                 <td>
                                                     <div className="action-buttons">

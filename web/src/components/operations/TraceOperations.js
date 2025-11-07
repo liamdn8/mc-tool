@@ -1298,9 +1298,21 @@ const TraceOperations = ({ sites = [] }) => {
                                 <option value="">{t('trace_form_alias_placeholder', 'Select alias...')}</option>
                                 {sites.map(site => {
                                     const optionLabel = site.name || site.alias || site.url || 'alias';
+                                    const isDisabled = !site.healthy || site.status === 'checking' || site.status === 'timeout' || site.status === 'error';
+                                    const statusSuffix = isDisabled 
+                                        ? site.status === 'checking' 
+                                            ? ' (Checking...)' 
+                                            : site.status === 'timeout'
+                                                ? ' (Timeout)'
+                                                : ' (Unhealthy)'
+                                        : '';
                                     return (
-                                        <option key={optionLabel} value={optionLabel}>
-                                            {optionLabel}
+                                        <option 
+                                            key={optionLabel} 
+                                            value={optionLabel}
+                                            disabled={isDisabled}
+                                        >
+                                            {optionLabel}{statusSuffix}
                                         </option>
                                     );
                                 })}
@@ -1351,7 +1363,7 @@ const TraceOperations = ({ sites = [] }) => {
                             <label style={{ display: 'block', fontSize: '13px', color: '#4b5563', marginBottom: '6px' }}>
                                 {t('trace_form_error_contains', 'Error Message Filters')}
                             </label>
-                            <textarea
+                            <input
                                 value={form.errorInput}
                                 onChange={(e) => handleChange('errorInput', e.target.value)}
                                 rows={1}

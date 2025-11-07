@@ -3,14 +3,14 @@ import { Link, useLocation } from 'react-router-dom';
 import { 
     LayoutDashboard, 
     Globe, 
-    Settings,
     Circle,
     GitCompare,
     List,
-    ShieldAlert,
     Terminal,
     Zap,
-    Activity
+    Activity,
+    CheckSquare,
+    RefreshCw
 } from 'lucide-react';
 import { useI18n } from '../utils/i18n';
 
@@ -32,40 +32,50 @@ const Sidebar = () => {
             label: t('sites') 
         },
         { 
-            id: 'operations', 
-            path: '/operations',
-            icon: Settings, 
-            label: t('operations'),
+            id: 'replication-operator', 
+            path: '/replication-operator',
+            icon: RefreshCw, 
+            label: t('replication_operator', 'Replication Operator'),
             subItems: [
                 {
                     id: 'compare',
-                    path: '/operations/compare',
+                    path: '/replication-operator/compare',
                     icon: GitCompare,
                     label: t('operations_compare', 'Compare Buckets')
                 },
                 {
-                    id: 'trace',
-                    path: '/operations/trace',
-                    icon: Activity,
-                    label: t('operations_trace', 'Trace Error Analyzer')
-                },
-                {
-                    id: 'checklist',
-                    path: '/operations/checklist',
-                    icon: List,
-                    label: t('operations_checklist', 'Configuration Checklist')
-                },
-                {
-                    id: 'operator-utilities',
-                    path: '/operations/operator-utilities',
-                    icon: ShieldAlert,
-                    label: t('operations_operator_utilities', 'Operator Utilities')
-                },
-                {
-                    id: 'site-operations',
-                    path: '/operations/site-operations',
+                    id: 'resync',
+                    path: '/replication-operator/resync',
                     icon: Zap,
-                    label: t('operations_site_operations', 'Site Operations')
+                    label: t('replication_resync', 'Replication Resync')
+                }
+            ]
+        },
+        { 
+            id: 'tracing', 
+            path: '/tracing',
+            icon: Activity, 
+            label: t('tracing', 'Tracing'),
+            subItems: [
+                {
+                    id: 'trace-analyzer',
+                    path: '/tracing/analyzer',
+                    icon: Activity,
+                    label: t('trace_error_analyzer', 'Trace Error Analyzer')
+                }
+            ]
+        },
+        { 
+            id: 'checklist', 
+            path: '/checklist',
+            icon: CheckSquare, 
+            label: t('checklist', 'Checklist'),
+            subItems: [
+                {
+                    id: 'config-checklist',
+                    path: '/checklist/configuration',
+                    icon: List,
+                    label: t('configuration_checklist', 'Configuration Checklist')
                 }
             ]
         },
