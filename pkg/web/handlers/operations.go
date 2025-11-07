@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/liamdn8/mc-tool/pkg/web/services"
 )
@@ -91,6 +93,16 @@ type CompareRequest struct {
 	DestAlias      string `json:"destAlias"`
 	Path           string `json:"path"`
 	CompareVersion bool   `json:"compareVersion"` // Include version comparison
+}
+
+// TraceRequest represents the request payload for trace capture
+type TraceRequest struct {
+	Alias         string   `json:"alias"`
+	Duration      string   `json:"duration"`
+	StatusCodes   []int    `json:"statusCodes"`
+	ErrorContains []string `json:"errorContains"`
+	GroupByAPI    bool     `json:"groupByApi"`
+	GroupByClient bool     `json:"groupByClient"`
 }
 
 // HandleCompare handles POST /api/operations/compare
@@ -230,6 +242,66 @@ func (h *OperationsHandler) HandleGetBucketVersioning(w http.ResponseWriter, r *
 		"destVersioning":      destVersioning,
 		"bothVersioned":       sourceVersioning && destVersioning,
 		"versioningSupported": sourceVersioning || destVersioning,
+	}
+
+	h.RespondJSON(w, result)
+}
+
+// HandleTrace handles POST /api/operations/trace
+func (h *OperationsHandler) HandleTrace(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		h.RespondError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	var req TraceRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.RespondError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	if strings.TrimSpace(req.Alias) == "" {
+		h.RespondError(w, http.StatusBadRequest, "Alias is required")
+		return
+	}
+
+	durationStr := strings.TrimSpace(req.Duration)
+	if durationStr == "" {
+		durationStr = "10s"
+	}
+
+	duration, err := time.ParseDuration(durationStr)
+	if err != nil {
+		h.RespondError(w, http.StatusBadRequest, fmt.Sprintf("Invalid duration: %v", err))
+		return
+	}
+
+	if duration < time.Second || duration > 5*time.Minute {
+		h.RespondError(w, http.StatusBadRequest, "Duration must be between 1s and 5m")
+		return
+	}
+
+	cleanErrors := make([]string, 0, len(req.ErrorContains))
+	for _, filter := range req.ErrorContains {
+		trimmed := strings.TrimSpace(filter)
+		if trimmed != "" {
+			cleanErrors = append(cleanErrors, trimmed)
+		}
+	}
+
+	options := services.TraceCaptureOptions{
+		Alias:         strings.TrimSpace(req.Alias),
+		Duration:      duration,
+		StatusCodes:   req.StatusCodes,
+		ErrorFilters:  cleanErrors,
+		GroupByAPI:    req.GroupByAPI,
+		GroupByClient: req.GroupByClient,
+	}
+
+	result, err := h.operationsService.RunTraceCapture(options)
+	if err != nil {
+		h.RespondError(w, http.StatusInternalServerError, err.Error())
+		return
 	}
 
 	h.RespondJSON(w, result)

@@ -9,6 +9,7 @@ import OperationsPage from './pages/OperationsPage';
 import CompareOperations from './components/operations/CompareOperations';
 import ChecklistOperations from './components/operations/ChecklistOperations';
 import SiteOperations from './components/operations/SiteOperations';
+import TraceOperations from './components/operations/TraceOperations';
 import TerminalPage from './pages/TerminalPage';
 import { loadAliases, loadSiteReplicationInfo } from './utils/api';
 
@@ -88,6 +89,7 @@ function App() {
                                     <Route path="/operations" element={<OperationsPage {...pageProps} />} />
                                     <Route path="/operations/compare" element={<CompareOperations sites={sites} />} />
                                     <Route path="/operations/checklist" element={<ChecklistOperations />} />
+                                    <Route path="/operations/trace" element={<TraceOperations sites={sites} />} />
                                     <Route path="/operations/site-operations" element={<SiteOperations hasReplication={replicationInfo?.enabled} />} />
                                     <Route path="/terminal" element={<TerminalPage />} />
                                 </Routes>

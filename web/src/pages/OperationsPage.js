@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { GitCompare, List, Zap, ArrowRight } from 'lucide-react';
+import { GitCompare, List, Zap, ArrowRight, Activity } from 'lucide-react';
 import { useI18n } from '../utils/i18n';
 
 const OperationsPage = ({ sites, replicationInfo }) => {
@@ -31,6 +31,29 @@ const OperationsPage = ({ sites, replicationInfo }) => {
             icon: GitCompare,
             path: '/operations/compare',
             color: '#4f46e5',
+            requiresReplication: false
+        },
+        {
+            id: 'trace',
+            titleKey: 'operations_trace_title',
+            titleFallback: 'Trace Error Analyzer',
+            descriptionKey: 'operations_trace_description',
+            descriptionFallback: 'Capture mc admin trace output to identify repeated object failures, filter by status code or message, and group by API or client for faster debugging',
+            featureKeys: [
+                'operations_trace_feature_1',
+                'operations_trace_feature_2',
+                'operations_trace_feature_3',
+                'operations_trace_feature_4'
+            ],
+            featureFallbacks: [
+                'Filter captured errors by HTTP status code or message content',
+                'Group repeated failures by API action and impacted clients',
+                'Highlight top affected objects with sample error messages',
+                'Export raw trace events for follow-up investigation'
+            ],
+            icon: Activity,
+            path: '/operations/trace',
+            color: '#2563eb',
             requiresReplication: false
         },
         {

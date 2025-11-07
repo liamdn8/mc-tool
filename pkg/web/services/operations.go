@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/liamdn8/mc-tool/pkg/logger"
+	"github.com/liamdn8/mc-tool/pkg/trace"
 )
 
 // OperationsService handles automated operations
@@ -25,6 +27,16 @@ func NewOperationsService(minioService *MinIOService, replicationService *Replic
 		replicationService: replicationService,
 		buckets:            buckets,
 	}
+}
+
+// TraceCaptureOptions encapsulates configuration for trace captures
+type TraceCaptureOptions struct {
+	Alias         string
+	Duration      time.Duration
+	StatusCodes   []int
+	ErrorFilters  []string
+	GroupByAPI    bool
+	GroupByClient bool
 }
 
 // SyncBucketPolicies synchronizes bucket policies across all sites
@@ -471,6 +483,194 @@ func (os *OperationsService) CompareBuckets(sourceAlias, destAlias, path string,
 	})
 
 	return results, nil
+}
+
+// RunTraceCapture executes mc admin trace and returns aggregated analytics
+func (os *OperationsService) RunTraceCapture(opts TraceCaptureOptions) (map[string]interface{}, error) {
+	alias := strings.TrimSpace(opts.Alias)
+	if alias == "" {
+		return nil, fmt.Errorf("alias is required")
+	}
+
+	duration := opts.Duration
+	if duration <= 0 {
+		duration = 10 * time.Second
+	}
+	if duration < time.Second {
+		duration = time.Second
+	}
+	if duration > 5*time.Minute {
+		duration = 5 * time.Minute
+	}
+
+	codeSet := make(map[int]struct{})
+	statusCodes := make([]int, 0, len(opts.StatusCodes))
+	for _, code := range opts.StatusCodes {
+		if code <= 0 {
+			continue
+		}
+		if _, seen := codeSet[code]; seen {
+			continue
+		}
+		codeSet[code] = struct{}{}
+		statusCodes = append(statusCodes, code)
+	}
+
+	errorFilters := make([]string, 0, len(opts.ErrorFilters))
+	for _, filter := range opts.ErrorFilters {
+		trimmed := strings.TrimSpace(filter)
+		if trimmed == "" {
+			continue
+		}
+		errorFilters = append(errorFilters, trimmed)
+	}
+
+	logger.GetLogger().Info("Starting trace capture", map[string]interface{}{
+		"alias":           alias,
+		"duration":        duration.String(),
+		"status_codes":    statusCodes,
+		"error_filters":   errorFilters,
+		"group_by_api":    opts.GroupByAPI,
+		"group_by_client": opts.GroupByClient,
+	})
+
+	result, err := trace.Run(trace.Options{
+		Alias:               alias,
+		MCPath:              "mc",
+		Duration:            duration,
+		Insecure:            false,
+		Verbose:             false,
+		StatusCodeFilters:   statusCodes,
+		ErrorMessageFilters: errorFilters,
+		GroupByAPI:          opts.GroupByAPI,
+		GroupByClient:       opts.GroupByClient,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	logger.GetLogger().Info("Trace capture completed", map[string]interface{}{
+		"alias":           alias,
+		"duration":        duration.String(),
+		"status_codes":    statusCodes,
+		"error_filters":   errorFilters,
+		"group_by_api":    opts.GroupByAPI,
+		"group_by_client": opts.GroupByClient,
+		"events":          result.TotalEvents,
+		"distinct_errors": len(result.ErrorStats),
+		"objects":         len(result.Stats),
+	})
+
+	summary := map[string]interface{}{
+		"alias":             alias,
+		"startedAt":         result.Start.Format(time.RFC3339),
+		"completedAt":       result.End.Format(time.RFC3339),
+		"durationSeconds":   result.Duration.Seconds(),
+		"durationHuman":     result.Duration.Truncate(time.Millisecond).String(),
+		"captureWindow":     duration.String(),
+		"totalEvents":       result.TotalEvents,
+		"distinctErrors":    len(result.ErrorStats),
+		"objectsWithErrors": len(result.Stats),
+	}
+
+	objects := make([]map[string]interface{}, 0, len(result.Stats))
+	for _, stat := range result.Stats {
+		entry := map[string]interface{}{
+			"name":         stat.Name,
+			"count":        stat.Count,
+			"sampleErrors": stat.SampleErrors,
+			"errorCounts":  stat.ErrorCounts,
+			"uniqueErrors": len(stat.ErrorCounts),
+		}
+		objects = append(objects, entry)
+	}
+
+	errorStats := make([]map[string]interface{}, 0, len(result.ErrorStats))
+	for _, grp := range result.ErrorStats {
+		objectCounts := make([]map[string]interface{}, 0, len(grp.Objects))
+		for _, obj := range grp.Objects {
+			objectCounts = append(objectCounts, map[string]interface{}{
+				"name":  obj.Name,
+				"count": obj.Count,
+			})
+		}
+		errorStats = append(errorStats, map[string]interface{}{
+			"message": grp.Message,
+			"count":   grp.Count,
+			"objects": objectCounts,
+		})
+	}
+
+	apiStats := make([]map[string]interface{}, 0, len(result.APIStats))
+	for _, api := range result.APIStats {
+		objectCounts := make([]map[string]interface{}, 0, len(api.Objects))
+		for _, obj := range api.Objects {
+			objectCounts = append(objectCounts, map[string]interface{}{
+				"name":  obj.Name,
+				"count": obj.Count,
+			})
+		}
+		apiStats = append(apiStats, map[string]interface{}{
+			"name":        api.Name,
+			"count":       api.Count,
+			"objects":     objectCounts,
+			"objectCount": len(api.Objects),
+			"errorCounts": api.ErrorCounts,
+		})
+	}
+
+	clientStats := make([]map[string]interface{}, 0, len(result.ClientStats))
+	for _, client := range result.ClientStats {
+		objectCounts := make([]map[string]interface{}, 0, len(client.Objects))
+		for _, obj := range client.Objects {
+			objectCounts = append(objectCounts, map[string]interface{}{
+				"name":  obj.Name,
+				"count": obj.Count,
+			})
+		}
+		clientStats = append(clientStats, map[string]interface{}{
+			"name":        client.Name,
+			"count":       client.Count,
+			"objects":     objectCounts,
+			"objectCount": len(client.Objects),
+			"errorCounts": client.ErrorCounts,
+		})
+	}
+
+	rawSample := result.RawErrors
+	if len(rawSample) > 200 {
+		rawSample = rawSample[:200]
+	}
+
+	response := map[string]interface{}{
+		"success": true,
+		"summary": summary,
+		"objects": objects,
+		"errors":  errorStats,
+		"apiStats": func() []map[string]interface{} {
+			if opts.GroupByAPI {
+				return apiStats
+			}
+			return []map[string]interface{}{}
+		}(),
+		"clientStats": func() []map[string]interface{} {
+			if opts.GroupByClient {
+				return clientStats
+			}
+			return []map[string]interface{}{}
+		}(),
+		"filters": map[string]interface{}{
+			"statusCodes":   statusCodes,
+			"errorContains": errorFilters,
+			"groupByAPI":    opts.GroupByAPI,
+			"groupByClient": opts.GroupByClient,
+			"duration":      duration.String(),
+		},
+		"rawEvents":     rawSample,
+		"rawEventCount": len(result.RawErrors),
+	}
+
+	return response, nil
 }
 
 // GetBucketsForAlias returns list of buckets for a specific alias

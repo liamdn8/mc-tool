@@ -9,7 +9,8 @@ import {
     List,
     ShieldAlert,
     Terminal,
-    Zap
+    Zap,
+    Activity
 } from 'lucide-react';
 import { useI18n } from '../utils/i18n';
 
@@ -41,6 +42,12 @@ const Sidebar = () => {
                     path: '/operations/compare',
                     icon: GitCompare,
                     label: t('operations_compare', 'Compare Buckets')
+                },
+                {
+                    id: 'trace',
+                    path: '/operations/trace',
+                    icon: Activity,
+                    label: t('operations_trace', 'Trace Error Analyzer')
                 },
                 {
                     id: 'checklist',

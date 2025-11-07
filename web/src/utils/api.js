@@ -10,7 +10,14 @@ export async function apiCall(endpoint, options = {}) {
             }
         });
         
-        const data = await response.json();
+        let data = null;
+        try {
+            const text = await response.text();
+            data = text ? JSON.parse(text) : {};
+        } catch (parseError) {
+            console.error(`Failed to parse JSON from ${endpoint}:`, parseError);
+            data = {};
+        }
         return { response, data };
     } catch (error) {
         console.error(`API call to ${endpoint} failed:`, error);
@@ -169,6 +176,22 @@ export async function performConsistencyCheck(buckets = []) {
         return data;
     } catch (error) {
         console.error('Error performing consistency check:', error);
+        throw error;
+    }
+}
+
+export async function runTraceCapture(payload) {
+    try {
+        const { response, data } = await apiCall('/api/operations/trace', {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+        if (!response.ok) {
+            throw new Error(data?.error || 'Failed to capture trace');
+        }
+        return data;
+    } catch (error) {
+        console.error('Error capturing trace:', error);
         throw error;
     }
 }

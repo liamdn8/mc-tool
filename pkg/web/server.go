@@ -152,6 +152,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/operations/buckets", s.handlers.Operations.HandleGetBuckets)
 	mux.HandleFunc("/api/operations/path-suggestions", s.handlers.Operations.HandleGetPathSuggestions)
 	mux.HandleFunc("/api/operations/bucket-versioning", s.handlers.Operations.HandleGetBucketVersioning)
+	mux.HandleFunc("/api/operations/trace", s.handlers.Operations.HandleTrace)
 
 	// Terminal APIs
 	mux.HandleFunc("/api/terminal/ws", s.handlers.Terminal.HandleWebsocket)
