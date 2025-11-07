@@ -3,6 +3,12 @@ import { useI18n } from '../utils/i18n';
 import { loadBuckets } from '../utils/api';
 import { formatNumber, formatBytes } from '../utils/helpers';
 
+const replicationStatusKey = {
+    fully_replicated: 'status_fully_replicated',
+    partial_replication: 'status_partial_replication',
+    not_configured: 'status_not_replicated',
+};
+
 const BucketsPage = ({ sites, replicationInfo }) => {
     const { t } = useI18n();
     const [buckets, setBuckets] = useState([]);
@@ -53,12 +59,12 @@ const BucketsPage = ({ sites, replicationInfo }) => {
     return (
         <div>
             <div className="card-header">
-                <h2 className="card-title">{t('buckets_overview')}</h2>
+                <h2 className="card-title">{t('buckets_overview', 'Buckets Overview')}</h2>
             </div>
 
             <div className="card">
                 <div className="card-header">
-                    <h3 className="card-title">Select Site</h3>
+                    <h3 className="card-title">{t('buckets_select_site', 'Select Site')}</h3>
                     <select 
                         className="form-input" 
                         value={selectedSite} 
@@ -82,18 +88,18 @@ const BucketsPage = ({ sites, replicationInfo }) => {
                         <table className="table">
                             <thead>
                                 <tr>
-                                    <th>Bucket Name</th>
-                                    <th>Objects</th>
-                                    <th>Size</th>
-                                    <th>Replication Status</th>
-                                    <th>Created</th>
+                                    <th>{t('buckets_table_name', 'Bucket Name')}</th>
+                                    <th>{t('buckets_table_objects', 'Objects')}</th>
+                                    <th>{t('buckets_table_size', 'Size')}</th>
+                                    <th>{t('buckets_table_status', 'Replication Status')}</th>
+                                    <th>{t('buckets_table_created', 'Created')}</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {buckets.length === 0 ? (
                                     <tr>
                                         <td colSpan="5" style={{ textAlign: 'center', padding: '40px' }}>
-                                            No buckets found in {selectedSite}
+                                            {t('buckets_empty', `No buckets found in ${selectedSite}`, { site: selectedSite })}
                                         </td>
                                     </tr>
                                 ) : (
@@ -110,11 +116,7 @@ const BucketsPage = ({ sites, replicationInfo }) => {
                                                         replicationStatus === 'partial_replication' ? 'badge-warning' :
                                                         'badge-secondary'
                                                     }`}>
-                                                        {
-                                                            replicationStatus === 'fully_replicated' ? 'Fully Replicated' :
-                                                            replicationStatus === 'partial_replication' ? 'Partial Replication' :
-                                                            'Not Replicated'
-                                                        }
+                                                        {t(replicationStatusKey[replicationStatus] || 'status_unknown', replicationStatus || '-')}
                                                     </span>
                                                 </td>
                                                 <td>{bucket.creationDate ? new Date(bucket.creationDate).toLocaleDateString() : '-'}</td>

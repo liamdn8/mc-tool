@@ -28,6 +28,7 @@ type Server struct {
 	executablePath     string
 	minioService       *services.MinIOService
 	replicationService *services.ReplicationService
+	terminalService    *services.TerminalService
 	jobManager         *models.JobManager
 	handlers           *handlers.Handlers
 }
@@ -44,15 +45,17 @@ func NewServer(cfg *config.WebConfig) *Server {
 	jobManager := models.NewJobManager()
 	minioService := services.NewMinIOService(execPath)
 	replicationService := services.NewReplicationService(minioService)
+	terminalService := services.NewTerminalService()
 
 	// Initialize handlers
-	handlersInstance := handlers.NewHandlers(execPath, staticFiles, minioService, replicationService, jobManager)
+	handlersInstance := handlers.NewHandlers(execPath, staticFiles, minioService, replicationService, jobManager, terminalService)
 
 	return &Server{
 		config:             cfg,
 		executablePath:     execPath,
 		minioService:       minioService,
 		replicationService: replicationService,
+		terminalService:    terminalService,
 		jobManager:         jobManager,
 		handlers:           handlersInstance,
 	}
@@ -149,6 +152,9 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/operations/buckets", s.handlers.Operations.HandleGetBuckets)
 	mux.HandleFunc("/api/operations/path-suggestions", s.handlers.Operations.HandleGetPathSuggestions)
 	mux.HandleFunc("/api/operations/bucket-versioning", s.handlers.Operations.HandleGetBucketVersioning)
+
+	// Terminal APIs
+	mux.HandleFunc("/api/terminal/ws", s.handlers.Terminal.HandleWebsocket)
 
 	s.httpServer = &http.Server{
 		Addr:         fmt.Sprintf(":%d", s.config.Port),

@@ -17,7 +17,7 @@ const ConsistencyPage = ({ sites, replicationInfo }) => {
             const checkResults = await performConsistencyCheck(selectedBuckets);
             setResults(checkResults);
         } catch (error) {
-            alert(`Error running consistency check: ${error.message}`);
+            alert(t('error_running_consistency', `Error running consistency check: ${error.message}`, { error: error.message }));
         } finally {
             setIsRunning(false);
         }
@@ -34,14 +34,14 @@ const ConsistencyPage = ({ sites, replicationInfo }) => {
     return (
         <div>
             <div className="card-header">
-                <h2 className="card-title">{t('consistency_check')}</h2>
+                <h2 className="card-title">{t('consistency_check', 'Consistency Check')}</h2>
             </div>
 
             {!hasReplication ? (
                 <div className="card">
                     <div style={{ textAlign: 'center', padding: '40px' }}>
-                        <h3>No Site Replication Configured</h3>
-                        <p>Consistency checks are only available when site replication is configured.</p>
+                        <h3>{t('consistency_no_config_title', 'No Site Replication Configured')}</h3>
+                        <p>{t('consistency_no_config_description', 'Consistency checks are only available when site replication is configured.')}</p>
                     </div>
                 </div>
             ) : (
@@ -49,22 +49,22 @@ const ConsistencyPage = ({ sites, replicationInfo }) => {
                     <div className="stats-grid">
                         <div className="stat-card">
                             <div className="stat-value">{replicatedSites.length}</div>
-                            <div className="stat-label">Sites to Check</div>
-                            <div className="stat-summary">In replication group</div>
+                            <div className="stat-label">{t('consistency_stats_sites_label', 'Sites to Check')}</div>
+                            <div className="stat-summary">{t('consistency_stats_sites_summary', 'In replication group')}</div>
                         </div>
 
                         <div className="stat-card">
                             <div className="stat-value">{totalBuckets}</div>
-                            <div className="stat-label">Buckets to Verify</div>
-                            <div className="stat-summary">Across all sites</div>
+                            <div className="stat-label">{t('consistency_stats_buckets_label', 'Buckets to Verify')}</div>
+                            <div className="stat-summary">{t('consistency_stats_buckets_summary', 'Across all sites')}</div>
                         </div>
 
                         <div className="stat-card">
                             <div className="stat-value">
                                 {results?.totalObjects || 0}
                             </div>
-                            <div className="stat-label">Objects Checked</div>
-                            <div className="stat-summary">Last run</div>
+                            <div className="stat-label">{t('consistency_stats_objects_label', 'Objects Checked')}</div>
+                            <div className="stat-summary">{t('consistency_stats_objects_summary', 'Last run')}</div>
                         </div>
 
                         <div className="stat-card">
@@ -75,56 +75,58 @@ const ConsistencyPage = ({ sites, replicationInfo }) => {
                                         'badge-secondary'
                                 }`}>
                                     {results ? 
-                                        (results.inconsistencies === 0 ? 'Consistent' : `${results.inconsistencies} Issues`) :
-                                        'Not Run'
+                                        (results.inconsistencies === 0
+                                            ? t('consistency_status_consistent', 'Consistent')
+                                            : t('consistency_status_issues', `${results.inconsistencies} Issues`, { count: results.inconsistencies })
+                                        ) :
+                                        t('consistency_status_not_run', 'Not Run')
                                     }
                                 </span>
                             </div>
-                            <div className="stat-label">Status</div>
-                            <div className="stat-summary">Consistency status</div>
+                            <div className="stat-label">{t('consistency_stats_status_label', 'Status')}</div>
+                            <div className="stat-summary">{t('consistency_stats_status_summary', 'Consistency status')}</div>
                         </div>
                     </div>
 
                     <div className="card">
                         <div className="card-header">
-                            <h3 className="card-title">Run Consistency Check</h3>
+                            <h3 className="card-title">{t('consistency_run_title', 'Run Consistency Check')}</h3>
                             <button 
                                 className="btn btn-primary"
                                 onClick={handleRunCheck}
                                 disabled={isRunning}
                             >
                                 <Play size={16} />
-                                {isRunning ? 'Running...' : t('run_check')}
+                                {isRunning ? t('consistency_running', 'Running...') : t('run_check', 'Run Check')}
                             </button>
                         </div>
 
                         <p>
-                            This will verify that all objects and metadata are consistent across 
-                            all sites in the replication group.
+                            {t('consistency_run_description', 'This will verify that all objects and metadata are consistent across all sites in the replication group.')}
                         </p>
 
                         {results && (
                             <div style={{ marginTop: '20px' }}>
-                                <h4>Last Check Results</h4>
+                                <h4>{t('consistency_results_title', 'Last Check Results')}</h4>
                                 <div className="table-container">
                                     <table className="table">
                                         <thead>
                                             <tr>
-                                                <th>Metric</th>
-                                                <th>Value</th>
+                                                <th>{t('consistency_table_metric', 'Metric')}</th>
+                                                <th>{t('consistency_table_value', 'Value')}</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             <tr>
-                                                <td>Total Objects Checked</td>
+                                                <td>{t('consistency_metric_total_objects', 'Total Objects Checked')}</td>
                                                 <td>{results.totalObjects}</td>
                                             </tr>
                                             <tr>
-                                                <td>Buckets Verified</td>
+                                                <td>{t('consistency_metric_buckets', 'Buckets Verified')}</td>
                                                 <td>{results.bucketsChecked}</td>
                                             </tr>
                                             <tr>
-                                                <td>Inconsistencies Found</td>
+                                                <td>{t('consistency_metric_inconsistencies', 'Inconsistencies Found')}</td>
                                                 <td>
                                                     <span className={`badge ${results.inconsistencies === 0 ? 'badge-success' : 'badge-warning'}`}>
                                                         {results.inconsistencies}
@@ -132,7 +134,7 @@ const ConsistencyPage = ({ sites, replicationInfo }) => {
                                                 </td>
                                             </tr>
                                             <tr>
-                                                <td>Check Duration</td>
+                                                <td>{t('consistency_metric_duration', 'Check Duration')}</td>
                                                 <td>{results.duration || '-'}</td>
                                             </tr>
                                         </tbody>
@@ -141,15 +143,15 @@ const ConsistencyPage = ({ sites, replicationInfo }) => {
 
                                 {results.details && results.details.length > 0 && (
                                     <div style={{ marginTop: '20px' }}>
-                                        <h4>Issues Found</h4>
+                                        <h4>{t('consistency_issues_title', 'Issues Found')}</h4>
                                         <div className="table-container">
                                             <table className="table">
                                                 <thead>
                                                     <tr>
-                                                        <th>Bucket</th>
-                                                        <th>Object</th>
-                                                        <th>Issue</th>
-                                                        <th>Sites Affected</th>
+                                                        <th>{t('consistency_issue_bucket', 'Bucket')}</th>
+                                                        <th>{t('consistency_issue_object', 'Object')}</th>
+                                                        <th>{t('consistency_issue_description', 'Issue')}</th>
+                                                        <th>{t('consistency_issue_sites', 'Sites Affected')}</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>

@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/liamdn8/mc-tool/pkg/config"
 	"github.com/liamdn8/mc-tool/pkg/logger"
 	"github.com/liamdn8/mc-tool/pkg/profile"
+	"github.com/liamdn8/mc-tool/pkg/trace"
 	"github.com/liamdn8/mc-tool/pkg/validation"
 	"github.com/liamdn8/mc-tool/pkg/web"
 )
@@ -41,6 +43,14 @@ var (
 	detectLeaks     bool
 	monitorInterval string
 	thresholdMB     int
+
+	// Trace command flags
+	traceDuration      string
+	traceMCPath        string
+	traceStatusCodes   []int
+	traceErrorFilters  []string
+	traceGroupByAPI    bool
+	traceGroupByClient bool
 )
 
 func main() {
@@ -147,6 +157,19 @@ Examples:
 		Run:  runProfile,
 	}
 
+	traceCmd := &cobra.Command{
+		Use:   "trace <alias>",
+		Short: "Capture mc admin trace errors and summarize repeated object failures",
+		Long: `Capture mc admin trace error output for a fixed duration and aggregate repeated object failures.
+
+Examples:
+  mc-tool trace alias
+  mc-tool trace alias --duration 10s
+  mc-tool trace alias --duration 2m --mc-path /usr/local/bin/mc`,
+		Args: cobra.ExactArgs(1),
+		Run:  runTrace,
+	}
+
 	// Configure flags
 	compareCmd.Flags().BoolVar(&versionsMode, "versions", false, "Compare all object versions (default: compare current versions only)")
 	compareCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Verbose output")
@@ -167,6 +190,15 @@ Examples:
 	debugCmd.Flags().IntVar(&thresholdMB, "threshold-mb", 50, "Memory growth threshold in MB for leak detection")
 	debugCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Verbose output")
 	debugCmd.Flags().BoolVar(&insecure, "insecure", false, "Skip TLS certificate verification")
+
+	traceCmd.Flags().StringVar(&traceDuration, "duration", "5s", "Trace capture duration between 1s and 5m")
+	traceCmd.Flags().StringVar(&traceMCPath, "mc-path", "mc", "Path to mc binary (mc, mc-2021, or custom path)")
+	traceCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Verbose output")
+	traceCmd.Flags().BoolVar(&insecure, "insecure", false, "Pass --insecure to mc admin trace")
+	traceCmd.Flags().IntSliceVar(&traceStatusCodes, "status", []int{}, "Only include events with matching HTTP status code (repeatable)")
+	traceCmd.Flags().StringSliceVar(&traceErrorFilters, "error-contains", []string{}, "Only include events whose error message contains the provided substring (repeatable)")
+	traceCmd.Flags().BoolVar(&traceGroupByAPI, "group-by-api", false, "Include API-level aggregation in the summary output")
+	traceCmd.Flags().BoolVar(&traceGroupByClient, "group-by-client", false, "Include client-level aggregation in the summary output")
 
 	// Web UI command
 	webCmd := &cobra.Command{
@@ -200,6 +232,7 @@ Examples:
 	rootCmd.AddCommand(analyzeCmd)
 	rootCmd.AddCommand(checklistCmd)
 	rootCmd.AddCommand(debugCmd)
+	rootCmd.AddCommand(traceCmd)
 	rootCmd.AddCommand(webCmd)
 
 	if err := rootCmd.Execute(); err != nil {
@@ -320,6 +353,240 @@ func runChecklist(cmd *cobra.Command, args []string) {
 	if err != nil {
 		log.Fatalf("Error checking bucket configuration: %v", err)
 	}
+}
+
+func runTrace(cmd *cobra.Command, args []string) {
+	alias := args[0]
+
+	duration, err := time.ParseDuration(traceDuration)
+	if err != nil {
+		log.Fatalf("Invalid duration: %v", err)
+	}
+
+	if duration < time.Second || duration > 5*time.Minute {
+		log.Fatalf("Duration must be between 1s and 5m")
+	}
+
+	cfg, err := config.LoadMCConfig()
+	if err != nil {
+		log.Fatalf("Error loading MC config: %v", err)
+	}
+
+	if _, ok := cfg.Aliases[alias]; !ok {
+		log.Fatalf("Alias '%s' not found in MC config", alias)
+	}
+
+	mcPath := resolveMCBinary(traceMCPath, verbose)
+
+	if verbose {
+		fmt.Printf("📡 Capturing trace for alias: %s\n", alias)
+		fmt.Printf("⏱️  Duration: %s\n", duration)
+		fmt.Printf("🔧 mc binary: %s\n", mcPath)
+		if insecure {
+			fmt.Println("⚠️  Passing --insecure to mc admin trace")
+		}
+	}
+
+	result, err := trace.Run(trace.Options{
+		Alias:               alias,
+		MCPath:              mcPath,
+		Duration:            duration,
+		Insecure:            insecure,
+		Verbose:             verbose,
+		StatusCodeFilters:   traceStatusCodes,
+		ErrorMessageFilters: traceErrorFilters,
+		GroupByAPI:          traceGroupByAPI,
+		GroupByClient:       traceGroupByClient,
+	})
+	if err != nil {
+		log.Fatalf("Trace capture failed: %v", err)
+	}
+
+	displayTraceResult(result)
+}
+
+func resolveMCBinary(desired string, verboseMode bool) string {
+	if desired != "mc" && desired != "mc-2021" {
+		if _, err := os.Stat(desired); err != nil {
+			log.Fatalf("MC binary not found at: %s", desired)
+		}
+		return desired
+	}
+
+	if _, err := exec.LookPath(desired); err == nil {
+		return desired
+	}
+
+	versions := profile.GetAvailableMCVersions()
+	if len(versions) == 0 {
+		log.Fatalf("No mc binary found. Please install MinIO client or specify custom path with --mc-path")
+	}
+	if verboseMode {
+		fmt.Printf("Using fallback mc binary: %s\n", versions[0])
+	}
+	return versions[0]
+}
+
+func displayTraceResult(result trace.Result) {
+	window := result.Duration.Round(100 * time.Millisecond)
+	if window == 0 {
+		window = result.Duration
+	}
+
+	fmt.Printf("=== Trace Summary (%s captured) ===\n", window)
+
+	if result.TotalEvents == 0 {
+		fmt.Println("No error events were captured within the selected window.")
+		return
+	}
+
+	fmt.Printf("Events captured: %d\n", result.TotalEvents)
+	fmt.Printf("Distinct error patterns: %d\n", len(result.ErrorStats))
+	fmt.Printf("Objects with errors: %d\n\n", len(result.Stats))
+
+	const topErrorLimit = 5
+	const topObjectLimit = 5
+	const topGroupObjectLimit = 10
+
+	if len(result.ErrorStats) > 0 {
+		fmt.Println("Top error patterns:")
+		for i, errStat := range result.ErrorStats {
+			if i >= topErrorLimit {
+				break
+			}
+			fmt.Printf("  %d. %s — %d events\n", i+1, errStat.Message, errStat.Count)
+			for j, obj := range errStat.Objects {
+				if j >= topObjectLimit {
+					break
+				}
+				fmt.Printf("       • %s (%d)\n", obj.Name, obj.Count)
+			}
+		}
+		fmt.Println()
+	} else {
+		fmt.Println("No error patterns detected.")
+		fmt.Println()
+	}
+
+	if len(result.Stats) > 0 {
+		fmt.Println("Top objects with errors:")
+		for i, stat := range result.Stats {
+			if i >= topObjectLimit {
+				break
+			}
+			fmt.Printf("  %d. %s — %d events\n", i+1, stat.Name, stat.Count)
+			if detail := formatTopErrorCounts(stat.ErrorCounts, 3); detail != "" {
+				fmt.Printf("       errors: %s\n", detail)
+			} else if len(stat.SampleErrors) > 0 {
+				fmt.Printf("       sample: %s\n", strings.Join(stat.SampleErrors, "; "))
+			}
+		}
+		fmt.Println()
+	} else {
+		fmt.Println("No objects recorded in trace output.")
+		fmt.Println()
+	}
+
+	if len(result.APIStats) > 0 {
+		fmt.Println("APIs with errors:")
+		for i, apiStat := range result.APIStats {
+			if i >= topObjectLimit {
+				break
+			}
+			errorSummary := formatTopErrorCounts(apiStat.ErrorCounts, 3)
+			fmt.Printf("  %d. %s — %d events across %d objects\n", i+1, apiStat.Name, apiStat.Count, len(apiStat.Objects))
+			if len(apiStat.Objects) > 0 {
+				fmt.Printf("       objects: %s\n", formatObjectCounts(apiStat.Objects, topGroupObjectLimit))
+			}
+			if errorSummary != "" {
+				fmt.Printf("       errors: %s\n", errorSummary)
+			}
+		}
+		fmt.Println()
+	}
+
+	if len(result.ClientStats) > 0 {
+		fmt.Println("Clients with errors:")
+		for i, clientStat := range result.ClientStats {
+			if i >= topObjectLimit {
+				break
+			}
+			errorSummary := formatTopErrorCounts(clientStat.ErrorCounts, 3)
+			fmt.Printf("  %d. %s — %d events across %d objects\n", i+1, clientStat.Name, clientStat.Count, len(clientStat.Objects))
+			if len(clientStat.Objects) > 0 {
+				fmt.Printf("       objects: %s\n", formatObjectCounts(clientStat.Objects, topGroupObjectLimit))
+			}
+			if errorSummary != "" {
+				fmt.Printf("       errors: %s\n", errorSummary)
+			}
+		}
+		fmt.Println()
+	}
+
+	if verbose && len(result.Stats) > topObjectLimit {
+		fmt.Printf("Additional objects with errors (%d more):\n", len(result.Stats)-topObjectLimit)
+		for _, stat := range result.Stats[topObjectLimit:] {
+			fmt.Printf("  - %s (%d events)\n", stat.Name, stat.Count)
+		}
+		fmt.Println()
+	}
+}
+
+func formatTopErrorCounts(counts map[string]int, limit int) string {
+	if len(counts) == 0 {
+		return ""
+	}
+
+	type entry struct {
+		name  string
+		count int
+	}
+
+	items := make([]entry, 0, len(counts))
+	for name, count := range counts {
+		items = append(items, entry{name: name, count: count})
+	}
+
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].count == items[j].count {
+			return items[i].name < items[j].name
+		}
+		return items[i].count > items[j].count
+	})
+
+	maxItems := limit
+	if maxItems > len(items) {
+		maxItems = len(items)
+	}
+
+	parts := make([]string, 0, maxItems)
+	for i := 0; i < maxItems; i++ {
+		parts = append(parts, fmt.Sprintf("\n         • %s (%d)", items[i].name, items[i].count))
+	}
+
+	return strings.Join(parts, ", ")
+}
+
+func formatObjectCounts(items []trace.ObjectCount, limit int) string {
+	if len(items) == 0 {
+		return ""
+	}
+
+	maxItems := limit
+	if maxItems > len(items) {
+		maxItems = len(items)
+	}
+
+	parts := make([]string, 0, maxItems)
+	for i := 0; i < maxItems; i++ {
+		parts = append(parts, fmt.Sprintf("\n         • %s (%d)", items[i].Name, items[i].Count))
+	}
+
+	if len(items) > maxItems {
+		parts = append(parts, fmt.Sprintf("\n         +%d more", len(items)-maxItems))
+	}
+
+	return strings.Join(parts, ", ")
 }
 
 func runProfile(cmd *cobra.Command, args []string) {

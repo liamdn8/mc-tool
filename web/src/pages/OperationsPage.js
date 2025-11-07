@@ -10,49 +10,75 @@ const OperationsPage = ({ sites, replicationInfo }) => {
     const operationCategories = [
         {
             id: 'compare',
-            title: 'Compare Buckets/Paths',
-            description: 'Compare content between two MinIO aliases to identify differences, missing files, and content mismatches',
-            icon: GitCompare,
-            path: '/operations/compare',
-            color: '#4f46e5',
-            features: [
+            titleKey: 'operations_compare_title',
+            titleFallback: 'Compare Buckets/Paths',
+            descriptionKey: 'operations_compare_description',
+            descriptionFallback: 'Compare content between two MinIO aliases to identify differences, missing files, and content mismatches',
+            featureKeys: [
+                'operations_compare_feature_1',
+                'operations_compare_feature_2',
+                'operations_compare_feature_3',
+                'operations_compare_feature_4',
+                'operations_compare_feature_5'
+            ],
+            featureFallbacks: [
                 'Compare bucket contents across different sites',
                 'Identify missing files in source or target',
                 'Detect content differences with detailed reports',
                 'Support for path-specific comparisons',
                 'Paginated results with customizable page sizes'
             ],
+            icon: GitCompare,
+            path: '/operations/compare',
+            color: '#4f46e5',
             requiresReplication: false
         },
         {
             id: 'checklist',
-            title: 'Configuration Checklist',
-            description: 'Verify environment variables, events, and lifecycle configurations across all sites',
-            icon: List,
-            path: '/operations/checklist',
-            color: '#059669',
-            features: [
+            titleKey: 'operations_checklist_title',
+            titleFallback: 'Configuration Checklist',
+            descriptionKey: 'operations_checklist_description',
+            descriptionFallback: 'Verify environment variables, events, and lifecycle configurations across all sites',
+            featureKeys: [
+                'operations_checklist_feature_1',
+                'operations_checklist_feature_2',
+                'operations_checklist_feature_3',
+                'operations_checklist_feature_4',
+                'operations_checklist_feature_5'
+            ],
+            featureFallbacks: [
                 'Validate environment variables across sites',
                 'Check event notification configurations',
                 'Verify bucket lifecycle policies',
                 'Grouped results by configuration category',
                 'Pass/Warning/Fail status indicators'
             ],
+            icon: List,
+            path: '/operations/checklist',
+            color: '#059669',
             requiresReplication: false
         },
         {
             id: 'site-operations',
-            title: 'Site Replication Operations',
-            description: 'Manage site replication, sync policies, and validate consistency across replicated sites',
-            icon: Zap,
-            path: '/operations/site-operations',
-            color: '#dc2626',
-            features: [
+            titleKey: 'operations_site_title',
+            titleFallback: 'Site Replication Operations',
+            descriptionKey: 'operations_site_description',
+            descriptionFallback: 'Manage site replication, sync policies, and validate consistency across replicated sites',
+            featureKeys: [
+                'operations_site_feature_1',
+                'operations_site_feature_2',
+                'operations_site_feature_3',
+                'operations_site_feature_4'
+            ],
+            featureFallbacks: [
                 'Sync bucket policies across sites',
                 'Sync lifecycle configurations',
                 'Validate replication consistency',
                 'Health check for replicated sites'
             ],
+            icon: Zap,
+            path: '/operations/site-operations',
+            color: '#dc2626',
             requiresReplication: true
         }
     ];
@@ -62,7 +88,7 @@ const OperationsPage = ({ sites, replicationInfo }) => {
             <div className="card-header">
                 <h2 className="card-title">{t('automated_operations')}</h2>
                 <p style={{ margin: '8px 0 0 0', color: 'var(--text-secondary)' }}>
-                    Select an operation category to manage your MinIO infrastructure
+                    {t('operations_intro', 'Select an operation category to manage your MinIO infrastructure')}
                 </p>
             </div>
 
@@ -70,22 +96,22 @@ const OperationsPage = ({ sites, replicationInfo }) => {
                 <div className="stats-grid">
                     <div className="stat-card">
                         <div className="stat-value">{sites.filter(s => s.replicationEnabled || true).length}</div>
-                        <div className="stat-label">Available Sites</div>
-                        <div className="stat-summary">Sites available for operations</div>
+                        <div className="stat-label">{t('operations_stats_sites_label', 'Available Sites')}</div>
+                        <div className="stat-summary">{t('operations_stats_sites_summary', 'Sites available for operations')}</div>
                     </div>
 
                     <div className="stat-card">
                         <div className="stat-value">{operationCategories.length}</div>
-                        <div className="stat-label">Operation Categories</div>
-                        <div className="stat-summary">Different types of operations</div>
+                        <div className="stat-label">{t('operations_stats_categories_label', 'Operation Categories')}</div>
+                        <div className="stat-summary">{t('operations_stats_categories_summary', 'Different types of operations')}</div>
                     </div>
 
                     <div className="stat-card">
                         <div className="stat-value">
                             {operationCategories.filter(op => !op.requiresReplication || hasReplication).length}
                         </div>
-                        <div className="stat-label">Available Operations</div>
-                        <div className="stat-summary">Currently accessible</div>
+                        <div className="stat-label">{t('operations_stats_available_label', 'Available Operations')}</div>
+                        <div className="stat-summary">{t('operations_stats_available_summary', 'Currently accessible')}</div>
                     </div>
 
                     <div className="stat-card">
@@ -95,7 +121,7 @@ const OperationsPage = ({ sites, replicationInfo }) => {
                             </span>
                         </div>
                         <div className="stat-label">{t('operation_status')}</div>
-                        <div className="stat-summary">System readiness</div>
+                        <div className="stat-summary">{t('operations_stats_status_summary', 'System readiness')}</div>
                     </div>
                 </div>
             </div>
@@ -103,10 +129,9 @@ const OperationsPage = ({ sites, replicationInfo }) => {
             {!hasReplication && (
                 <div className="card" style={{ marginBottom: '24px', backgroundColor: '#fff3cd', border: '1px solid #ffeaa7' }}>
                     <div style={{ padding: '16px' }}>
-                        <h4 style={{ margin: '0 0 8px 0', color: '#856404' }}>⚠️ Site Replication Not Configured</h4>
+                        <h4 style={{ margin: '0 0 8px 0', color: '#856404' }}>{t('operations_replication_warning_title', '⚠️ Site Replication Not Configured')}</h4>
                         <p style={{ margin: 0, color: '#856404' }}>
-                            Some operations require site replication to be configured. 
-                            However, compare and checklist operations can work with individual aliases.
+                            {t('operations_replication_warning_desc', 'Some operations require site replication to be configured. However, compare and checklist operations can work with individual aliases.')}
                         </p>
                     </div>
                 </div>
@@ -116,6 +141,11 @@ const OperationsPage = ({ sites, replicationInfo }) => {
                 {operationCategories.map(category => {
                     const Icon = category.icon;
                     const isAvailable = !category.requiresReplication || hasReplication;
+                    const title = t(category.titleKey, category.titleFallback);
+                    const description = t(category.descriptionKey, category.descriptionFallback);
+                    const features = category.featureKeys.map((featureKey, index) =>
+                        t(featureKey, category.featureFallbacks[index])
+                    );
                     
                     return (
                         <div key={category.id} className="card" style={{ 
@@ -151,7 +181,7 @@ const OperationsPage = ({ sites, replicationInfo }) => {
                                         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '12px' }}>
                                             <div>
                                                 <h3 style={{ margin: '0 0 8px 0', fontSize: '20px', fontWeight: '600' }}>
-                                                    {category.title}
+                                                    {title}
                                                     {category.requiresReplication && !hasReplication && (
                                                         <span style={{ 
                                                             fontSize: '12px', 
@@ -161,23 +191,23 @@ const OperationsPage = ({ sites, replicationInfo }) => {
                                                             padding: '4px 8px',
                                                             borderRadius: '12px'
                                                         }}>
-                                                            Requires Site Replication
+                                                            {t('operations_requires_replication', 'Requires Site Replication')}
                                                         </span>
                                                     )}
                                                 </h3>
                                                 <p style={{ margin: '0', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
-                                                    {category.description}
+                                                    {description}
                                                 </p>
                                             </div>
                                         </div>
                                         
                                         <div style={{ marginBottom: '20px' }}>
                                             <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: '#6c757d' }}>
-                                                Features:
+                                                {t('operations_features_label', 'Features:')}
                                             </h4>
                                             <ul style={{ margin: 0, paddingLeft: '20px', color: 'var(--text-secondary)' }}>
-                                                {category.features.map((feature, index) => (
-                                                    <li key={index} style={{ marginBottom: '4px', fontSize: '14px' }}>
+                                                {features.map((feature, index) => (
+                                                    <li key={category.featureKeys[index]} style={{ marginBottom: '4px', fontSize: '14px' }}>
                                                         {feature}
                                                     </li>
                                                 ))}
@@ -195,7 +225,7 @@ const OperationsPage = ({ sites, replicationInfo }) => {
                                                     gap: '8px'
                                                 }}
                                             >
-                                                Open {category.title}
+                                                {t('operations_open_link', 'Open {title}', { title })}
                                                 <ArrowRight size={16} />
                                             </Link>
                                         ) : (
@@ -204,7 +234,7 @@ const OperationsPage = ({ sites, replicationInfo }) => {
                                                 disabled
                                                 style={{ cursor: 'not-allowed' }}
                                             >
-                                                Requires Site Replication
+                                                {t('operations_requires_replication', 'Requires Site Replication')}
                                             </button>
                                         )}
                                     </div>
@@ -217,16 +247,16 @@ const OperationsPage = ({ sites, replicationInfo }) => {
 
             <div className="card" style={{ marginTop: '24px' }}>
                 <div className="card-header">
-                    <h3 className="card-title">Operation Guidelines</h3>
+                    <h3 className="card-title">{t('operations_guidelines_title', 'Operation Guidelines')}</h3>
                 </div>
                 <div style={{ padding: '20px' }}>
                     <ul style={{ margin: 0, paddingLeft: '20px' }}>
-                        <li>Ensure all sites are healthy before running operations</li>
-                        <li>Operations may take several minutes to complete</li>
-                        <li>Check the logs for detailed operation results</li>
-                        <li>Some operations may temporarily affect performance</li>
-                        <li>Compare and checklist operations work without site replication</li>
-                        <li>Use browser back/forward buttons - each operation has its own URL</li>
+                        <li>{t('operations_guideline_health', 'Ensure all sites are healthy before running operations')}</li>
+                        <li>{t('operations_guideline_duration', 'Operations may take several minutes to complete')}</li>
+                        <li>{t('operations_guideline_logs', 'Check the logs for detailed operation results')}</li>
+                        <li>{t('operations_guideline_performance', 'Some operations may temporarily affect performance')}</li>
+                        <li>{t('operations_guideline_independent', 'Compare and checklist operations work without site replication')}</li>
+                        <li>{t('operations_guideline_navigation', 'Use browser back/forward buttons - each operation has its own URL')}</li>
                     </ul>
                 </div>
             </div>

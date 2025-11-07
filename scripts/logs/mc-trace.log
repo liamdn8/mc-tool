@@ -1,0 +1,759 @@
+{
+ "status": "success",
+ "host": "172.31.85.74:9001",
+ "time": "2025-11-07T03:09:08.781873636Z",
+ "client": "172.19.0.1",
+ "callStats": {
+  "rx": 93,
+  "tx": 337,
+  "duration": 1210348,
+  "timeToFirstByte": 1138572
+ },
+ "duration": 1210348,
+ "timeToFirstByte": 0,
+ "api": "s3.GetBucketLocation",
+ "path": "/nonexistent-bucket/",
+ "query": "location=",
+ "statusCode": 404,
+ "statusMsg": "Not Found",
+ "type": "S3",
+ "size": 430,
+ "error": "",
+ "extra": null
+}
+{
+ "status": "success",
+ "host": "172.31.85.74:9001",
+ "time": "2025-11-07T03:09:08.929671932Z",
+ "client": "172.19.0.1",
+ "callStats": {
+  "rx": 93,
+  "tx": 337,
+  "duration": 462659,
+  "timeToFirstByte": 444826
+ },
+ "duration": 462659,
+ "timeToFirstByte": 0,
+ "api": "s3.GetBucketLocation",
+ "path": "/nonexistent-bucket/",
+ "query": "location=",
+ "statusCode": 404,
+ "statusMsg": "Not Found",
+ "type": "S3",
+ "size": 430,
+ "error": "",
+ "extra": null
+}
+{
+ "status": "success",
+ "host": "172.31.85.74:9001",
+ "time": "2025-11-07T03:09:09.089427868Z",
+ "client": "172.19.0.1",
+ "callStats": {
+  "rx": 93,
+  "tx": 337,
+  "duration": 461976,
+  "timeToFirstByte": 443428
+ },
+ "duration": 461976,
+ "timeToFirstByte": 0,
+ "api": "s3.GetBucketLocation",
+ "path": "/nonexistent-bucket/",
+ "query": "location=",
+ "statusCode": 404,
+ "statusMsg": "Not Found",
+ "type": "S3",
+ "size": 430,
+ "error": "",
+ "extra": null
+}
+{
+ "status": "success",
+ "host": "172.31.85.74:9001",
+ "time": "2025-11-07T03:09:09.238381945Z",
+ "client": "172.19.0.1",
+ "callStats": {
+  "rx": 93,
+  "tx": 337,
+  "duration": 520088,
+  "timeToFirstByte": 502736
+ },
+ "duration": 520088,
+ "timeToFirstByte": 0,
+ "api": "s3.GetBucketLocation",
+ "path": "/nonexistent-bucket/",
+ "query": "location=",
+ "statusCode": 404,
+ "statusMsg": "Not Found",
+ "type": "S3",
+ "size": 430,
+ "error": "",
+ "extra": null
+}
+{
+ "status": "success",
+ "host": "172.31.85.74:9001",
+ "time": "2025-11-07T03:09:09.404301001Z",
+ "client": "172.19.0.1",
+ "callStats": {
+  "rx": 93,
+  "tx": 337,
+  "duration": 450821,
+  "timeToFirstByte": 434813
+ },
+ "duration": 450821,
+ "timeToFirstByte": 0,
+ "api": "s3.GetBucketLocation",
+ "path": "/nonexistent-bucket/",
+ "query": "location=",
+ "statusCode": 404,
+ "statusMsg": "Not Found",
+ "type": "S3",
+ "size": 430,
+ "error": "",
+ "extra": null
+}
+{
+ "status": "success",
+ "host": "172.31.85.74:9001",
+ "time": "2025-11-07T03:09:09.570958494Z",
+ "client": "172.19.0.1",
+ "callStats": {
+  "rx": 93,
+  "tx": 337,
+  "duration": 709309,
+  "timeToFirstByte": 686376
+ },
+ "duration": 709309,
+ "timeToFirstByte": 0,
+ "api": "s3.GetBucketLocation",
+ "path": "/nonexistent-bucket/",
+ "query": "location=",
+ "statusCode": 404,
+ "statusMsg": "Not Found",
+ "type": "S3",
+ "size": 430,
+ "error": "",
+ "extra": null
+}
+{
+ "status": "success",
+ "host": "172.31.85.74:9001",
+ "time": "2025-11-07T03:09:09.757451774Z",
+ "client": "172.19.0.1",
+ "callStats": {
+  "rx": 93,
+  "tx": 337,
+  "duration": 707379,
+  "timeToFirstByte": 683011
+ },
+ "duration": 707379,
+ "timeToFirstByte": 0,
+ "api": "s3.GetBucketLocation",
+ "path": "/nonexistent-bucket/",
+ "query": "location=",
+ "statusCode": 404,
+ "statusMsg": "Not Found",
+ "type": "S3",
+ "size": 430,
+ "error": "",
+ "extra": null
+}
+{
+ "status": "success",
+ "host": "172.31.85.74:9001",
+ "time": "2025-11-07T03:09:09.906330356Z",
+ "client": "172.19.0.1",
+ "callStats": {
+  "rx": 93,
+  "tx": 337,
+  "duration": 648158,
+  "timeToFirstByte": 621305
+ },
+ "duration": 648158,
+ "timeToFirstByte": 0,
+ "api": "s3.GetBucketLocation",
+ "path": "/nonexistent-bucket/",
+ "query": "location=",
+ "statusCode": 404,
+ "statusMsg": "Not Found",
+ "type": "S3",
+ "size": 430,
+ "error": "",
+ "extra": null
+}
+{
+ "status": "success",
+ "host": "172.31.85.74:9001",
+ "time": "2025-11-07T03:09:10.059118968Z",
+ "client": "172.19.0.1",
+ "callStats": {
+  "rx": 93,
+  "tx": 337,
+  "duration": 510370,
+  "timeToFirstByte": 484454
+ },
+ "duration": 510370,
+ "timeToFirstByte": 0,
+ "api": "s3.GetBucketLocation",
+ "path": "/nonexistent-bucket/",
+ "query": "location=",
+ "statusCode": 404,
+ "statusMsg": "Not Found",
+ "type": "S3",
+ "size": 430,
+ "error": "",
+ "extra": null
+}
+{
+ "status": "success",
+ "host": "172.31.85.74:9001",
+ "time": "2025-11-07T03:09:10.217724893Z",
+ "client": "172.19.0.1",
+ "callStats": {
+  "rx": 93,
+  "tx": 337,
+  "duration": 350936,
+  "timeToFirstByte": 335390
+ },
+ "duration": 350936,
+ "timeToFirstByte": 0,
+ "api": "s3.GetBucketLocation",
+ "path": "/nonexistent-bucket/",
+ "query": "location=",
+ "statusCode": 404,
+ "statusMsg": "Not Found",
+ "type": "S3",
+ "size": 430,
+ "error": "",
+ "extra": null
+}
+{
+ "status": "success",
+ "host": "172.31.85.74:9001",
+ "time": "2025-11-07T03:09:10.377784491Z",
+ "client": "172.19.0.1",
+ "callStats": {
+  "rx": 93,
+  "tx": 337,
+  "duration": 876600,
+  "timeToFirstByte": 847841
+ },
+ "duration": 876600,
+ "timeToFirstByte": 0,
+ "api": "s3.GetBucketLocation",
+ "path": "/nonexistent-bucket/",
+ "query": "location=",
+ "statusCode": 404,
+ "statusMsg": "Not Found",
+ "type": "S3",
+ "size": 430,
+ "error": "",
+ "extra": null
+}
+{
+ "status": "success",
+ "host": "172.31.85.74:9001",
+ "time": "2025-11-07T03:09:10.535798241Z",
+ "client": "172.19.0.1",
+ "callStats": {
+  "rx": 93,
+  "tx": 337,
+  "duration": 484161,
+  "timeToFirstByte": 468378
+ },
+ "duration": 484161,
+ "timeToFirstByte": 0,
+ "api": "s3.GetBucketLocation",
+ "path": "/nonexistent-bucket/",
+ "query": "location=",
+ "statusCode": 404,
+ "statusMsg": "Not Found",
+ "type": "S3",
+ "size": 430,
+ "error": "",
+ "extra": null
+}
+{
+ "status": "success",
+ "host": "172.31.85.74:9001",
+ "time": "2025-11-07T03:09:10.704821363Z",
+ "client": "172.19.0.1",
+ "callStats": {
+  "rx": 93,
+  "tx": 337,
+  "duration": 514395,
+  "timeToFirstByte": 493882
+ },
+ "duration": 514395,
+ "timeToFirstByte": 0,
+ "api": "s3.GetBucketLocation",
+ "path": "/nonexistent-bucket/",
+ "query": "location=",
+ "statusCode": 404,
+ "statusMsg": "Not Found",
+ "type": "S3",
+ "size": 430,
+ "error": "",
+ "extra": null
+}
+{
+ "status": "success",
+ "host": "172.31.85.74:9001",
+ "time": "2025-11-07T03:09:10.855535891Z",
+ "client": "172.19.0.1",
+ "callStats": {
+  "rx": 93,
+  "tx": 337,
+  "duration": 483093,
+  "timeToFirstByte": 467677
+ },
+ "duration": 483093,
+ "timeToFirstByte": 0,
+ "api": "s3.GetBucketLocation",
+ "path": "/nonexistent-bucket/",
+ "query": "location=",
+ "statusCode": 404,
+ "statusMsg": "Not Found",
+ "type": "S3",
+ "size": 430,
+ "error": "",
+ "extra": null
+}
+{
+ "status": "success",
+ "host": "172.31.85.74:9001",
+ "time": "2025-11-07T03:09:11.015435193Z",
+ "client": "172.19.0.1",
+ "callStats": {
+  "rx": 93,
+  "tx": 337,
+  "duration": 438290,
+  "timeToFirstByte": 414886
+ },
+ "duration": 438290,
+ "timeToFirstByte": 0,
+ "api": "s3.GetBucketLocation",
+ "path": "/nonexistent-bucket/",
+ "query": "location=",
+ "statusCode": 404,
+ "statusMsg": "Not Found",
+ "type": "S3",
+ "size": 430,
+ "error": "",
+ "extra": null
+}
+{
+ "status": "success",
+ "host": "172.31.85.74:9001",
+ "time": "2025-11-07T03:09:11.172384126Z",
+ "client": "172.19.0.1",
+ "callStats": {
+  "rx": 93,
+  "tx": 337,
+  "duration": 571704,
+  "timeToFirstByte": 556904
+ },
+ "duration": 571704,
+ "timeToFirstByte": 0,
+ "api": "s3.GetBucketLocation",
+ "path": "/nonexistent-bucket/",
+ "query": "location=",
+ "statusCode": 404,
+ "statusMsg": "Not Found",
+ "type": "S3",
+ "size": 430,
+ "error": "",
+ "extra": null
+}
+{
+ "status": "success",
+ "host": "172.31.85.74:9001",
+ "time": "2025-11-07T03:09:11.446137575Z",
+ "client": "172.19.0.1",
+ "callStats": {
+  "rx": 93,
+  "tx": 396,
+  "duration": 178552,
+  "timeToFirstByte": 158714
+ },
+ "duration": 178552,
+ "timeToFirstByte": 0,
+ "api": "s3.GetBucketObjectLockConfig",
+ "path": "/trace-readonly-1762484951/",
+ "query": "object-lock=",
+ "statusCode": 404,
+ "statusMsg": "Not Found",
+ "type": "S3",
+ "size": 489,
+ "error": "",
+ "extra": null
+}
+{
+ "status": "success",
+ "host": "172.31.85.74:9001",
+ "time": "2025-11-07T03:09:11.450067724Z",
+ "client": "172.19.0.1",
+ "callStats": {
+  "rx": 97,
+  "tx": 0,
+  "duration": 785253,
+  "timeToFirstByte": 717037
+ },
+ "duration": 785253,
+ "timeToFirstByte": 0,
+ "api": "s3.HeadObject",
+ "path": "/trace-readonly-1762484951/blocked-object",
+ "query": "",
+ "statusCode": 404,
+ "statusMsg": "Not Found",
+ "type": "S3",
+ "size": 97,
+ "error": "",
+ "extra": null
+}
+{
+ "status": "success",
+ "host": "172.31.85.74:9001",
+ "time": "2025-11-07T03:09:11.526424887Z",
+ "client": "172.19.0.1",
+ "callStats": {
+  "rx": 93,
+  "tx": 396,
+  "duration": 180406,
+  "timeToFirstByte": 166241
+ },
+ "duration": 180406,
+ "timeToFirstByte": 0,
+ "api": "s3.GetBucketObjectLockConfig",
+ "path": "/trace-readonly-1762484951/",
+ "query": "object-lock=",
+ "statusCode": 404,
+ "statusMsg": "Not Found",
+ "type": "S3",
+ "size": 489,
+ "error": "",
+ "extra": null
+}
+{
+ "status": "success",
+ "host": "172.31.85.74:9001",
+ "time": "2025-11-07T03:09:11.607811207Z",
+ "client": "172.19.0.1",
+ "callStats": {
+  "rx": 93,
+  "tx": 396,
+  "duration": 247230,
+  "timeToFirstByte": 223819
+ },
+ "duration": 247230,
+ "timeToFirstByte": 0,
+ "api": "s3.GetBucketObjectLockConfig",
+ "path": "/trace-readonly-1762484951/",
+ "query": "object-lock=",
+ "statusCode": 404,
+ "statusMsg": "Not Found",
+ "type": "S3",
+ "size": 489,
+ "error": "",
+ "extra": null
+}
+{
+ "status": "success",
+ "host": "172.31.85.74:9001",
+ "time": "2025-11-07T03:09:11.691907199Z",
+ "client": "172.19.0.1",
+ "callStats": {
+  "rx": 93,
+  "tx": 396,
+  "duration": 312692,
+  "timeToFirstByte": 288365
+ },
+ "duration": 312692,
+ "timeToFirstByte": 0,
+ "api": "s3.GetBucketObjectLockConfig",
+ "path": "/trace-readonly-1762484951/",
+ "query": "object-lock=",
+ "statusCode": 404,
+ "statusMsg": "Not Found",
+ "type": "S3",
+ "size": 489,
+ "error": "",
+ "extra": null
+}
+{
+ "status": "success",
+ "host": "172.31.85.74:9001",
+ "time": "2025-11-07T03:09:11.773177858Z",
+ "client": "172.19.0.1",
+ "callStats": {
+  "rx": 93,
+  "tx": 396,
+  "duration": 286142,
+  "timeToFirstByte": 261918
+ },
+ "duration": 286142,
+ "timeToFirstByte": 0,
+ "api": "s3.GetBucketObjectLockConfig",
+ "path": "/trace-readonly-1762484951/",
+ "query": "object-lock=",
+ "statusCode": 404,
+ "statusMsg": "Not Found",
+ "type": "S3",
+ "size": 489,
+ "error": "",
+ "extra": null
+}
+{
+ "status": "success",
+ "host": "172.31.85.74:9001",
+ "time": "2025-11-07T03:09:11.848922012Z",
+ "client": "172.19.0.1",
+ "callStats": {
+  "rx": 93,
+  "tx": 396,
+  "duration": 246098,
+  "timeToFirstByte": 224750
+ },
+ "duration": 246098,
+ "timeToFirstByte": 0,
+ "api": "s3.GetBucketObjectLockConfig",
+ "path": "/trace-readonly-1762484951/",
+ "query": "object-lock=",
+ "statusCode": 404,
+ "statusMsg": "Not Found",
+ "type": "S3",
+ "size": 489,
+ "error": "",
+ "extra": null
+}
+{
+ "status": "success",
+ "host": "172.31.85.74:9001",
+ "time": "2025-11-07T03:09:11.93798457Z",
+ "client": "172.19.0.1",
+ "callStats": {
+  "rx": 93,
+  "tx": 396,
+  "duration": 265991,
+  "timeToFirstByte": 243414
+ },
+ "duration": 265991,
+ "timeToFirstByte": 0,
+ "api": "s3.GetBucketObjectLockConfig",
+ "path": "/trace-readonly-1762484951/",
+ "query": "object-lock=",
+ "statusCode": 404,
+ "statusMsg": "Not Found",
+ "type": "S3",
+ "size": 489,
+ "error": "",
+ "extra": null
+}
+{
+ "status": "success",
+ "host": "172.31.85.74:9001",
+ "time": "2025-11-07T03:09:12.018082298Z",
+ "client": "172.19.0.1",
+ "callStats": {
+  "rx": 93,
+  "tx": 396,
+  "duration": 292292,
+  "timeToFirstByte": 265538
+ },
+ "duration": 292292,
+ "timeToFirstByte": 0,
+ "api": "s3.GetBucketObjectLockConfig",
+ "path": "/trace-readonly-1762484951/",
+ "query": "object-lock=",
+ "statusCode": 404,
+ "statusMsg": "Not Found",
+ "type": "S3",
+ "size": 489,
+ "error": "",
+ "extra": null
+}
+{
+ "status": "success",
+ "host": "172.31.85.74:9001",
+ "time": "2025-11-07T03:09:12.101540219Z",
+ "client": "172.19.0.1",
+ "callStats": {
+  "rx": 93,
+  "tx": 396,
+  "duration": 463526,
+  "timeToFirstByte": 438644
+ },
+ "duration": 463526,
+ "timeToFirstByte": 0,
+ "api": "s3.GetBucketObjectLockConfig",
+ "path": "/trace-readonly-1762484951/",
+ "query": "object-lock=",
+ "statusCode": 404,
+ "statusMsg": "Not Found",
+ "type": "S3",
+ "size": 489,
+ "error": "",
+ "extra": null
+}
+{
+ "status": "success",
+ "host": "172.31.85.74:9001",
+ "time": "2025-11-07T03:09:12.179282096Z",
+ "client": "172.19.0.1",
+ "callStats": {
+  "rx": 93,
+  "tx": 396,
+  "duration": 615949,
+  "timeToFirstByte": 584996
+ },
+ "duration": 615949,
+ "timeToFirstByte": 0,
+ "api": "s3.GetBucketObjectLockConfig",
+ "path": "/trace-readonly-1762484951/",
+ "query": "object-lock=",
+ "statusCode": 404,
+ "statusMsg": "Not Found",
+ "type": "S3",
+ "size": 489,
+ "error": "",
+ "extra": null
+}
+{
+ "status": "success",
+ "host": "172.31.85.74:9001",
+ "time": "2025-11-07T03:09:12.25857513Z",
+ "client": "172.19.0.1",
+ "callStats": {
+  "rx": 93,
+  "tx": 396,
+  "duration": 212315,
+  "timeToFirstByte": 193831
+ },
+ "duration": 212315,
+ "timeToFirstByte": 0,
+ "api": "s3.GetBucketObjectLockConfig",
+ "path": "/trace-readonly-1762484951/",
+ "query": "object-lock=",
+ "statusCode": 404,
+ "statusMsg": "Not Found",
+ "type": "S3",
+ "size": 489,
+ "error": "",
+ "extra": null
+}
+{
+ "status": "success",
+ "host": "172.31.85.74:9001",
+ "time": "2025-11-07T03:09:12.341177292Z",
+ "client": "172.19.0.1",
+ "callStats": {
+  "rx": 93,
+  "tx": 396,
+  "duration": 327450,
+  "timeToFirstByte": 302536
+ },
+ "duration": 327450,
+ "timeToFirstByte": 0,
+ "api": "s3.GetBucketObjectLockConfig",
+ "path": "/trace-readonly-1762484951/",
+ "query": "object-lock=",
+ "statusCode": 404,
+ "statusMsg": "Not Found",
+ "type": "S3",
+ "size": 489,
+ "error": "",
+ "extra": null
+}
+{
+ "status": "success",
+ "host": "172.31.85.74:9001",
+ "time": "2025-11-07T03:09:12.422119389Z",
+ "client": "172.19.0.1",
+ "callStats": {
+  "rx": 93,
+  "tx": 396,
+  "duration": 272126,
+  "timeToFirstByte": 249046
+ },
+ "duration": 272126,
+ "timeToFirstByte": 0,
+ "api": "s3.GetBucketObjectLockConfig",
+ "path": "/trace-readonly-1762484951/",
+ "query": "object-lock=",
+ "statusCode": 404,
+ "statusMsg": "Not Found",
+ "type": "S3",
+ "size": 489,
+ "error": "",
+ "extra": null
+}
+{
+ "status": "success",
+ "host": "172.31.85.74:9001",
+ "time": "2025-11-07T03:09:12.505548236Z",
+ "client": "172.19.0.1",
+ "callStats": {
+  "rx": 93,
+  "tx": 396,
+  "duration": 351071,
+  "timeToFirstByte": 325777
+ },
+ "duration": 351071,
+ "timeToFirstByte": 0,
+ "api": "s3.GetBucketObjectLockConfig",
+ "path": "/trace-readonly-1762484951/",
+ "query": "object-lock=",
+ "statusCode": 404,
+ "statusMsg": "Not Found",
+ "type": "S3",
+ "size": 489,
+ "error": "",
+ "extra": null
+}
+{
+ "status": "success",
+ "host": "172.31.85.74:9001",
+ "time": "2025-11-07T03:09:12.597963128Z",
+ "client": "172.19.0.1",
+ "callStats": {
+  "rx": 93,
+  "tx": 396,
+  "duration": 277718,
+  "timeToFirstByte": 254370
+ },
+ "duration": 277718,
+ "timeToFirstByte": 0,
+ "api": "s3.GetBucketObjectLockConfig",
+ "path": "/trace-readonly-1762484951/",
+ "query": "object-lock=",
+ "statusCode": 404,
+ "statusMsg": "Not Found",
+ "type": "S3",
+ "size": 489,
+ "error": "",
+ "extra": null
+}
+{
+ "status": "success",
+ "host": "172.31.85.74:9001",
+ "time": "2025-11-07T03:09:12.686153446Z",
+ "client": "172.19.0.1",
+ "callStats": {
+  "rx": 93,
+  "tx": 396,
+  "duration": 210048,
+  "timeToFirstByte": 193070
+ },
+ "duration": 210048,
+ "timeToFirstByte": 0,
+ "api": "s3.GetBucketObjectLockConfig",
+ "path": "/trace-readonly-1762484951/",
+ "query": "object-lock=",
+ "statusCode": 404,
+ "statusMsg": "Not Found",
+ "type": "S3",
+ "size": 489,
+ "error": "",
+ "extra": null
+}

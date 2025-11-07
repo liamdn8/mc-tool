@@ -16,10 +16,11 @@ type Handlers struct {
 	Job         *JobHandler
 	Analysis    *AnalysisHandler
 	Operations  *OperationsHandler
+	Terminal    *TerminalHandler
 }
 
 // NewHandlers creates and initializes all handlers
-func NewHandlers(executablePath string, staticFiles embed.FS, minioService *services.MinIOService, replicationService *services.ReplicationService, jobManager *models.JobManager) *Handlers {
+func NewHandlers(executablePath string, staticFiles embed.FS, minioService *services.MinIOService, replicationService *services.ReplicationService, jobManager *models.JobManager, terminalService *services.TerminalService) *Handlers {
 	operationsService := services.NewOperationsService(minioService, replicationService)
 
 	return &Handlers{
@@ -30,5 +31,6 @@ func NewHandlers(executablePath string, staticFiles embed.FS, minioService *serv
 		Job:         NewJobHandler(jobManager),
 		Analysis:    NewAnalysisHandler(executablePath, jobManager),
 		Operations:  NewOperationsHandler(operationsService),
+		Terminal:    NewTerminalHandler(terminalService),
 	}
 }

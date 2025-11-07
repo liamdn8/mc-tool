@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { AlertTriangle, X, RefreshCw } from 'lucide-react';
 import { checkSplitBrainStatus } from '../utils/api';
+import { useI18n } from '../utils/i18n';
 
 const SplitBrainWarning = ({ onRefresh }) => {
+    const { t } = useI18n();
     const [splitBrainData, setSplitBrainData] = useState(null);
     const [isVisible, setIsVisible] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
@@ -62,23 +64,29 @@ const SplitBrainWarning = ({ onRefresh }) => {
                     }}>
                         <AlertTriangle size={24} style={{ marginRight: '8px' }} />
                         <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 'bold' }}>
-                            ⚠️ SPLIT BRAIN DETECTED
+                            {t('split_brain_title', '⚠️ SPLIT BRAIN DETECTED')}
                         </h3>
                     </div>
 
                     <div style={{ marginBottom: '16px' }}>
                         <p style={{ margin: '0 0 8px 0', fontSize: '1rem' }}>
-                            <strong>{splitBrainData.clusterCount} separate replication clusters detected!</strong>
+                            <strong>
+                                {t(
+                                    'split_brain_clusters_detected',
+                                    '{count} separate replication clusters detected!',
+                                    { count: splitBrainData.clusterCount }
+                                )}
+                            </strong>
                         </p>
                         <p style={{ margin: '0 0 12px 0', fontSize: '0.9rem', opacity: 0.9 }}>
-                            This configuration can cause data inconsistency and conflicts.
+                            {t('split_brain_risk', 'This configuration can cause data inconsistency and conflicts.')}
                         </p>
                     </div>
 
                     {/* Warnings */}
                     {splitBrainData.warnings && splitBrainData.warnings.length > 0 && (
                         <div style={{ marginBottom: '16px' }}>
-                            <h4 style={{ margin: '0 0 8px 0', fontSize: '1rem' }}>Issues:</h4>
+                            <h4 style={{ margin: '0 0 8px 0', fontSize: '1rem' }}>{t('split_brain_issues', 'Issues:')}</h4>
                             <ul style={{ margin: 0, paddingLeft: '20px' }}>
                                 {splitBrainData.warnings.map((warning, index) => (
                                     <li key={index} style={{ 
@@ -96,7 +104,7 @@ const SplitBrainWarning = ({ onRefresh }) => {
                     {/* Recommendations */}
                     {splitBrainData.recommendations && splitBrainData.recommendations.length > 0 && (
                         <div style={{ marginBottom: '16px' }}>
-                            <h4 style={{ margin: '0 0 8px 0', fontSize: '1rem' }}>Recommended Actions:</h4>
+                            <h4 style={{ margin: '0 0 8px 0', fontSize: '1rem' }}>{t('split_brain_recommendations', 'Recommended Actions:')}</h4>
                             <ol style={{ margin: 0, paddingLeft: '20px' }}>
                                 {splitBrainData.recommendations.map((rec, index) => (
                                     <li key={index} style={{ 
@@ -133,7 +141,7 @@ const SplitBrainWarning = ({ onRefresh }) => {
                             }}
                         >
                             <RefreshCw size={14} />
-                            Recheck
+                            {t('split_brain_recheck', 'Recheck')}
                         </button>
                     </div>
                 </div>
@@ -148,7 +156,7 @@ const SplitBrainWarning = ({ onRefresh }) => {
                         padding: '4px',
                         marginLeft: '16px'
                     }}
-                    title="Dismiss warning"
+                    title={t('split_brain_dismiss', 'Dismiss warning')}
                 >
                     <X size={20} />
                 </button>

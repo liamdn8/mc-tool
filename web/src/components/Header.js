@@ -3,7 +3,7 @@ import { Package, RefreshCw } from 'lucide-react';
 import { useI18n } from '../utils/i18n';
 
 const Header = ({ onRefresh }) => {
-    const { currentLang, setLanguage } = useI18n();
+    const { currentLang, setLanguage, t } = useI18n();
 
     const handleLanguageChange = (e) => {
         setLanguage(e.target.value);
@@ -14,8 +14,8 @@ const Header = ({ onRefresh }) => {
             <div className="header-left">
                 <Package className="app-logo" size={32} />
                 <div className="app-title">
-                    <h1>MinIO Site Replication</h1>
-                    <span className="app-subtitle">Management Console</span>
+                    <h1>{t('app_title', 'MinIO Site Replication')}</h1>
+                    <span className="app-subtitle">{t('app_subtitle', 'Management Console')}</span>
                 </div>
             </div>
             <div className="header-right">
@@ -24,12 +24,13 @@ const Header = ({ onRefresh }) => {
                     value={currentLang} 
                     onChange={handleLanguageChange}
                 >
-                    <option value="en">🇬🇧 English</option>
-                    <option value="vi">🇻🇳 Tiếng Việt</option>
+                    <option value="en">🇬🇧 {t('language_english', 'English')}</option>
+                    <option value="vi">🇻🇳 {t('language_vietnamese', 'Vietnamese')}</option>
                 </select>
                 <button 
                     className="btn-icon" 
-                    title="Refresh" 
+                    title={t('refresh', 'Refresh')} 
+                    aria-label={t('refresh', 'Refresh')}
                     onClick={onRefresh}
                 >
                     <RefreshCw size={20} />

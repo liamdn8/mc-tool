@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, RefreshCw, Download, Upload, X } from 'lucide-react';
+import { Plus, Trash2, RefreshCw } from 'lucide-react';
 import { useI18n } from '../utils/i18n';
-import { getBadgeClass, getStatusText } from '../utils/helpers';
 import SplitBrainWarning from '../components/SplitBrainWarning';
 import { 
     loadAliases, 
@@ -44,7 +43,7 @@ const SitesPage = ({ sites, replicationInfo, onRefresh }) => {
 
     const handleAddReplication = async () => {
         if (selectedAliases.length < 2) {
-            alert('Please select at least 2 aliases');
+            alert(t('sites_select_two_aliases', 'Please select at least 2 aliases'));
             return;
         }
 
@@ -54,7 +53,11 @@ const SitesPage = ({ sites, replicationInfo, onRefresh }) => {
             setSelectedAliases([]);
             onRefresh();
         } catch (error) {
-            alert(`Error setting up replication: ${error.message}`);
+            alert(
+                t('error_setting_up_replication', 'Error setting up replication: {error}', {
+                    error: error.message
+                })
+            );
         } finally {
             setIsAddingReplication(false);
         }
@@ -62,7 +65,7 @@ const SitesPage = ({ sites, replicationInfo, onRefresh }) => {
 
     const handleResyncReplication = async () => {
         if (!resyncFromSite || !resyncToSite) {
-            alert('Please select both source and target sites');
+            alert(t('resync_select_sites', 'Please select both source and target sites'));
             return;
         }
 
@@ -72,213 +75,318 @@ const SitesPage = ({ sites, replicationInfo, onRefresh }) => {
             setResyncFromSite('');
             setResyncToSite('');
             onRefresh();
-            alert('Resync operation started successfully');
+            alert(t('resync_started_success', 'Resync operation started successfully'));
         } catch (error) {
-            alert(`Error starting resync: ${error.message}`);
+            alert(
+                t('error_starting_resync', 'Error starting resync: {error}', {
+                    error: error.message
+                })
+            );
         }
     };
 
     const handleAddToCluster = async () => {
         if (selectedSitesToAdd.length === 0) {
-            alert('Please select at least one site to add');
+            alert(t('sites_select_one_to_add', 'Please select at least one site to add'));
             return;
         }
 
-        // Check for split brain first
         try {
             const splitBrainStatus = await checkSplitBrainStatus();
             if (splitBrainStatus.splitBrainDetected) {
-                let errorMsg = '⚠️ SPLIT BRAIN DETECTED - Cannot add sites!\n\n';
-                errorMsg += `${splitBrainStatus.clusterCount} separate clusters found.\n`;
-                errorMsg += 'Please resolve the split brain scenario first.\n\n';
-                errorMsg += 'Check the warning above for detailed instructions.';
-                alert(errorMsg);
+                alert(
+                    t(
+                        'split_brain_block_add',
+                        '⚠️ SPLIT BRAIN DETECTED - Cannot add sites!\n\n{count} separate clusters found.\nPlease resolve the split brain scenario first.\n\nCheck the warning above for detailed instructions.',
+                        { count: splitBrainStatus.clusterCount }
+                    )
+                );
                 return;
             }
         } catch (error) {
             console.error('Error checking split brain status:', error);
-            // Continue with operation if check fails
         }
 
         const siteCount = selectedSitesToAdd.length;
-        const confirmMessage = siteCount === 1 
-            ? `Add site "${selectedSitesToAdd[0]}" to replication cluster using smart detection?`
-            : `Add ${siteCount} sites (${selectedSitesToAdd.join(', ')}) to replication cluster using smart detection?`;
+        const confirmMessage = siteCount === 1
+            ? t('confirm_add_single_site', 'Add site "{alias}" to replication cluster using smart detection?', {
+                alias: selectedSitesToAdd[0]
+            })
+            : t(
+                'confirm_add_multiple_sites',
+                'Add {count} sites ({sites}) to replication cluster using smart detection?',
+                {
+                    count: siteCount,
+                    sites: selectedSitesToAdd.join(', ')
+                }
+            );
 
         if (!window.confirm(confirmMessage)) {
             return;
         }
 
-        console.log('Adding sites to cluster (smart):', selectedSitesToAdd);
         setIsAddingToCluster(true);
         try {
             const result = await addSitesToReplicationSmart(selectedSitesToAdd);
             setSelectedSitesToAdd([]);
-            
-            // Show detailed result to user
-            let message = `Smart cluster operation for ${siteCount} site${siteCount > 1 ? 's' : ''} completed:\n\n`;
+
+            const lines = [
+                t('smart_cluster_result_title', 'Smart cluster operation for {count} site(s) completed:', {
+                    count: siteCount
+                }),
+                ''
+            ];
+
             if (result.data) {
-                message += `Operation: ${result.data.action || result.data.operation}\n`;
+                const action = result.data.action || result.data.operation;
+                if (action) {
+                    lines.push(
+                        t('smart_cluster_result_operation', 'Operation: {value}', {
+                            value: action
+                        })
+                    );
+                }
                 if (result.data.clustersFound !== undefined) {
-                    message += `Clusters detected: ${result.data.clustersFound}\n`;
+                    lines.push(
+                        t('smart_cluster_result_clusters', 'Clusters detected: {value}', {
+                            value: result.data.clustersFound
+                        })
+                    );
                 }
-                
-                // Handle new sites added
                 if (result.data.newAliases && result.data.newAliases.length > 0) {
-                    message += `✅ Sites added: ${result.data.newAliases.join(', ')}\n`;
+                    lines.push(
+                        t('smart_cluster_result_sites_added', '✅ Sites added: {value}', {
+                            value: result.data.newAliases.join(', ')
+                        })
+                    );
                 }
-                
-                // Handle sites already in cluster
                 if (result.data.alreadyInCluster && result.data.alreadyInCluster.length > 0) {
-                    message += `⚠️ Already in cluster: ${result.data.alreadyInCluster.join(', ')}\n`;
+                    lines.push(
+                        t('smart_cluster_result_already_in_cluster', '⚠️ Already in cluster: {value}', {
+                            value: result.data.alreadyInCluster.join(', ')
+                        })
+                    );
                 }
-                
-                // Show cluster info
                 if (result.data.existingCluster && result.data.existingCluster.sites) {
-                    message += `Total sites in cluster: ${result.data.existingCluster.sites.length}\n`;
+                    lines.push(
+                        t('smart_cluster_result_total_sites', 'Total sites in cluster: {value}', {
+                            value: result.data.existingCluster.sites.length
+                        })
+                    );
                 }
-                
-                // Handle result message
                 if (result.data.message) {
-                    message += `\n${result.data.message}\n`;
+                    lines.push('');
+                    lines.push(result.data.message);
                 }
-                
-                // Show warnings
                 if (result.data.warnings && result.data.warnings.length > 0) {
-                    message += `\nWarnings:\n${result.data.warnings.join('\n')}`;
+                    lines.push('');
+                    lines.push(t('smart_cluster_result_warnings', 'Warnings:'));
+                    lines.push(...result.data.warnings);
                 }
             }
-            
-            // Add delay for backend operation to complete
+
             setTimeout(() => {
                 onRefresh();
             }, 500);
-            alert(message);
+            alert(lines.join('\n'));
         } catch (error) {
             console.error('Error adding sites to cluster:', error);
-            alert(`Error adding sites to cluster: ${error.message}`);
+            alert(
+                t('error_adding_sites_cluster', 'Error adding sites to cluster: {error}', {
+                    error: error.message
+                })
+            );
         } finally {
             setIsAddingToCluster(false);
         }
     };
 
     const handleRemoveSiteFromCluster = async (alias) => {
-        if (window.confirm(`Are you sure you want to remove ${alias} from the replication cluster?`)) {
+        if (window.confirm(t('confirm_remove_site', 'Are you sure you want to remove {alias} from the replication cluster?', { alias }))) {
             try {
                 const result = await removeIndividualSiteFromReplicationSmart(alias);
-                
-                // Show detailed result
-                let message = `Site "${alias}" removal completed:\n\n`;
+
+                const lines = [
+                    t('site_removal_result_title', 'Site "{alias}" removal completed:', { alias }),
+                    ''
+                ];
+
                 if (result.results && result.results.length > 0) {
                     const siteResult = result.results[0];
                     if (siteResult.success) {
-                        message += `✅ Successfully removed from cluster\n`;
+                        lines.push(t('site_removed_success', '✅ Successfully removed from cluster'));
                         if (siteResult.message) {
-                            message += `${siteResult.message}\n`;
+                            lines.push(siteResult.message);
                         }
                     } else {
-                        message += `❌ Failed to remove: ${siteResult.error || 'Unknown error'}`;
+                        lines.push(
+                            t('site_removed_failure', '❌ Failed to remove: {error}', {
+                                error: siteResult.error || t('unknown_error', 'Unknown error')
+                            })
+                        );
                     }
                 }
-                
-                // Add a small delay to ensure backend operation completes
+
                 setTimeout(() => {
                     onRefresh();
                 }, 500);
-                alert(message);
+                alert(lines.join('\n'));
             } catch (error) {
-                alert(`Error removing ${alias} from cluster: ${error.message}`);
+                alert(
+                    t('error_removing_site', 'Error removing {alias} from cluster: {error}', {
+                        alias,
+                        error: error.message
+                    })
+                );
             }
         }
     };
 
     const handleBulkRemoveFromCluster = async () => {
         if (selectedSitesToRemove.length === 0) {
-            alert('Please select sites to remove');
+            alert(t('sites_select_to_remove', 'Please select sites to remove'));
             return;
         }
 
-        if (window.confirm(`Remove ${selectedSitesToRemove.length} sites from replication cluster using smart removal?`)) {
+        if (window.confirm(
+            t('confirm_bulk_remove_sites', 'Remove {count} sites from replication cluster using smart removal?', {
+                count: selectedSitesToRemove.length
+            })
+        )) {
             try {
                 const result = await removeBulkSitesFromReplicationSmart(selectedSitesToRemove);
+                const sitesRemoved = selectedSitesToRemove.length;
                 setSelectedSitesToRemove([]);
-                
-                // Show detailed result
-                let message = `Bulk removal of ${selectedSitesToRemove.length} sites completed:\n\n`;
+
+                const lines = [
+                    t('bulk_removal_result_title', 'Bulk removal of {count} sites completed:', {
+                        count: sitesRemoved
+                    }),
+                    ''
+                ];
+
                 if (result.results && result.results.length > 0) {
                     const successful = result.results.filter(r => r.success);
                     const failed = result.results.filter(r => !r.success);
-                    
+
                     if (successful.length > 0) {
-                        message += `✅ Successfully removed: ${successful.map(r => r.alias).join(', ')}\n`;
+                        lines.push(
+                            t('bulk_removal_success', '✅ Successfully removed: {sites}', {
+                                sites: successful.map(r => r.alias).join(', ')
+                            })
+                        );
                     }
                     if (failed.length > 0) {
-                        message += `❌ Failed to remove: ${failed.map(r => r.alias).join(', ')}\n`;
-                        message += `\nErrors:\n${failed.map(r => `- ${r.alias}: ${r.error}`).join('\n')}`;
+                        lines.push(
+                            t('bulk_removal_failure', '❌ Failed to remove: {sites}', {
+                                sites: failed.map(r => r.alias).join(', ')
+                            })
+                        );
+                        lines.push('');
+                        lines.push(t('bulk_removal_errors', 'Errors:'));
+                        lines.push(
+                            ...failed.map(r => `- ${r.alias}: ${r.error}`)
+                        );
                     }
                 }
-                
-                // Add delay for backend operation to complete
+
                 setTimeout(() => {
                     onRefresh();
                 }, 500);
-                alert(message);
+                alert(lines.join('\n'));
             } catch (error) {
-                alert(`Error removing sites from cluster: ${error.message}`);
+                alert(
+                    t('error_removing_sites', 'Error removing sites from cluster: {error}', {
+                        error: error.message
+                    })
+                );
             }
         }
     };
 
     const handleAddSingleSiteToCluster = async (alias) => {
-        // Check for split brain first
         try {
             const splitBrainStatus = await checkSplitBrainStatus();
             if (splitBrainStatus.splitBrainDetected) {
-                let errorMsg = '⚠️ SPLIT BRAIN DETECTED - Cannot add sites!\n\n';
-                errorMsg += `${splitBrainStatus.clusterCount} separate clusters found.\n`;
-                errorMsg += 'Please resolve the split brain scenario first.\n\n';
-                errorMsg += 'Check the warning above for detailed instructions.';
-                alert(errorMsg);
+                alert(
+                    t(
+                        'split_brain_block_add',
+                        '⚠️ SPLIT BRAIN DETECTED - Cannot add sites!\n\n{count} separate clusters found.\nPlease resolve the split brain scenario first.\n\nCheck the warning above for detailed instructions.',
+                        { count: splitBrainStatus.clusterCount }
+                    )
+                );
                 return;
             }
         } catch (error) {
             console.error('Error checking split brain status:', error);
-            // Continue with operation if check fails
         }
 
-        if (window.confirm(`Add site "${alias}" to replication cluster using smart detection?`)) {
-            console.log('Adding single site to cluster (smart):', alias);
+        if (window.confirm(
+            t('confirm_add_single_site', 'Add site "{alias}" to replication cluster using smart detection?', { alias })
+        )) {
             try {
                 const result = await addSitesToReplicationSmart([alias]);
-                
-                // Show detailed result to user for single site add
-                let message = `Smart add operation for "${alias}" completed:\n\n`;
+
+                const lines = [
+                    t('smart_single_result_title', 'Smart add operation for "{alias}" completed:', { alias }),
+                    ''
+                ];
+
                 if (result.data) {
-                    message += `Operation: ${result.data.action}\n`;
+                    if (result.data.action) {
+                        lines.push(
+                            t('smart_cluster_result_operation', 'Operation: {value}', {
+                                value: result.data.action
+                            })
+                        );
+                    }
                     if (result.data.clustersFound !== undefined) {
-                        message += `Clusters detected: ${result.data.clustersFound}\n`;
+                        lines.push(
+                            t('smart_cluster_result_clusters', 'Clusters detected: {value}', {
+                                value: result.data.clustersFound
+                            })
+                        );
                     }
                     if (result.data.alreadyInCluster && result.data.alreadyInCluster.includes(alias)) {
-                        message += `⚠️ "${alias}" was already in the cluster\n`;
+                        lines.push(
+                            t('smart_single_result_already', '⚠️ "{alias}" was already in the cluster', {
+                                alias
+                            })
+                        );
                     } else if (result.data.newAliases && result.data.newAliases.includes(alias)) {
-                        message += `✅ "${alias}" successfully added to cluster\n`;
+                        lines.push(
+                            t('smart_single_result_added', '✅ "{alias}" successfully added to cluster', {
+                                alias
+                            })
+                        );
                     }
                     if (result.data.existingCluster) {
-                        message += `Total sites in cluster: ${result.data.existingCluster.sites ? result.data.existingCluster.sites.length : 'unknown'}\n`;
+                        const totalSites = result.data.existingCluster.sites ? result.data.existingCluster.sites.length : 'unknown';
+                        lines.push(
+                            t('smart_cluster_result_total_sites', 'Total sites in cluster: {value}', {
+                                value: totalSites
+                            })
+                        );
                     }
                     if (result.data.warnings && result.data.warnings.length > 0) {
-                        message += `\nWarnings:\n${result.data.warnings.join('\n')}`;
+                        lines.push('');
+                        lines.push(t('smart_cluster_result_warnings', 'Warnings:'));
+                        lines.push(...result.data.warnings);
                     }
                 }
-                
-                // Add delay for backend operation to complete
+
                 setTimeout(() => {
                     onRefresh();
                 }, 500);
-                alert(message);
+                alert(lines.join('\n'));
             } catch (error) {
                 console.error('Error adding single site:', error);
-                alert(`Error adding ${alias} to cluster: ${error.message}`);
+                alert(
+                    t('error_adding_site_cluster', 'Error adding {alias} to cluster: {error}', {
+                        alias,
+                        error: error.message
+                    })
+                );
             }
         }
     };
@@ -299,26 +407,6 @@ const SitesPage = ({ sites, replicationInfo, onRefresh }) => {
         );
     };
 
-    const handleQuickResync = async (alias, direction) => {
-        const replicatedSites = sites.filter(s => s.replicationEnabled && s.alias !== alias);
-        if (replicatedSites.length === 0) {
-            alert('No other sites available for resync');
-            return;
-        }
-
-        const otherSite = replicatedSites[0].alias;
-        const fromSite = direction === 'from' ? alias : otherSite;
-        const toSite = direction === 'from' ? otherSite : alias;
-
-        try {
-            await resyncSiteReplication(fromSite, toSite);
-            onRefresh();
-            alert(`Resync operation started: ${fromSite} → ${toSite}`);
-        } catch (error) {
-            alert(`Error starting resync: ${error.message}`);
-        }
-    };
-
     // Calculate summary statistics
     const totalSites = sites.length;
     const configuredSites = sites.filter(site => site.replicationStatus === 'configured').length;
@@ -336,23 +424,23 @@ const SitesPage = ({ sites, replicationInfo, onRefresh }) => {
                 <div className="stats-summary">
                     <div className="stat-card">
                         <div className="stat-value">{configuredSites}</div>
-                        <div className="stat-label">Sites in Cluster</div>
-                        <div className="stat-summary">Active replication sites</div>
+                        <div className="stat-label">{t('sites_stats_in_cluster_label', 'Sites in Cluster')}</div>
+                        <div className="stat-summary">{t('sites_stats_in_cluster_summary', 'Active replication sites')}</div>
                     </div>
                     <div className="stat-card">
                         <div className="stat-value">{healthySites}</div>
-                        <div className="stat-label">Healthy Sites</div>
-                        <div className="stat-summary">Sites responding normally</div>
+                        <div className="stat-label">{t('sites_stats_healthy_label', 'Healthy Sites')}</div>
+                        <div className="stat-summary">{t('sites_stats_healthy_summary', 'Sites responding normally')}</div>
                     </div>
                     <div className="stat-card">
                         <div className="stat-value">{availableSites}</div>
-                        <div className="stat-label">Available to Add</div>
-                        <div className="stat-summary">Sites ready for replication</div>
+                        <div className="stat-label">{t('sites_stats_available_label', 'Available to Add')}</div>
+                        <div className="stat-summary">{t('sites_stats_available_summary', 'Sites ready for replication')}</div>
                     </div>
                     <div className="stat-card">
                         <div className="stat-value">{replicationInfo?.sites?.length || 0}</div>
-                        <div className="stat-label">Total Endpoints</div>
-                        <div className="stat-summary">Configured replication endpoints</div>
+                        <div className="stat-label">{t('sites_stats_endpoints_label', 'Total Endpoints')}</div>
+                        <div className="stat-summary">{t('sites_stats_endpoints_summary', 'Configured replication endpoints')}</div>
                     </div>
                 </div>
             )}
@@ -361,7 +449,7 @@ const SitesPage = ({ sites, replicationInfo, onRefresh }) => {
                 <div className="card-header">
                     <h3 className="card-title">{t('site_replication_config')}</h3>
                     {hasReplication && (
-                        <span className="badge badge-success">✓ Configured</span>
+                        <span className="badge badge-success">{t('badge_configured', '✓ Configured')}</span>
                     )}
                 </div>
 
@@ -408,7 +496,7 @@ const SitesPage = ({ sites, replicationInfo, onRefresh }) => {
                             disabled={selectedAliases.length < 2 || isAddingReplication}
                         >
                             <Plus size={16} />
-                            {isAddingReplication ? 'Setting up...' : t('add_sites')}
+                            {isAddingReplication ? t('setup_in_progress', 'Setting up...') : t('add_sites')}
                         </button>
                     </div>
                 ) : (
@@ -421,7 +509,7 @@ const SitesPage = ({ sites, replicationInfo, onRefresh }) => {
                                     onClick={() => setShowResyncModal(true)}
                                 >
                                     <RefreshCw size={16} />
-                                    Resync
+                                    {t('resync_button', 'Resync')}
                                 </button>
                             </div>
                         </div>
@@ -442,12 +530,12 @@ const SitesPage = ({ sites, replicationInfo, onRefresh }) => {
                                     margin: '16px',
                                     fontSize: '0.875rem'
                                 }}>
-                                    <strong>🧠 Smart Add Feature:</strong> Automatically detects existing clusters and intelligently:
+                                    <strong>{t('smart_add_title', '🧠 Smart Add Feature:')}</strong> {t('smart_add_description', 'Automatically detects existing clusters and intelligently:')}
                                     <ul style={{ margin: '8px 0 0 20px', padding: 0 }}>
-                                        <li>Creates new cluster if no clusters exist</li>
-                                        <li>Adds to existing cluster if one cluster found</li>
-                                        <li>Prevents split-brain scenarios with multiple clusters</li>
-                                        <li>Filters out sites already in clusters</li>
+                                        <li>{t('smart_add_create_cluster', 'Creates new cluster if no clusters exist')}</li>
+                                        <li>{t('smart_add_use_existing', 'Adds to existing cluster if one cluster found')}</li>
+                                        <li>{t('smart_add_prevent_split', 'Prevents split-brain scenarios with multiple clusters')}</li>
+                                        <li>{t('smart_add_filter', 'Filters out sites already in clusters')}</li>
                                     </ul>
                                 </div>
                                 
@@ -466,14 +554,14 @@ const SitesPage = ({ sites, replicationInfo, onRefresh }) => {
                                                                 setSelectedSitesToAdd([]);
                                                             }
                                                         }}
-                                                        title="Select all available sites"
+                                                            title={t('tooltip_select_all_available', 'Select all available sites')}
                                                     />
                                                 </th>
-                                                <th style={{ width: '200px' }}>Site Name</th>
-                                                <th style={{ width: '250px' }}>Endpoint</th>
-                                                <th style={{ width: '100px' }}>Health</th>
-                                                <th style={{ width: '100px' }}>Status</th>
-                                                <th style={{ width: '120px' }}>Actions</th>
+                                                    <th style={{ width: '200px' }}>{t('column_site_name', 'Site Name')}</th>
+                                                    <th style={{ width: '250px' }}>{t('column_endpoint', 'Endpoint')}</th>
+                                                    <th style={{ width: '100px' }}>{t('column_health', 'Health')}</th>
+                                                    <th style={{ width: '100px' }}>{t('column_status', 'Status')}</th>
+                                                    <th style={{ width: '120px' }}>{t('column_actions', 'Actions')}</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -494,20 +582,20 @@ const SitesPage = ({ sites, replicationInfo, onRefresh }) => {
                                                     </td>
                                                     <td>
                                                         <span className={`badge ${site.healthy ? 'badge-success' : 'badge-danger'}`}>
-                                                            {site.healthy ? '● Healthy' : '● Unhealthy'}
+                                                            {site.healthy ? t('badge_healthy_icon', '● Healthy') : t('badge_unhealthy_icon', '● Unhealthy')}
                                                         </span>
                                                     </td>
                                                     <td>
-                                                        <span className="badge badge-warning">Available</span>
+                                                        <span className="badge badge-warning">{t('status_available', 'Available')}</span>
                                                     </td>
                                                     <td>
                                                         <button 
                                                             className="btn btn-primary btn-sm"
                                                             onClick={() => handleAddSingleSiteToCluster(site.name)}
-                                                            title="Smart add this site to replication cluster with automatic cluster detection"
+                                                            title={t('tooltip_smart_add_single', 'Smart add this site to replication cluster with automatic cluster detection')}
                                                         >
                                                             <Plus size={14} />
-                                                            Smart Add
+                                                            {t('button_smart_add', 'Smart Add')}
                                                         </button>
                                                     </td>
                                                 </tr>
@@ -519,24 +607,34 @@ const SitesPage = ({ sites, replicationInfo, onRefresh }) => {
                                 <div className="add-sites-actions">
                                     <div className="selection-info" style={{ marginBottom: '10px', fontSize: '0.875rem', color: 'var(--text-muted)' }}>
                                         {selectedSitesToAdd.length === 0 ? (
-                                            "Select sites to add to replication cluster"
+                                            t('select_sites_to_add', 'Select sites to add to replication cluster')
                                         ) : selectedSitesToAdd.length === 1 ? (
-                                            `1 site selected: ${selectedSitesToAdd[0]}`
+                                            t('one_site_selected', '1 site selected: {site}', { site: selectedSitesToAdd[0] })
                                         ) : (
-                                            `${selectedSitesToAdd.length} sites selected: ${selectedSitesToAdd.join(', ')}`
+                                            t('multiple_sites_selected', '{count} sites selected: {sites}', {
+                                                count: selectedSitesToAdd.length,
+                                                sites: selectedSitesToAdd.join(', ')
+                                            })
                                         )}
                                     </div>
                                     <button 
                                         className="btn btn-primary"
                                         onClick={handleAddToCluster}
                                         disabled={selectedSitesToAdd.length === 0 || isAddingToCluster}
-                                        title={selectedSitesToAdd.length === 0 ? "Select at least one site" : `Add ${selectedSitesToAdd.length} site${selectedSitesToAdd.length > 1 ? 's' : ''} using smart detection`}
+                                        title={selectedSitesToAdd.length === 0 
+                                            ? t('tooltip_select_site_before_add', 'Select at least one site')
+                                            : t('tooltip_smart_add_bulk', 'Add {count} site(s) using smart detection', {
+                                                count: selectedSitesToAdd.length
+                                            })}
                                     >
                                         <Plus size={16} />
-                                        {isAddingToCluster ? 'Adding...' : 
-                                         selectedSitesToAdd.length === 0 ? t('add_selected_to_cluster') :
-                                         selectedSitesToAdd.length === 1 ? `Smart Add "${selectedSitesToAdd[0]}"` :
-                                         `Smart Add ${selectedSitesToAdd.length} Sites`}
+                                        {isAddingToCluster
+                                            ? t('smart_add_in_progress', 'Adding...')
+                                            : selectedSitesToAdd.length === 0
+                                                ? t('add_selected_to_cluster', 'Add selected sites')
+                                                : selectedSitesToAdd.length === 1
+                                                    ? t('button_smart_add_single', 'Smart Add "{alias}"', { alias: selectedSitesToAdd[0] })
+                                                    : t('button_smart_add_multiple', 'Smart Add {count} Sites', { count: selectedSitesToAdd.length })}
                                     </button>
                                 </div>
                             </div>
@@ -573,14 +671,14 @@ const SitesPage = ({ sites, replicationInfo, onRefresh }) => {
                                                             setSelectedSitesToRemove([]);
                                                         }
                                                     }}
-                                                    title="Select all sites"
+                                                    title={t('tooltip_select_all_sites', 'Select all sites')}
                                                 />
                                             </th>
-                                            <th style={{ width: '200px' }}>Site Name</th>
-                                            <th style={{ width: '250px' }}>Endpoint</th>
-                                            <th style={{ width: '100px' }}>Health</th>
-                                            <th style={{ width: '100px' }}>Status</th>
-                                            <th style={{ width: '120px' }}>Actions</th>
+                                            <th style={{ width: '200px' }}>{t('column_site_name', 'Site Name')}</th>
+                                            <th style={{ width: '250px' }}>{t('column_endpoint', 'Endpoint')}</th>
+                                            <th style={{ width: '100px' }}>{t('column_health', 'Health')}</th>
+                                            <th style={{ width: '100px' }}>{t('column_status', 'Status')}</th>
+                                            <th style={{ width: '120px' }}>{t('column_actions', 'Actions')}</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -618,34 +716,18 @@ const SitesPage = ({ sites, replicationInfo, onRefresh }) => {
                                                 </td>
                                                 <td>
                                                     <span className={`badge ${site.healthy ? 'badge-success' : 'badge-danger'}`}>
-                                                        {site.healthy ? '● Healthy' : '● Unhealthy'}
+                                                        {site.healthy ? t('badge_healthy_icon', '● Healthy') : t('badge_unhealthy_icon', '● Unhealthy')}
                                                     </span>
                                                 </td>
                                                 <td>
-                                                    <span className="badge badge-success">✓ Active</span>
+                                                    <span className="badge badge-success">{t('status_active', '✓ Active')}</span>
                                                 </td>
                                                 <td>
                                                     <div className="action-buttons">
                                                         <button 
-                                                            className="btn-icon"
-                                                            onClick={() => handleResyncSite(site.name, 'from')}
-                                                            title="Resync FROM this site (pull data)"
-                                                        >
-                                                            <Download size={16} />
-                                                        </button>
-                                                        
-                                                        <button 
-                                                            className="btn-icon"
-                                                            onClick={() => handleResyncSite(site.name, 'to')}
-                                                            title="Resync TO this site (push data)"
-                                                        >
-                                                            <Upload size={16} />
-                                                        </button>
-                                                        
-                                                        <button 
                                                             className="btn-danger-icon"
                                                             onClick={() => handleRemoveSiteFromCluster(site.name)}
-                                                            title="Remove this site from replication cluster"
+                                                            title={t('tooltip_remove_site', 'Remove this site from replication cluster')}
                                                         >
                                                             <Trash2 size={16} />
                                                         </button>
@@ -666,7 +748,7 @@ const SitesPage = ({ sites, replicationInfo, onRefresh }) => {
                 <div className="modal active">
                     <div className="modal-content">
                         <div className="modal-header">
-                            <h3 className="modal-title">Resync Site Replication</h3>
+                            <h3 className="modal-title">{t('modal_resync_title', 'Resync Site Replication')}</h3>
                             <button 
                                 className="modal-close"
                                 onClick={() => setShowResyncModal(false)}
@@ -676,18 +758,17 @@ const SitesPage = ({ sites, replicationInfo, onRefresh }) => {
                         </div>
                         <div style={{ marginBottom: '20px' }}>
                             <p style={{ marginBottom: '16px' }}>
-                                Select source and target sites for replication resync. 
-                                This will copy data from source to target site.
+                                {t('modal_resync_description', 'Select source and target sites for replication resync. This will copy data from source to target site.')}
                             </p>
                             
                             <div className="form-group">
-                                <label className="form-label">Source Site (copy from)</label>
+                                <label className="form-label">{t('modal_resync_source_label', 'Source Site (copy from)')}</label>
                                 <select 
                                     className="form-input"
                                     value={resyncFromSite}
                                     onChange={(e) => setResyncFromSite(e.target.value)}
                                 >
-                                    <option value="">Select source site...</option>
+                                    <option value="">{t('modal_resync_source_placeholder', 'Select source site...')}</option>
                                     {sites.filter(s => s.replicationEnabled).map(site => (
                                         <option key={site.name} value={site.name}>
                                             {site.name} ({site.url})
@@ -697,13 +778,13 @@ const SitesPage = ({ sites, replicationInfo, onRefresh }) => {
                             </div>
                             
                             <div className="form-group">
-                                <label className="form-label">Target Site (copy to)</label>
+                                <label className="form-label">{t('modal_resync_target_label', 'Target Site (copy to)')}</label>
                                 <select 
                                     className="form-input"
                                     value={resyncToSite}
                                     onChange={(e) => setResyncToSite(e.target.value)}
                                 >
-                                    <option value="">Select target site...</option>
+                                    <option value="">{t('modal_resync_target_placeholder', 'Select target site...')}</option>
                                     {sites.filter(s => s.replicationEnabled && s.name !== resyncFromSite).map(site => (
                                         <option key={site.name} value={site.name}>
                                             {site.name} ({site.url})
@@ -717,7 +798,7 @@ const SitesPage = ({ sites, replicationInfo, onRefresh }) => {
                                 className="btn btn-secondary"
                                 onClick={() => setShowResyncModal(false)}
                             >
-                                Cancel
+                                {t('cancel', 'Cancel')}
                             </button>
                             <button 
                                 className="btn btn-primary"
@@ -725,7 +806,7 @@ const SitesPage = ({ sites, replicationInfo, onRefresh }) => {
                                 disabled={!resyncFromSite || !resyncToSite}
                             >
                                 <RefreshCw size={16} />
-                                Start Resync
+                                {t('modal_resync_start', 'Start Resync')}
                             </button>
                         </div>
                     </div>

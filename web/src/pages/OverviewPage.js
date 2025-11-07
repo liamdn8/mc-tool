@@ -33,8 +33,8 @@ const OverviewPage = ({ sites, replicationInfo }) => {
                     <div className="stat-label">{t('total_sites')}</div>
                     <div className="stat-summary">
                         {replicatedSites > 0 
-                            ? `${replicatedSites} in replication group`
-                            : 'No replication configured'
+                            ? t('replication_group_summary', '{count} in replication group', { count: replicatedSites })
+                            : t('replication_not_configured', 'No replication configured')
                         }
                     </div>
                 </div>
@@ -44,8 +44,8 @@ const OverviewPage = ({ sites, replicationInfo }) => {
                     <div className="stat-label">{t('synced_buckets')}</div>
                     <div className="stat-summary">
                         {totalBuckets > 0 
-                            ? `Across ${replicatedSites} sites`
-                            : 'No buckets synced'
+                            ? t('bucket_distribution_summary', 'Across {count} sites', { count: replicatedSites })
+                            : t('no_buckets_synced', 'No buckets synced')
                         }
                     </div>
                 </div>
@@ -54,19 +54,22 @@ const OverviewPage = ({ sites, replicationInfo }) => {
                     <div className="stat-value">{formatNumber(replicationInfo?.totalObjects || 0)}</div>
                     <div className="stat-label">{t('total_objects')}</div>
                     <div className="stat-summary">
-                        In all synced buckets
+                        {t('objects_summary', 'In all synced buckets')}
                     </div>
                 </div>
 
                 <div className="stat-card">
                     <div className="stat-value">
                         <span className={`badge ${healthySites === sites.length ? 'badge-success' : 'badge-warning'}`}>
-                            {healthySites === sites.length ? t('healthy') : 'Issues'}
+                            {healthySites === sites.length ? t('healthy') : t('issues', 'Issues')}
                         </span>
                     </div>
                     <div className="stat-label">{t('replication_health')}</div>
                     <div className="stat-summary">
-                        {healthySites}/{sites.length} sites healthy
+                        {t('healthy_sites_summary', '{healthy}/{total} sites healthy', {
+                            healthy: healthySites,
+                            total: sites.length
+                        })}
                     </div>
                 </div>
             </div>
@@ -84,7 +87,7 @@ const OverviewPage = ({ sites, replicationInfo }) => {
                                 <th>{t('alias')}</th>
                                 <th>{t('endpoint')}</th>
                                 <th>{t('status')}</th>
-                                <th>Replication</th>
+                                <th>{t('replication_column', 'Replication')}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -94,7 +97,7 @@ const OverviewPage = ({ sites, replicationInfo }) => {
                                     <td>{site.url}</td>
                                     <td>
                                         <span className={`badge ${site.healthy ? 'badge-success' : 'badge-danger'}`}>
-                                            {site.healthy ? t('healthy') : 'Unhealthy'}
+                                            {site.healthy ? t('healthy') : t('unhealthy', 'Unhealthy')}
                                         </span>
                                     </td>
                                     <td>
