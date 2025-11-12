@@ -1,0 +1,24 @@
+≠ù∏ƒë¶2kÇÂ(≠ILAËÆÏ/Më_B≈e)‹µVÖÕ/**
+ * Library 3 for site6
+ * Version: 1.5.3
+ * Compiled: Wed Oct 15 19:04:25 +07 2025
+ * 
+ * This library has different implementations per alias
+ */
+
+const LIB_3 = {
+    version: '1.5.3',
+    alias: 'site6',
+    buildNumber: 952,
+    features: {
+        caching: false,
+        logging: true,
+        encryption: false
+    },
+    
+    init: function() {
+        console.log('Library 3 initialized for site6');
+        console.log('Version: ' + this.version);
+        return this.buildNumber + 5;
+    }
+};

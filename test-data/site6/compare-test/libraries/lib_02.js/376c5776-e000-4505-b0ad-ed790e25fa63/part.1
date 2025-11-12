@@ -1,0 +1,24 @@
+$µsמצ„ר‏<ׂG&V 'רz¨˜¾׀יOƒ»zoT/**
+ * Library 2 for site5
+ * Version: 1.4.2
+ * Compiled: Wed Oct 15 19:04:20 +07 2025
+ * 
+ * This library has different implementations per alias
+ */
+
+const LIB_2 = {
+    version: '1.4.2',
+    alias: 'site5',
+    buildNumber: 410,
+    features: {
+        caching: true,
+        logging: true,
+        encryption: false
+    },
+    
+    init: function() {
+        console.log('Library 2 initialized for site5');
+        console.log('Version: ' + this.version);
+        return this.buildNumber + 4;
+    }
+};

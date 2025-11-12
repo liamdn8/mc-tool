@@ -1,0 +1,25 @@
+¡óŠ¡pgHe!1
+®Ú²œ2¾¿kèŽhi^E,ÀÝà6/**
+ * Library 3 for site2
+ * Version: 1.1.3
+ * Compiled: Wed Oct 15 19:04:07 +07 2025
+ * 
+ * This library has different implementations per alias
+ */
+
+const LIB_3 = {
+    version: '1.1.3',
+    alias: 'site2',
+    buildNumber: 383,
+    features: {
+        caching: false,
+        logging: true,
+        encryption: false
+    },
+    
+    init: function() {
+        console.log('Library 3 initialized for site2');
+        console.log('Version: ' + this.version);
+        return this.buildNumber + 1;
+    }
+};

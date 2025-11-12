@@ -1,0 +1,24 @@
+µXŽ<ÿE#)žfNÑ¶°YÝ&é-ùó÷¢x/**
+ * Library 1 for site1
+ * Version: 1.0.1
+ * Compiled: Wed Oct 15 19:04:01 +07 2025
+ * 
+ * This library has different implementations per alias
+ */
+
+const LIB_1 = {
+    version: '1.0.1',
+    alias: 'site1',
+    buildNumber: 181,
+    features: {
+        caching: false,
+        logging: true,
+        encryption: false
+    },
+    
+    init: function() {
+        console.log('Library 1 initialized for site1');
+        console.log('Version: ' + this.version);
+        return this.buildNumber + 0;
+    }
+};

@@ -1,0 +1,24 @@
+»¥ì{,1úè•½ú²KÎ¹…UQš6]6ğ¿nS"‡î/**
+ * Library 4 for site3
+ * Version: 1.2.4
+ * Compiled: Wed Oct 15 19:04:11 +07 2025
+ * 
+ * This library has different implementations per alias
+ */
+
+const LIB_4 = {
+    version: '1.2.4',
+    alias: 'site3',
+    buildNumber: 447,
+    features: {
+        caching: true,
+        logging: true,
+        encryption: true
+    },
+    
+    init: function() {
+        console.log('Library 4 initialized for site3');
+        console.log('Version: ' + this.version);
+        return this.buildNumber + 2;
+    }
+};

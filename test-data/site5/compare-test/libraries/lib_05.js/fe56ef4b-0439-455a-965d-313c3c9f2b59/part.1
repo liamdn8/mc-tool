@@ -1,0 +1,24 @@
+EötY`=ìãXŒC	¾}‡"í’–Êş©‡f“¿|µ/**
+ * Library 5 for site5
+ * Version: 1.4.5
+ * Compiled: Wed Oct 15 19:04:20 +07 2025
+ * 
+ * This library has different implementations per alias
+ */
+
+const LIB_5 = {
+    version: '1.4.5',
+    alias: 'site5',
+    buildNumber: 893,
+    features: {
+        caching: false,
+        logging: true,
+        encryption: true
+    },
+    
+    init: function() {
+        console.log('Library 5 initialized for site5');
+        console.log('Version: ' + this.version);
+        return this.buildNumber + 4;
+    }
+};
