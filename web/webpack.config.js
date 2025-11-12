@@ -5,9 +5,39 @@ module.exports = {
   entry: './src/index.js',
   output: {
     path: path.resolve(__dirname, 'build'),
-    filename: 'bundle.js',
+    filename: '[name].[contenthash].js',
+    chunkFilename: '[name].[contenthash].chunk.js',
     publicPath: '/static/',
     clean: true,
+  },
+  optimization: {
+    splitChunks: {
+      chunks: 'all',
+      cacheGroups: {
+        vendor: {
+          test: /[\\/]node_modules[\\/]/,
+          name: 'vendors',
+          priority: 10,
+        },
+        xterm: {
+          test: /[\\/]node_modules[\\/]@xterm[\\/]/,
+          name: 'xterm',
+          priority: 20,
+        },
+        react: {
+          test: /[\\/]node_modules[\\/](react|react-dom|react-router-dom)[\\/]/,
+          name: 'react-vendor',
+          priority: 20,
+        },
+      },
+    },
+    runtimeChunk: 'single',
+    moduleIds: 'deterministic',
+  },
+  performance: {
+    hints: 'warning',
+    maxEntrypointSize: 512000,
+    maxAssetSize: 512000,
   },
   module: {
     rules: [
@@ -17,7 +47,13 @@ module.exports = {
         use: {
           loader: 'babel-loader',
           options: {
-            presets: ['@babel/preset-env', '@babel/preset-react']
+            presets: [
+              ['@babel/preset-env', {
+                modules: false,
+                targets: '> 1%, last 2 versions, not dead'
+              }],
+              '@babel/preset-react'
+            ]
           }
         }
       },

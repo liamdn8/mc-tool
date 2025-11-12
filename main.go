@@ -45,12 +45,13 @@ var (
 	thresholdMB     int
 
 	// Trace command flags
-	traceDuration      string
-	traceMCPath        string
-	traceStatusCodes   []int
-	traceErrorFilters  []string
-	traceGroupByAPI    bool
-	traceGroupByClient bool
+	traceDuration        string
+	traceMCPath          string
+	traceStatusCodes     []int
+	traceErrorFilters    []string
+	traceGroupByAPI      bool
+	traceGroupByClient   bool
+	traceGroupByVersions bool
 )
 
 func main() {
@@ -199,6 +200,7 @@ Examples:
 	traceCmd.Flags().StringSliceVar(&traceErrorFilters, "error-contains", []string{}, "Only include events whose error message contains the provided substring (repeatable)")
 	traceCmd.Flags().BoolVar(&traceGroupByAPI, "group-by-api", false, "Include API-level aggregation in the summary output")
 	traceCmd.Flags().BoolVar(&traceGroupByClient, "group-by-client", false, "Include client-level aggregation in the summary output")
+	traceCmd.Flags().BoolVar(&traceGroupByVersions, "versions", false, "Group by object and version instead of object only")
 
 	// Web UI command
 	webCmd := &cobra.Command{
@@ -397,6 +399,7 @@ func runTrace(cmd *cobra.Command, args []string) {
 		ErrorMessageFilters: traceErrorFilters,
 		GroupByAPI:          traceGroupByAPI,
 		GroupByClient:       traceGroupByClient,
+		GroupByVersions:     traceGroupByVersions,
 	})
 	if err != nil {
 		log.Fatalf("Trace capture failed: %v", err)

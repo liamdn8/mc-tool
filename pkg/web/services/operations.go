@@ -31,12 +31,13 @@ func NewOperationsService(minioService *MinIOService, replicationService *Replic
 
 // TraceCaptureOptions encapsulates configuration for trace captures
 type TraceCaptureOptions struct {
-	Alias         string
-	Duration      time.Duration
-	StatusCodes   []int
-	ErrorFilters  []string
-	GroupByAPI    bool
-	GroupByClient bool
+	Alias           string
+	Duration        time.Duration
+	StatusCodes     []int
+	ErrorFilters    []string
+	GroupByAPI      bool
+	GroupByClient   bool
+	GroupByVersions bool
 }
 
 // SyncBucketPolicies synchronizes bucket policies across all sites
@@ -526,12 +527,13 @@ func (os *OperationsService) RunTraceCapture(opts TraceCaptureOptions) (map[stri
 	}
 
 	logger.GetLogger().Info("Starting trace capture", map[string]interface{}{
-		"alias":           alias,
-		"duration":        duration.String(),
-		"status_codes":    statusCodes,
-		"error_filters":   errorFilters,
-		"group_by_api":    opts.GroupByAPI,
-		"group_by_client": opts.GroupByClient,
+		"alias":             alias,
+		"duration":          duration.String(),
+		"status_codes":      statusCodes,
+		"error_filters":     errorFilters,
+		"group_by_api":      opts.GroupByAPI,
+		"group_by_client":   opts.GroupByClient,
+		"group_by_versions": opts.GroupByVersions,
 	})
 
 	result, err := trace.Run(trace.Options{
@@ -544,21 +546,23 @@ func (os *OperationsService) RunTraceCapture(opts TraceCaptureOptions) (map[stri
 		ErrorMessageFilters: errorFilters,
 		GroupByAPI:          opts.GroupByAPI,
 		GroupByClient:       opts.GroupByClient,
+		GroupByVersions:     opts.GroupByVersions,
 	})
 	if err != nil {
 		return nil, err
 	}
 
 	logger.GetLogger().Info("Trace capture completed", map[string]interface{}{
-		"alias":           alias,
-		"duration":        duration.String(),
-		"status_codes":    statusCodes,
-		"error_filters":   errorFilters,
-		"group_by_api":    opts.GroupByAPI,
-		"group_by_client": opts.GroupByClient,
-		"events":          result.TotalEvents,
-		"distinct_errors": len(result.ErrorStats),
-		"objects":         len(result.Stats),
+		"alias":             alias,
+		"duration":          duration.String(),
+		"status_codes":      statusCodes,
+		"error_filters":     errorFilters,
+		"group_by_api":      opts.GroupByAPI,
+		"group_by_client":   opts.GroupByClient,
+		"group_by_versions": opts.GroupByVersions,
+		"events":            result.TotalEvents,
+		"distinct_errors":   len(result.ErrorStats),
+		"objects":           len(result.Stats),
 	})
 
 	summary := map[string]interface{}{

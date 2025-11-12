@@ -97,4 +97,49 @@ echo "4. Monitor sync between regions:"
 echo "   $TOOL compare us-east/shared-data eu-west/shared-data"
 echo ""
 
+echo "=== Trace Command (Error Analysis) ==="
+echo ""
+echo "Capture and analyze error events from MinIO admin trace:"
+echo ""
+
+echo "1. Basic trace capture (5 seconds):"
+echo "   $TOOL trace minio-prod"
+echo ""
+
+echo "2. Extended trace capture (30 seconds):"
+echo "   $TOOL trace minio-prod --duration 30s"
+echo ""
+
+echo "3. Trace with verbose output:"
+echo "   $TOOL trace minio-prod --verbose --duration 10s"
+echo ""
+
+echo "4. Filter by HTTP status code:"
+echo "   $TOOL trace minio-prod --status 403 --status 500"
+echo ""
+
+echo "5. Filter by error message:"
+echo "   $TOOL trace minio-prod --error-contains 'Access Denied'"
+echo ""
+
+echo "6. Group by API operations:"
+echo "   $TOOL trace minio-prod --group-by-api --duration 15s"
+echo ""
+
+echo "7. Group by client address:"
+echo "   $TOOL trace minio-prod --group-by-client --duration 15s"
+echo ""
+
+echo "8. Group by object AND version (for versioned buckets):"
+echo "   $TOOL trace minio-prod --versions --duration 10s"
+echo ""
+
+echo "9. Comprehensive trace with all options:"
+echo "   $TOOL trace minio-prod --versions --group-by-api --group-by-client --verbose --duration 30s"
+echo ""
+
+echo "The --versions flag groups errors by both object name and version ID,"
+echo "allowing you to identify which specific versions are experiencing errors."
+echo ""
+
 echo "To run any of these examples, replace the alias names with your configured aliases."

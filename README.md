@@ -7,6 +7,7 @@ A comprehensive MinIO client support tool for comparing buckets, analyzing objec
 - **🌐 Web UI**: Modern bilingual (English/Vietnamese) web interface for easy operation
 - **Compare Objects**: Compare objects between two MinIO buckets or paths
 - **Analyze Buckets**: Analyze object distribution, versions, and incomplete uploads  
+- **Error Trace Capture**: Capture and analyze MinIO error events with grouping by object, version, API, or client
 - **Configuration Checklist**: Comprehensive bucket configuration validation including event settings and lifecycle policies
 - **Performance Profiling**: CPU, memory, and goroutine profiling for MinIO servers
 - **Memory Leak Detection**: Continuous monitoring and automatic leak detection with configurable thresholds
@@ -102,6 +103,9 @@ mc-tool compare alias1/bucket1 alias2/bucket2
 
 # Analyze bucket
 mc-tool analyze alias/bucket
+
+# Capture error traces
+mc-tool trace minio-prod --duration 30s
 
 # Profile server
 mc-tool profile heap minio-prod --detect-leaks --duration 5m
@@ -208,6 +212,46 @@ mc-tool checklist --verbose alias/bucket
 # Skip TLS certificate verification
 mc-tool checklist --insecure alias/bucket
 ```
+
+### Error Trace Capture and Analysis
+
+Capture and analyze error events from MinIO admin trace:
+
+```bash
+# Basic trace capture (5 seconds)
+mc-tool trace minio-prod
+
+# Extended trace capture with custom duration
+mc-tool trace minio-prod --duration 30s
+
+# Filter by HTTP status codes
+mc-tool trace minio-prod --status 403 --status 500
+
+# Filter by error message content
+mc-tool trace minio-prod --error-contains "Access Denied"
+
+# Group by API operations
+mc-tool trace minio-prod --group-by-api --duration 15s
+
+# Group by client address
+mc-tool trace minio-prod --group-by-client --duration 15s
+
+# Group by object AND version (for versioned buckets)
+mc-tool trace minio-prod --versions --duration 10s
+
+# Comprehensive trace with all options
+mc-tool trace minio-prod --versions --group-by-api --group-by-client --verbose --duration 30s
+
+# Use older mc version for compatibility
+mc-tool trace minio-prod --mc-path mc-2021
+```
+
+The trace command helps identify:
+- 🔍 **Error Patterns**: Groups similar errors together for easier diagnosis
+- 📊 **Top Failed Objects**: Shows which objects are experiencing the most errors
+- 🔑 **Version-Specific Issues**: With `--versions`, identifies errors affecting specific object versions
+- 🌐 **API Analysis**: With `--group-by-api`, shows which operations are failing
+- 👥 **Client Analysis**: With `--group-by-client`, identifies problematic clients
 
 ### Performance Profiling and Memory Leak Detection
 

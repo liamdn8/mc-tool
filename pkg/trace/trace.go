@@ -25,6 +25,7 @@ type Options struct {
 	ErrorMessageFilters []string
 	GroupByAPI          bool
 	GroupByClient       bool
+	GroupByVersions     bool
 }
 
 // ObjectStat represents aggregated error occurrences for a given object.
@@ -162,7 +163,7 @@ func Run(opts Options) (Result, error) {
 
 	readErrCh := make(chan error, 1)
 	go func() {
-		readErrCh <- readTrace(scanner, statsMap, errorGroups, apiGroups, clientGroups, statusFilter, messageFilters, &totalEvents, &rawErrors)
+		readErrCh <- readTrace(scanner, statsMap, errorGroups, apiGroups, clientGroups, statusFilter, messageFilters, &totalEvents, &rawErrors, opts.GroupByVersions, opts.Verbose)
 	}()
 
 	stderrBuf, _ := io.ReadAll(stderr)
@@ -327,6 +328,8 @@ func readTrace(
 	messageFilters []string,
 	totalEvents *int,
 	rawErrors *[]string,
+	groupByVersions bool,
+	verbose bool,
 ) error {
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -341,7 +344,7 @@ func readTrace(
 			}
 			*totalEvents = *totalEvents + 1
 			*rawErrors = append(*rawErrors, line)
-			recordEvent(statsMap, errorGroups, apiGroups, clientGroups, "<unknown>", "JSON parse error", "<unknown>", "<unknown>")
+			recordEvent(statsMap, errorGroups, apiGroups, clientGroups, "<unknown>", "", "JSON parse error", "<unknown>", "<unknown>", groupByVersions)
 			continue
 		}
 
@@ -353,6 +356,7 @@ func readTrace(
 		}
 
 		objectName := extractObject(entry)
+		versionID := extractVersionID(entry)
 		errorMsg := extractError(entry)
 
 		if len(messageFilters) > 0 {
@@ -374,7 +378,7 @@ func readTrace(
 
 		*totalEvents = *totalEvents + 1
 		*rawErrors = append(*rawErrors, line)
-		recordEvent(statsMap, errorGroups, apiGroups, clientGroups, objectName, errorMsg, apiName, clientName)
+		recordEvent(statsMap, errorGroups, apiGroups, clientGroups, objectName, versionID, errorMsg, apiName, clientName, groupByVersions)
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -388,11 +392,17 @@ func recordEvent(
 	errorGroups map[string]*errorAccumulator,
 	apiGroups map[string]*apiAccumulator,
 	clientGroups map[string]*clientAccumulator,
-	name, errMsg, apiName, clientName string,
+	name, versionID, errMsg, apiName, clientName string,
+	groupByVersions bool,
 ) {
 	key := strings.TrimSpace(name)
 	if key == "" {
 		key = "<unknown>"
+	}
+
+	// If grouping by versions and we have a version ID, append it to the key
+	if groupByVersions && versionID != "" {
+		key = fmt.Sprintf("%s (version: %s)", key, versionID)
 	}
 
 	msg := strings.TrimSpace(errMsg)
@@ -487,7 +497,8 @@ func extractObject(entry map[string]interface{}) string {
 	for _, field := range candidates {
 		if v, ok := entry[field]; ok {
 			if s := toString(v); s != "" {
-				return normalizePath(s)
+				// Remove version ID from path if present
+				return normalizePathAndStripVersion(s)
 			}
 		}
 	}
@@ -497,13 +508,13 @@ func extractObject(entry map[string]interface{}) string {
 			for _, field := range []string{"path", "Path"} {
 				if pathVal, ok := reqMap[field]; ok {
 					if s := toString(pathVal); s != "" {
-						return normalizePath(s)
+						return normalizePathAndStripVersion(s)
 					}
 				}
 			}
 			if urlVal, ok := reqMap["url"]; ok {
 				if s := toString(urlVal); s != "" {
-					return normalizePath(s)
+					return normalizePathAndStripVersion(s)
 				}
 			}
 		}
@@ -511,7 +522,7 @@ func extractObject(entry map[string]interface{}) string {
 
 	if v, ok := entry["resourceType"]; ok {
 		if s := toString(v); s != "" {
-			return normalizePath(s)
+			return normalizePathAndStripVersion(s)
 		}
 	}
 
@@ -694,6 +705,94 @@ func extractClient(entry map[string]interface{}) string {
 	return ""
 }
 
+func extractVersionID(entry map[string]interface{}) string {
+	// First, check if version ID is in the path/URL
+	pathCandidates := []string{"path", "Path", "resource", "object", "objectName", "url"}
+	for _, field := range pathCandidates {
+		if v, ok := entry[field]; ok {
+			if s := toString(v); s != "" {
+				if ver := extractVersionFromPath(s); ver != "" {
+					return ver
+				}
+			}
+		}
+	}
+
+	// Check in req.path or req.url
+	if req, ok := entry["req"]; ok {
+		if reqMap, ok := req.(map[string]interface{}); ok {
+			for _, field := range []string{"path", "Path", "url"} {
+				if pathVal, ok := reqMap[field]; ok {
+					if s := toString(pathVal); s != "" {
+						if ver := extractVersionFromPath(s); ver != "" {
+							return ver
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Common version ID fields in trace output
+	candidates := []string{"versionId", "versionID", "version-id", "VersionId", "VersionID"}
+	for _, field := range candidates {
+		if v, ok := entry[field]; ok {
+			if s := toString(v); s != "" {
+				return s
+			}
+		}
+	}
+
+	// Check in query parameters
+	if req, ok := entry["req"]; ok {
+		if reqMap, ok := req.(map[string]interface{}); ok {
+			// Check query parameters
+			if query, ok := reqMap["query"]; ok {
+				if queryMap, ok := query.(map[string]interface{}); ok {
+					for _, field := range []string{"versionId", "versionID", "version-id"} {
+						if v, ok := queryMap[field]; ok {
+							if s := toString(v); s != "" {
+								return s
+							}
+						}
+					}
+				}
+			}
+			// Check headers
+			if headers, ok := reqMap["headers"]; ok {
+				if headersMap, ok := headers.(map[string]interface{}); ok {
+					for _, field := range []string{"X-Amz-Version-Id", "x-amz-version-id"} {
+						if v, ok := headersMap[field]; ok {
+							if s := toString(v); s != "" {
+								return s
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Check in response
+	if resp, ok := entry["resp"]; ok {
+		if respMap, ok := resp.(map[string]interface{}); ok {
+			if headers, ok := respMap["headers"]; ok {
+				if headersMap, ok := headers.(map[string]interface{}); ok {
+					for _, field := range []string{"X-Amz-Version-Id", "x-amz-version-id"} {
+						if v, ok := headersMap[field]; ok {
+							if s := toString(v); s != "" {
+								return s
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return ""
+}
+
 func toString(val interface{}) string {
 	switch v := val.(type) {
 	case string:
@@ -722,4 +821,55 @@ func normalizePath(s string) string {
 	trimmed = strings.TrimPrefix(trimmed, "https://")
 	trimmed = strings.TrimPrefix(trimmed, "/")
 	return trimmed
+}
+
+// normalizePathAndStripVersion removes version ID from path and normalizes it
+// Handles both "path?versionId=xxx" and URL-encoded "path%3FversionId%3Dxxx"
+func normalizePathAndStripVersion(s string) string {
+	normalized := normalizePath(s)
+
+	// Handle URL-encoded query strings (%3F = ?, %3D = =)
+	decoded := strings.ReplaceAll(normalized, "%3F", "?")
+	decoded = strings.ReplaceAll(decoded, "%3f", "?")
+	decoded = strings.ReplaceAll(decoded, "%3D", "=")
+	decoded = strings.ReplaceAll(decoded, "%3d", "=")
+
+	// Strip query parameters (including versionId)
+	if idx := strings.Index(decoded, "?"); idx >= 0 {
+		return decoded[:idx]
+	}
+
+	return normalized
+}
+
+// extractVersionFromPath extracts version ID from URL path or query string
+// Handles both "path?versionId=xxx" and URL-encoded "path%3FversionId%3Dxxx"
+func extractVersionFromPath(s string) string {
+	if s == "" {
+		return ""
+	}
+
+	// Handle URL-encoded query strings
+	decoded := strings.ReplaceAll(s, "%3F", "?")
+	decoded = strings.ReplaceAll(decoded, "%3f", "?")
+	decoded = strings.ReplaceAll(decoded, "%3D", "=")
+	decoded = strings.ReplaceAll(decoded, "%3d", "=")
+	decoded = strings.ReplaceAll(decoded, "%26", "&")
+	decoded = strings.ReplaceAll(decoded, "%26", "&")
+
+	// Look for version ID in query string
+	if idx := strings.Index(decoded, "?"); idx >= 0 {
+		queryString := decoded[idx+1:]
+		params := strings.Split(queryString, "&")
+		for _, param := range params {
+			if strings.HasPrefix(strings.ToLower(param), "versionid=") {
+				parts := strings.SplitN(param, "=", 2)
+				if len(parts) == 2 {
+					return strings.TrimSpace(parts[1])
+				}
+			}
+		}
+	}
+
+	return ""
 }

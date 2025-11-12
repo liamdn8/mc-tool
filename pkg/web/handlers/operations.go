@@ -97,12 +97,13 @@ type CompareRequest struct {
 
 // TraceRequest represents the request payload for trace capture
 type TraceRequest struct {
-	Alias         string   `json:"alias"`
-	Duration      string   `json:"duration"`
-	StatusCodes   []int    `json:"statusCodes"`
-	ErrorContains []string `json:"errorContains"`
-	GroupByAPI    bool     `json:"groupByApi"`
-	GroupByClient bool     `json:"groupByClient"`
+	Alias           string   `json:"alias"`
+	Duration        string   `json:"duration"`
+	StatusCodes     []int    `json:"statusCodes"`
+	ErrorContains   []string `json:"errorContains"`
+	GroupByAPI      bool     `json:"groupByApi"`
+	GroupByClient   bool     `json:"groupByClient"`
+	GroupByVersions bool     `json:"groupByVersions"`
 }
 
 // HandleCompare handles POST /api/operations/compare
@@ -290,12 +291,13 @@ func (h *OperationsHandler) HandleTrace(w http.ResponseWriter, r *http.Request) 
 	}
 
 	options := services.TraceCaptureOptions{
-		Alias:         strings.TrimSpace(req.Alias),
-		Duration:      duration,
-		StatusCodes:   req.StatusCodes,
-		ErrorFilters:  cleanErrors,
-		GroupByAPI:    req.GroupByAPI,
-		GroupByClient: req.GroupByClient,
+		Alias:           strings.TrimSpace(req.Alias),
+		Duration:        duration,
+		StatusCodes:     req.StatusCodes,
+		ErrorFilters:    cleanErrors,
+		GroupByAPI:      req.GroupByAPI,
+		GroupByClient:   req.GroupByClient,
+		GroupByVersions: req.GroupByVersions,
 	}
 
 	result, err := h.operationsService.RunTraceCapture(options)

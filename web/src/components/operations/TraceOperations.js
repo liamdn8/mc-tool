@@ -258,7 +258,8 @@ const TraceOperations = ({ sites = [] }) => {
         statusInput: '',
         errorInput: '',
         groupByAPI: true,
-        groupByClient: false
+        groupByClient: false,
+        groupByVersions: false
     });
     const [results, setResults] = useState(null);
     const [rawViewMode, setRawViewMode] = useState('table');
@@ -494,7 +495,8 @@ const TraceOperations = ({ sites = [] }) => {
             statusCodes: parseStatusCodes(form.statusInput),
             errorContains: parseErrorFilters(form.errorInput),
             groupByApi: form.groupByAPI,
-            groupByClient: form.groupByClient
+            groupByClient: form.groupByClient,
+            groupByVersions: form.groupByVersions
         };
 
         try {
@@ -590,31 +592,52 @@ const TraceOperations = ({ sites = [] }) => {
 
         return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                {limited.map(({ name, count }, index) => (
-                    <div
-                        key={`${name}-${index}`}
-                        style={{
-                            display: 'flex',
-                            alignItems: 'flex-start',
-                            // justifyContent: 'space-between',
-                            gap: '12px'
-                        }}
-                    >
-                        <span style={createBadgeStyle('#ede9fe', '#5b21b6')}>
-                            {numberFormatter.format(count || 0)}
-                        </span>
-                        <span
+                {limited.map(({ name, count }, index) => {
+                    // Split object name and version if present
+                    const versionMatch = name.match(/^(.+?)\s*\(version:\s*(.+?)\)\s*$/);
+                    const objectName = versionMatch ? versionMatch[1] : name;
+                    const versionId = versionMatch ? versionMatch[2] : null;
+
+                    return (
+                        <div
+                            key={`${name}-${index}`}
                             style={{
-                                fontFamily: 'monospace',
-                                fontSize: '12px',
-                                color: '#111827',
-                                wordBreak: 'break-all'
+                                display: 'flex',
+                                alignItems: 'flex-start',
+                                gap: '12px'
                             }}
                         >
-                            {name}
-                        </span>
-                    </div>
-                ))}
+                            <span style={createBadgeStyle('#ede9fe', '#5b21b6')}>
+                                {numberFormatter.format(count || 0)}
+                            </span>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0, flex: 1 }}>
+                                <span
+                                    style={{
+                                        fontFamily: 'monospace',
+                                        fontSize: '12px',
+                                        color: '#111827',
+                                        wordBreak: 'break-all'
+                                    }}
+                                >
+                                    {objectName}
+                                </span>
+                                {versionId && (
+                                    <span
+                                        style={{
+                                            fontFamily: 'monospace',
+                                            fontSize: '11px',
+                                            color: '#6b7280',
+                                            wordBreak: 'break-all',
+                                            fontStyle: 'italic'
+                                        }}
+                                    >
+                                        version: {versionId}
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    );
+                })}
                 {normalized.length > limit && (
                     <div style={{ fontSize: '12px', color: '#6b7280' }}>
                         {t('trace_more_indicator', '+{count} more', { count: normalized.length - limit })}
@@ -817,7 +840,7 @@ const TraceOperations = ({ sites = [] }) => {
     const renderGroupedSection = (items = [], title) => {
         if (!items || items.length === 0) return null;
 
-        const columnWidths = ['24%', '12%', '14%', '25%', '25%'];
+        const columnWidths = ['20%', '10%', '12%', '22%', '36%'];
         return (
             <div style={{ marginTop: '24px' }}>
                 <h4 style={{ fontSize: '16px', fontWeight: 600, color: '#1f2937', marginBottom: '12px' }}>{title}</h4>
@@ -1217,7 +1240,7 @@ const TraceOperations = ({ sites = [] }) => {
 
     const filtersSummary = () => {
         if (!results || !results.filters) return null;
-        const { statusCodes = [], errorContains = [], groupByAPI, groupByClient, duration } = results.filters;
+        const { statusCodes = [], errorContains = [], groupByAPI, groupByClient, groupByVersions, duration } = results.filters;
 
         return (
             <div style={{
@@ -1238,6 +1261,9 @@ const TraceOperations = ({ sites = [] }) => {
                 )}
                 {groupByClient && (
                     <span className="badge badge-success">{t('trace_filter_group_client', 'Grouped by client')}</span>
+                )}
+                {groupByVersions && (
+                    <span className="badge badge-success">{t('trace_filter_group_versions', 'Grouped by versions')}</span>
                 )}
             </div>
         );
@@ -1285,7 +1311,7 @@ const TraceOperations = ({ sites = [] }) => {
                                 {t('trace_form_alias', 'Alias')}
                             </label>
                             <select
-                                value={form.alias}
+                                value={form.alias || ''}
                                 onChange={(e) => handleChange('alias', e.target.value)}
                                 style={{
                                     width: '100%',
@@ -1370,12 +1396,10 @@ const TraceOperations = ({ sites = [] }) => {
                                 placeholder={t('trace_form_error_placeholder', 'One substring per line, e.g. AccessDenied')}
                                 style={{
                                     width: '100%',
-                                    minHeight: '44px',
                                     padding: '10px',
                                     borderRadius: '6px',
                                     border: '1px solid #d1d5db',
-                                    fontSize: '14px',
-                                    resize: 'vertical'
+                                    fontSize: '14px'
                                 }}
                             />
                         </div>
@@ -1404,6 +1428,14 @@ const TraceOperations = ({ sites = [] }) => {
                             />
                             {t('trace_form_group_client', 'Group by client host')}
                         </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: '#374151' }}>
+                            <input
+                                type="checkbox"
+                                checked={form.groupByVersions}
+                                onChange={(e) => handleChange('groupByVersions', e.target.checked)}
+                            />
+                            {t('trace_form_group_versions', 'Group by object versions')}
+                        </label>
                         <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#6b7280' }}>
                             <Filter size={14} />
                             {t('trace_form_tip', 'Trace runtime matches the selected duration. Longer captures may take additional time to return results.')}
@@ -1413,7 +1445,7 @@ const TraceOperations = ({ sites = [] }) => {
                     <button
                         className="btn btn-primary"
                         onClick={handleRunTrace}
-                        disabled={isRunning}
+                        disabled={!form.alias || isRunning}
                         style={{
                             display: 'inline-flex',
                             alignItems: 'center',

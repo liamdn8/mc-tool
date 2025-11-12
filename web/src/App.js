@@ -1,19 +1,35 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { I18nProvider } from './utils/i18n';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
-import OverviewPage from './pages/OverviewPage';
-import SitesPage from './pages/SitesPage';
-import ReplicationOperatorPage from './pages/ReplicationOperatorPage';
-import TracingPage from './pages/TracingPage';
-import ChecklistPage from './pages/ChecklistPage';
-import CompareOperations from './components/operations/CompareOperations';
-import ChecklistOperations from './components/operations/ChecklistOperations';
-import SiteOperations from './components/operations/SiteOperations';
-import TraceOperations from './components/operations/TraceOperations';
-import TerminalPage from './pages/TerminalPage';
 import { loadAliases, loadSiteReplicationInfo, checkAliasHealth } from './utils/api';
+
+// Lazy load page components
+const OverviewPage = lazy(() => import('./pages/OverviewPage'));
+const SitesPage = lazy(() => import('./pages/SitesPage'));
+const ReplicationOperatorPage = lazy(() => import('./pages/ReplicationOperatorPage'));
+const TracingPage = lazy(() => import('./pages/TracingPage'));
+const ChecklistPage = lazy(() => import('./pages/ChecklistPage'));
+const CompareOperations = lazy(() => import('./components/operations/CompareOperations'));
+const ChecklistOperations = lazy(() => import('./components/operations/ChecklistOperations'));
+const SiteOperations = lazy(() => import('./components/operations/SiteOperations'));
+const TraceOperations = lazy(() => import('./components/operations/TraceOperations'));
+const TerminalPage = lazy(() => import('./pages/TerminalPage'));
+
+// Loading spinner component
+const LoadingSpinner = () => (
+    <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '400px',
+        fontSize: '14px',
+        color: '#6b7280'
+    }}>
+        <div>Loading...</div>
+    </div>
+);
 
 function App() {
     const [sites, setSites] = useState([]);
@@ -168,27 +184,29 @@ function App() {
                                     <div className="spinner"></div>
                                 </div>
                             ) : (
-                                <Routes>
-                                    <Route path="/" element={<Navigate to="/overview" replace />} />
-                                    <Route path="/overview" element={<OverviewPage {...pageProps} />} />
-                                    <Route path="/sites" element={<SitesPage {...pageProps} />} />
-                                    
-                                    {/* Replication Operator Routes */}
-                                    <Route path="/replication-operator" element={<ReplicationOperatorPage {...pageProps} />} />
-                                    <Route path="/replication-operator/compare" element={<CompareOperations sites={sites} />} />
-                                    <Route path="/replication-operator/resync" element={<SiteOperations hasReplication={replicationInfo?.enabled} />} />
-                                    
-                                    {/* Tracing Routes */}
-                                    <Route path="/tracing" element={<TracingPage sites={sites} />} />
-                                    <Route path="/tracing/analyzer" element={<TraceOperations sites={sites} />} />
-                                    
-                                    {/* Checklist Routes */}
-                                    <Route path="/checklist" element={<ChecklistPage sites={sites} />} />
-                                    <Route path="/checklist/configuration" element={<ChecklistOperations />} />
-                                    
-                                    {/* Terminal */}
-                                    <Route path="/terminal" element={<TerminalPage />} />
-                                </Routes>
+                                <Suspense fallback={<LoadingSpinner />}>
+                                    <Routes>
+                                        <Route path="/" element={<Navigate to="/overview" replace />} />
+                                        <Route path="/overview" element={<OverviewPage {...pageProps} />} />
+                                        <Route path="/sites" element={<SitesPage {...pageProps} />} />
+                                        
+                                        {/* Replication Operator Routes */}
+                                        <Route path="/replication-operator" element={<ReplicationOperatorPage {...pageProps} />} />
+                                        <Route path="/replication-operator/compare" element={<CompareOperations sites={sites} />} />
+                                        <Route path="/replication-operator/resync" element={<SiteOperations hasReplication={replicationInfo?.enabled} />} />
+                                        
+                                        {/* Tracing Routes */}
+                                        <Route path="/tracing" element={<TracingPage sites={sites} />} />
+                                        <Route path="/tracing/analyzer" element={<TraceOperations sites={sites} />} />
+                                        
+                                        {/* Checklist Routes */}
+                                        <Route path="/checklist" element={<ChecklistPage sites={sites} />} />
+                                        <Route path="/checklist/configuration" element={<ChecklistOperations />} />
+                                        
+                                        {/* Terminal */}
+                                        <Route path="/terminal" element={<TerminalPage />} />
+                                    </Routes>
+                                </Suspense>
                             )}
                         </main>
                     </div>
