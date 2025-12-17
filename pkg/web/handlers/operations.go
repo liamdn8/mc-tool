@@ -93,6 +93,7 @@ type CompareRequest struct {
 	DestAlias      string `json:"destAlias"`
 	Path           string `json:"path"`
 	CompareVersion bool   `json:"compareVersion"` // Include version comparison
+	Insecure       bool   `json:"insecure"`       // Skip TLS certificate verification
 }
 
 // TraceRequest represents the request payload for trace capture
@@ -104,6 +105,15 @@ type TraceRequest struct {
 	GroupByAPI      bool     `json:"groupByApi"`
 	GroupByClient   bool     `json:"groupByClient"`
 	GroupByVersions bool     `json:"groupByVersions"`
+	Insecure        bool     `json:"insecure"` // Skip TLS certificate verification
+}
+
+// ProfileRequest represents the request payload for profile capture
+type ProfileRequest struct {
+	Alias       string `json:"alias"`
+	Duration    string `json:"duration"`
+	ProfileType string `json:"profileType"` // cpu,mem,block,mutex,goroutines
+	Insecure    bool   `json:"insecure"`    // Skip TLS certificate verification
 }
 
 // HandleCompare handles POST /api/operations/compare
@@ -124,7 +134,7 @@ func (h *OperationsHandler) HandleCompare(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	result, err := h.operationsService.CompareBuckets(req.SourceAlias, req.DestAlias, req.Path, req.CompareVersion)
+	result, err := h.operationsService.CompareBuckets(req.SourceAlias, req.DestAlias, req.Path, req.CompareVersion, req.Insecure)
 	if err != nil {
 		h.RespondError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -133,14 +143,52 @@ func (h *OperationsHandler) HandleCompare(w http.ResponseWriter, r *http.Request
 	h.RespondJSON(w, result)
 }
 
-// HandleChecklist handles POST /api/operations/checklist
-func (h *OperationsHandler) HandleChecklist(w http.ResponseWriter, r *http.Request) {
+// HandleValidate handles POST /api/operations/validate
+func (h *OperationsHandler) HandleValidate(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		h.RespondError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
-	result, err := h.operationsService.ConfigurationChecklist()
+	result, err := h.operationsService.ConfigurationValidation()
+	if err != nil {
+		h.RespondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	h.RespondJSON(w, result)
+}
+
+// HandleValidateBucketConfig handles POST /api/operations/validate-bucket-config
+func (h *OperationsHandler) HandleValidateBucketConfig(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		h.RespondError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	var req struct {
+		Aliases        []string `json:"aliases"`
+		Bucket         string   `json:"bucket"`
+		CheckLifecycle bool     `json:"check_lifecycle"`
+		CheckEvents    bool     `json:"check_events"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.RespondError(w, http.StatusBadRequest, fmt.Sprintf("Invalid request: %v", err))
+		return
+	}
+
+	if len(req.Aliases) == 0 {
+		h.RespondError(w, http.StatusBadRequest, "At least one alias is required")
+		return
+	}
+
+	if req.Bucket == "" {
+		h.RespondError(w, http.StatusBadRequest, "Bucket is required")
+		return
+	}
+
+	result, err := h.operationsService.ValidateBucketConfiguration(req.Aliases, req.Bucket, req.CheckLifecycle, req.CheckEvents)
 	if err != nil {
 		h.RespondError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -298,9 +346,65 @@ func (h *OperationsHandler) HandleTrace(w http.ResponseWriter, r *http.Request) 
 		GroupByAPI:      req.GroupByAPI,
 		GroupByClient:   req.GroupByClient,
 		GroupByVersions: req.GroupByVersions,
+		Insecure:        req.Insecure,
 	}
 
 	result, err := h.operationsService.RunTraceCapture(options)
+	if err != nil {
+		h.RespondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	h.RespondJSON(w, result)
+}
+
+// HandleProfile handles POST /api/operations/profile
+func (h *OperationsHandler) HandleProfile(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		h.RespondError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	var req ProfileRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.RespondError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	if strings.TrimSpace(req.Alias) == "" {
+		h.RespondError(w, http.StatusBadRequest, "Alias is required")
+		return
+	}
+
+	durationStr := strings.TrimSpace(req.Duration)
+	if durationStr == "" {
+		durationStr = "30s"
+	}
+
+	duration, err := time.ParseDuration(durationStr)
+	if err != nil {
+		h.RespondError(w, http.StatusBadRequest, fmt.Sprintf("Invalid duration: %v", err))
+		return
+	}
+
+	if duration < time.Second || duration > 5*time.Minute {
+		h.RespondError(w, http.StatusBadRequest, "Duration must be between 1s and 5m")
+		return
+	}
+
+	profileType := strings.TrimSpace(req.ProfileType)
+	if profileType == "" {
+		profileType = "cpu,mem"
+	}
+
+	options := services.ProfileCaptureOptions{
+		Alias:       strings.TrimSpace(req.Alias),
+		Duration:    duration,
+		ProfileType: profileType,
+		Insecure:    req.Insecure,
+	}
+
+	result, err := h.operationsService.RunProfileCapture(options)
 	if err != nil {
 		h.RespondError(w, http.StatusInternalServerError, err.Error())
 		return

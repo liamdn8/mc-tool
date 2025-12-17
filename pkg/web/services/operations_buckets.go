@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+
+	"github.com/liamdn8/mc-tool/pkg/logger"
 )
 
 // bucketLister lists buckets for a given alias.
@@ -82,7 +84,14 @@ func (mcBucketInspector) inspectPaths(alias, bucket string) ([]string, error) {
 	cmd := exec.Command("mc", "find", target, "--name", "*", "--type", "d", "--max-depth", "2", "--json")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return nil, err
+		// Return empty array instead of error - bucket might be empty or permissions issue
+		logger.GetLogger().Warn("Failed to inspect paths", map[string]interface{}{
+			"alias":  alias,
+			"bucket": bucket,
+			"error":  err.Error(),
+			"output": string(output),
+		})
+		return []string{}, nil
 	}
 
 	var paths []string

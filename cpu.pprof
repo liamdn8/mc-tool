@@ -1,0 +1,1 @@
+{"Code":"XMinioAdminVersionMismatch","Message":"This 'admin' API is not supported by server in 'mode-server-xl-single'","Resource":"/minio/admin/v3/profile/cpu","RequestId":"","HostId":""}

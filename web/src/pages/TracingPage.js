@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Activity, ArrowRight } from 'lucide-react';
+import { Activity, ArrowRight, Gauge } from 'lucide-react';
 import { useI18n } from '../utils/i18n';
 
 const TracingPage = ({ sites }) => {
@@ -28,6 +28,28 @@ const TracingPage = ({ sites }) => {
             icon: Activity,
             path: '/tracing/analyzer',
             color: '#2563eb'
+        },
+        {
+            id: 'performance-profiling',
+            titleKey: 'operations_profile_title',
+            titleFallback: 'MinIO Performance Profiling',
+            descriptionKey: 'operations_profile_description',
+            descriptionFallback: 'Capture and analyze MinIO performance profiles with automatic pprof analysis',
+            featureKeys: [
+                'operations_profile_feature_1',
+                'operations_profile_feature_2',
+                'operations_profile_feature_3',
+                'operations_profile_feature_4'
+            ],
+            featureFallbacks: [
+                'Capture CPU, memory, goroutine, and other profile types automatically',
+                'Analyze top functions by flat (direct) and cumulative (total) time',
+                'Visualize performance bottlenecks with interactive charts',
+                'Export pprof files for advanced analysis with go tool pprof'
+            ],
+            icon: Gauge,
+            path: '/tracing/profile',
+            color: '#9333ea'
         }
     ];
 

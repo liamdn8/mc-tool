@@ -1,0 +1,253 @@
+goroutine profile: total 470
+100 @ 0x47a7ae 0x457957 0x26f6933 0x482741
+#	0x26f6932	github.com/minio/minio/cmd.(*BatchJobPool).AddWorker+0xd2	github.com/minio/minio/cmd/batch-handlers.go:1983
+
+100 @ 0x47a7ae 0x457957 0x273a34c 0x482741
+#	0x273a34b	github.com/minio/minio/cmd.(*expiryState).Worker+0xab	github.com/minio/minio/cmd/bucket-lifecycle.go:335
+
+100 @ 0x47a7ae 0x457957 0x273b429 0x482741
+#	0x273b428	github.com/minio/minio/cmd.(*transitionState).worker+0x108	github.com/minio/minio/cmd/bucket-lifecycle.go:492
+
+100 @ 0x47a7ae 0x457957 0x2793314 0x482741
+#	0x2793313	github.com/minio/minio/cmd.(*ReplicationPool).AddWorker+0xb3	github.com/minio/minio/cmd/bucket-replication.go:1985
+
+10 @ 0x47a7ae 0x457957 0x2793794 0x482741
+#	0x2793793	github.com/minio/minio/cmd.(*ReplicationPool).AddLargeWorker+0xb3	github.com/minio/minio/cmd/bucket-replication.go:2025
+
+4 @ 0x47a7ae 0x457957 0x2793005 0x482741
+#	0x2793004	github.com/minio/minio/cmd.(*ReplicationPool).AddMRFWorker+0xc4	github.com/minio/minio/cmd/bucket-replication.go:1956
+
+4 @ 0x47a7ae 0x457957 0xfa2405 0x482741
+#	0xfa2404	github.com/minio/minio/internal/event.(*TargetList).startSendWorkers.func1+0x1a4	github.com/minio/minio/internal/event/targetlist.go:365
+
+3 @ 0x47a7ae 0x43d957 0x4799c5 0x4c61c7 0x4cb595 0x4cb583 0x5dfe49 0x5f9f5b 0x5f8e10 0x920cd6 0x482741
+#	0x4799c4	internal/poll.runtime_pollWait+0x84					runtime/netpoll.go:351
+#	0x4c61c6	internal/poll.(*pollDesc).wait+0x26					internal/poll/fd_poll_runtime.go:84
+#	0x4cb594	internal/poll.(*pollDesc).waitRead+0x294				internal/poll/fd_poll_runtime.go:89
+#	0x4cb582	internal/poll.(*FD).Accept+0x282					internal/poll/fd_unix.go:620
+#	0x5dfe48	net.(*netFD).accept+0x28						net/fd_unix.go:172
+#	0x5f9f5a	net.(*TCPListener).accept+0x1a						net/tcpsock_posix.go:159
+#	0x5f8e0f	net.(*TCPListener).Accept+0x2f						net/tcpsock.go:380
+#	0x920cd5	github.com/minio/minio/internal/http.(*httpListener).start.func1+0x55	github.com/minio/minio/internal/http/listener.go:51
+
+2 @ 0x47a7ae 0x457957 0x26cd91a 0x482741
+#	0x26cd919	github.com/minio/minio/cmd.(*healRoutine).AddWorker+0xf9	github.com/minio/minio/cmd/background-heal-ops.go:115
+
+2 @ 0x47a7ae 0x457957 0x2a68a9a 0x482741
+#	0x2a68a99	github.com/minio/minio/cmd.mergeContext.func1+0xd9	github.com/minio/minio/cmd/shared-lock.go:63
+
+1 @ 0x4175e9 0x47cb09 0x889ff3 0x482741
+#	0x47cb08	os/signal.signal_recv+0x28	runtime/sigqueue.go:152
+#	0x889ff2	os/signal.loop+0x12		os/signal/signal_unix.go:23
+
+1 @ 0x439ef1 0x4795bd 0xd7a011 0xd79e45 0xd76c6b 0x2b77bca 0x2c29a22 0x2b1f982 0x29a759b 0x268929b 0x735669 0x26a654f 0x26a617d 0x735669 0x12e5b63 0x735669 0x28c50e2 0x735669 0x28c629c 0x735669 0x28c4698 0x735669 0x28c211c 0x735669 0x27d01c5 0x735669 0x28c24dc 0x735669 0x26cc02c 0x735669 0x28d8142 0x735669 0x28c5f91 0x735669 0xf2e5a2 0x26c7544 0x735669 0x2a5e6ec 0x735669 0x92327a 0x735669 0x7561ee 0x733b65 0x482741
+#	0xd7a010	runtime/pprof.writeRuntimeProfile+0xb0						runtime/pprof/pprof.go:796
+#	0xd79e44	runtime/pprof.writeGoroutine+0x44						runtime/pprof/pprof.go:755
+#	0xd76c6a	runtime/pprof.(*Profile).WriteTo+0x14a						runtime/pprof/pprof.go:377
+#	0x2b77bc9	github.com/minio/minio/cmd.startProfiler.func7+0x49				github.com/minio/minio/cmd/utils.go:490
+#	0x2c29a21	github.com/minio/minio/cmd.profilerWrapper.Stop+0x21				github.com/minio/minio/cmd/utils.go:344
+#	0x2b1f981	github.com/minio/minio/cmd.getProfileData+0x1e1					github.com/minio/minio/cmd/utils.go:366
+#	0x29a759a	github.com/minio/minio/cmd.(*NotificationSys).DownloadProfilingData+0x55a	github.com/minio/minio/cmd/notification.go:362
+#	0x268929a	github.com/minio/minio/cmd.adminAPIHandlers.DownloadProfilingHandler+0x2fa	github.com/minio/minio/cmd/admin-handlers.go:1224
+#	0x735668	net/http.HandlerFunc.ServeHTTP+0x28						net/http/server.go:2294
+#	0x26a654e	github.com/minio/minio/cmd.adminMiddleware.func1.httpTraceAll.httpTrace.1+0xee	github.com/minio/minio/cmd/http-tracer.go:190
+#	0x26a617c	github.com/minio/minio/cmd.adminMiddleware.func1+0x29c				github.com/minio/minio/cmd/admin-router.go:123
+#	0x735668	net/http.HandlerFunc.ServeHTTP+0x28						net/http/server.go:2294
+#	0x12e5b62	github.com/klauspost/compress/gzhttp.NewWrapper.func1.1+0x4e2			github.com/klauspost/compress@v1.18.0/gzhttp/compress.go:523
+#	0x735668	net/http.HandlerFunc.ServeHTTP+0x28						net/http/server.go:2294
+#	0x28c50e1	github.com/minio/minio/cmd.setBucketForwardingMiddleware.func1+0x381		github.com/minio/minio/cmd/generic-handlers.go:487
+#	0x735668	net/http.HandlerFunc.ServeHTTP+0x28						net/http/server.go:2294
+#	0x28c629b	github.com/minio/minio/cmd.setUploadForwardingMiddleware.func1+0x23b		github.com/minio/minio/cmd/generic-handlers.go:600
+#	0x735668	net/http.HandlerFunc.ServeHTTP+0x28						net/http/server.go:2294
+#	0x28c4697	github.com/minio/minio/cmd.setRequestValidityMiddleware.func1+0x16f7		github.com/minio/minio/cmd/generic-handlers.go:470
+#	0x735668	net/http.HandlerFunc.ServeHTTP+0x28						net/http/server.go:2294
+#	0x28c211b	github.com/minio/minio/cmd.setRequestLimitMiddleware.func1+0x61b		github.com/minio/minio/cmd/generic-handlers.go:138
+#	0x735668	net/http.HandlerFunc.ServeHTTP+0x28						net/http/server.go:2294
+#	0x27d01c4	github.com/minio/minio/cmd.setCrossDomainPolicyMiddleware.func1+0xc4		github.com/minio/minio/cmd/crossdomain-xml-handler.go:46
+#	0x735668	net/http.HandlerFunc.ServeHTTP+0x28						net/http/server.go:2294
+#	0x28c24db	github.com/minio/minio/cmd.setBrowserRedirectMiddleware.func1+0x19b		github.com/minio/minio/cmd/generic-handlers.go:168
+#	0x735668	net/http.HandlerFunc.ServeHTTP+0x28						net/http/server.go:2294
+#	0x26cc02b	github.com/minio/minio/cmd.setAuthMiddleware.func1+0x66b			github.com/minio/minio/cmd/auth-handler.go:654
+#	0x735668	net/http.HandlerFunc.ServeHTTP+0x28						net/http/server.go:2294
+#	0x28d8141	github.com/minio/minio/cmd.httpTracerMiddleware.func1+0x361			github.com/minio/minio/cmd/http-tracer.go:89
+#	0x735668	net/http.HandlerFunc.ServeHTTP+0x28						net/http/server.go:2294
+#	0x28c5f90	github.com/minio/minio/cmd.addCustomHeadersMiddleware.func1+0x3f0		github.com/minio/minio/cmd/generic-handlers.go:565
+#	0x735668	net/http.HandlerFunc.ServeHTTP+0x28						net/http/server.go:2294
+#	0xf2e5a1	github.com/minio/mux.(*Router).ServeHTTP+0x221					github.com/minio/mux@v1.9.2/mux.go:228
+#	0x26c7543	github.com/minio/minio/cmd.corsHandler.(*Cors).Handler.func2+0x183		github.com/rs/cors@v1.11.1/cors.go:289
+#	0x735668	net/http.HandlerFunc.ServeHTTP+0x28						net/http/server.go:2294
+#	0x2a5e6eb	github.com/minio/minio/cmd.serverMain.func10.setCriticalErrorHandler.2+0x6b	github.com/minio/minio/cmd/generic-handlers.go:589
+#	0x735668	net/http.HandlerFunc.ServeHTTP+0x28						net/http/server.go:2294
+#	0x923279	github.com/minio/minio/internal/http.(*Server).Init.func1+0x239			github.com/minio/minio/internal/http/server.go:118
+#	0x735668	net/http.HandlerFunc.ServeHTTP+0x28						net/http/server.go:2294
+#	0x7561ed	net/http.serverHandler.ServeHTTP+0x8d						net/http/server.go:3301
+#	0x733b64	net/http.(*conn).serve+0x624							net/http/server.go:2102
+
+1 @ 0x47a7ae 0x411de5 0x411972 0x181a3a5 0x482741
+#	0x181a3a4	github.com/minio/console/api.(*Server).handleShutdown+0x64	github.com/minio/console@v1.7.7-0.20250905210349-2017f33b26e1/api/custom-server.go:461
+
+1 @ 0x47a7ae 0x411de5 0x411972 0x279e3b2 0x482741
+#	0x279e3b1	github.com/minio/minio/cmd.(*ReplicationPool).startResyncRoutine+0x1d1	github.com/minio/minio/cmd/bucket-replication.go:3188
+
+1 @ 0x47a7ae 0x411de5 0x411972 0x2a5c225 0x13db850 0x13dc8b5 0x13d971b 0x2931ad9 0x2c3c6c8 0x444eeb 0x482741
+#	0x2a5c224	github.com/minio/minio/cmd.serverMain+0x1004	github.com/minio/minio/cmd/server-main.go:1195
+#	0x13db84f	github.com/minio/cli.HandleAction+0x6f		github.com/minio/cli@v1.24.2/app.go:492
+#	0x13dc8b4	github.com/minio/cli.Command.Run+0x934		github.com/minio/cli@v1.24.2/command.go:242
+#	0x13d971a	github.com/minio/cli.(*App).Run+0xa3a		github.com/minio/cli@v1.24.2/app.go:260
+#	0x2931ad8	github.com/minio/minio/cmd.Main+0xb8		github.com/minio/minio/cmd/main.go:225
+#	0x2c3c6c7	main.main+0x27					github.com/minio/minio/main.go:32
+#	0x444eea	runtime.main+0x28a				runtime/proc.go:283
+
+1 @ 0x47a7ae 0x411de5 0x411972 0x2a7cbbf 0x482741
+#	0x2a7cbbe	github.com/minio/minio/cmd.(*siteResyncMetrics).init+0x17e	github.com/minio/minio/cmd/site-replication-utils.go:87
+
+1 @ 0x47a7ae 0x411de5 0x411992 0x181a7fe 0x48cf2b 0x181a78f 0x181a76f 0x482741
+#	0x181a7fd	github.com/minio/console/api.handleInterrupt.func1+0x3d	github.com/minio/console@v1.7.7-0.20250905210349-2017f33b26e1/api/custom-server.go:540
+#	0x48cf2a	sync.(*Once).doSlow+0xaa				sync/once.go:78
+#	0x181a78e	sync.(*Once).Do+0x2e					sync/once.go:69
+#	0x181a76e	github.com/minio/console/api.handleInterrupt+0xe	github.com/minio/console@v1.7.7-0.20250905210349-2017f33b26e1/api/custom-server.go:539
+
+1 @ 0x47a7ae 0x411de5 0x411992 0x88d15a 0x482741
+#	0x88d159	github.com/rjeczalik/notify.(*nonrecursiveTree).dispatch+0x59	github.com/rjeczalik/notify@v0.9.3/tree_nonrecursive.go:36
+
+1 @ 0x47a7ae 0x411de5 0x411992 0x88d9cd 0x482741
+#	0x88d9cc	github.com/rjeczalik/notify.(*nonrecursiveTree).internal+0x4c	github.com/rjeczalik/notify@v0.9.3/tree_nonrecursive.go:81
+
+1 @ 0x47a7ae 0x43d957 0x4799c5 0x4c61c7 0x4c74ba 0x4c74a8 0x5ddea5 0x5eec85 0x86e34d 0x72da37 0x482741
+#	0x4799c4	internal/poll.runtime_pollWait+0x84					runtime/netpoll.go:351
+#	0x4c61c6	internal/poll.(*pollDesc).wait+0x26					internal/poll/fd_poll_runtime.go:84
+#	0x4c74b9	internal/poll.(*pollDesc).waitRead+0x279				internal/poll/fd_poll_runtime.go:89
+#	0x4c74a7	internal/poll.(*FD).Read+0x267						internal/poll/fd_unix.go:165
+#	0x5ddea4	net.(*netFD).Read+0x24							net/fd_posix.go:55
+#	0x5eec84	net.(*conn).Read+0x44							net/net.go:194
+#	0x86e34c	github.com/minio/minio/internal/deadlineconn.(*DeadlineConn).Read+0x6c	github.com/minio/minio/internal/deadlineconn/deadlineconn.go:97
+#	0x72da36	net/http.(*connReader).backgroundRead+0x36				net/http/server.go:690
+
+1 @ 0x47a7ae 0x43d957 0x4799c5 0x4c61c7 0x4cb595 0x4cb583 0x5dfe49 0x5f9f5b 0x5f8e10 0x73910c 0x18192cd 0x482741
+#	0x4799c4	internal/poll.runtime_pollWait+0x84			runtime/netpoll.go:351
+#	0x4c61c6	internal/poll.(*pollDesc).wait+0x26			internal/poll/fd_poll_runtime.go:84
+#	0x4cb594	internal/poll.(*pollDesc).waitRead+0x294		internal/poll/fd_poll_runtime.go:89
+#	0x4cb582	internal/poll.(*FD).Accept+0x282			internal/poll/fd_unix.go:620
+#	0x5dfe48	net.(*netFD).accept+0x28				net/fd_unix.go:172
+#	0x5f9f5a	net.(*TCPListener).accept+0x1a				net/tcpsock_posix.go:159
+#	0x5f8e0f	net.(*TCPListener).Accept+0x2f				net/tcpsock.go:380
+#	0x73910b	net/http.(*Server).Serve+0x30b				net/http/server.go:3424
+#	0x18192cc	github.com/minio/console/api.(*Server).Serve.func2+0x6c	github.com/minio/console@v1.7.7-0.20250905210349-2017f33b26e1/api/custom-server.go:238
+
+1 @ 0x47a7ae 0x457957 0x1917825 0x482741
+#	0x1917824	github.com/minio/minio/internal/bucket/bandwidth.(*Monitor).trackEWMA+0x84	github.com/minio/minio/internal/bucket/bandwidth/monitor.go:132
+
+1 @ 0x47a7ae 0x457957 0x26a0f52 0x482741
+#	0x26a0f51	github.com/minio/minio/cmd.(*allHealState).periodicHealSeqsClean+0x111	github.com/minio/minio/cmd/admin-heal-ops.go:211
+
+1 @ 0x47a7ae 0x457957 0x26d28f4 0x482741
+#	0x26d28f3	github.com/minio/minio/cmd.monitorLocalDisksAndHeal+0xf3	github.com/minio/minio/cmd/background-newdisks-heal-ops.go:565
+
+1 @ 0x47a7ae 0x457957 0x26f5fd3 0x26f5eb4 0x482741
+#	0x26f5fd2	github.com/minio/minio/cmd.(*BatchJobPool).cleanupReports+0xf2	github.com/minio/minio/cmd/batch-handlers.go:1906
+#	0x26f5eb3	github.com/minio/minio/cmd.newBatchJobPool.func2+0x33		github.com/minio/minio/cmd/batch-handlers.go:1895
+
+1 @ 0x47a7ae 0x457957 0x26f82e5 0x482741
+#	0x26f82e4	github.com/minio/minio/cmd.(*batchJobMetrics).purgeJobMetrics+0xe4	github.com/minio/minio/cmd/batch-handlers.go:2204
+
+1 @ 0x47a7ae 0x457957 0x276c706 0x482741
+#	0x276c705	github.com/minio/minio/cmd.(*ReplicationStats).trackEWMA+0x85	github.com/minio/minio/cmd/bucket-replication-stats.go:68
+
+1 @ 0x47a7ae 0x457957 0x276cbc8 0x482741
+#	0x276cbc7	github.com/minio/minio/cmd.(*ReplicationStats).collectWorkerMetrics+0xc7	github.com/minio/minio/cmd/bucket-replication-stats.go:108
+
+1 @ 0x47a7ae 0x457957 0x276cca5 0x482741
+#	0x276cca4	github.com/minio/minio/cmd.(*ReplicationStats).collectQueueMetrics+0xa4	github.com/minio/minio/cmd/bucket-replication-stats.go:125
+
+1 @ 0x47a7ae 0x457957 0x279a0f9 0x482741
+#	0x279a0f8	github.com/minio/minio/cmd.(*replicationResyncer).PersistToDisk+0x198	github.com/minio/minio/cmd/bucket-replication.go:2789
+
+1 @ 0x47a7ae 0x457957 0x27a1294 0x482741
+#	0x27a1293	github.com/minio/minio/cmd.(*ReplicationPool).persistMRF+0x193	github.com/minio/minio/cmd/bucket-replication.go:3517
+
+1 @ 0x47a7ae 0x457957 0x27a2945 0x482741
+#	0x27a2944	github.com/minio/minio/cmd.(*ReplicationPool).processMRF+0x104	github.com/minio/minio/cmd/bucket-replication.go:3687
+
+1 @ 0x47a7ae 0x457957 0x27b283c 0x482741
+#	0x27b283b	github.com/minio/minio/cmd.(*BucketTargetSys).heartBeat+0x11b	github.com/minio/minio/cmd/bucket-targets.go:145
+
+1 @ 0x47a7ae 0x457957 0x27b7a0a 0x482741
+#	0x27b7a09	github.com/minio/minio/cmd.NewBucketTargetSys.func1+0x109	github.com/minio/minio/cmd/bucket-targets.go:565
+
+1 @ 0x47a7ae 0x457957 0x27bf145 0x482741
+#	0x27bf144	github.com/minio/minio/cmd.runDNSCache.func1+0xc4	github.com/minio/minio/cmd/common-main.go:544
+
+1 @ 0x47a7ae 0x457957 0x27d22a8 0x27d17ed 0x482741
+#	0x27d22a7	github.com/minio/minio/cmd.runDataScanner+0x2c7		github.com/minio/minio/cmd/data-scanner.go:177
+#	0x27d17ec	github.com/minio/minio/cmd.initDataScanner.func1+0x16c	github.com/minio/minio/cmd/data-scanner.go:80
+
+1 @ 0x47a7ae 0x457957 0x287e538 0x482741
+#	0x287e537	github.com/minio/minio/cmd.(*erasureServerPools).cleanupStaleMPCache+0x117	github.com/minio/minio/cmd/erasure-server-pool.go:236
+
+1 @ 0x47a7ae 0x457957 0x28a1289 0x482741
+#	0x28a1288	github.com/minio/minio/cmd.(*erasureSets).monitorAndConnectEndpoints+0x268	github.com/minio/minio/cmd/erasure-sets.go:296
+
+1 @ 0x47a7ae 0x457957 0x28a3b1d 0x482741
+#	0x28a3b1c	github.com/minio/minio/cmd.(*erasureSets).cleanupDeletedObjects+0xfc	github.com/minio/minio/cmd/erasure-sets.go:494
+
+1 @ 0x47a7ae 0x457957 0x28a404e 0x482741
+#	0x28a404d	github.com/minio/minio/cmd.(*erasureSets).cleanupStaleUploads+0x10d	github.com/minio/minio/cmd/erasure-sets.go:522
+
+1 @ 0x47a7ae 0x457957 0x290b351 0x482741
+#	0x290b350	github.com/minio/minio/cmd.(*IAMSys).periodicRoutines+0x390	github.com/minio/minio/cmd/iam.go:469
+
+1 @ 0x47a7ae 0x457957 0x29614d5 0x2b7994f 0x2a59a6f 0x482741
+#	0x29614d4	github.com/minio/minio/cmd.startResourceMetricsCollection+0x114	github.com/minio/minio/cmd/metrics-resource.go:369
+#	0x2b7994e	github.com/minio/minio/cmd.serverMain.func18+0xe		github.com/minio/minio/cmd/server-main.go:1168
+#	0x2a59a6e	github.com/minio/minio/cmd.bootstrapTrace+0x12e			github.com/minio/minio/cmd/server-main.go:566
+
+1 @ 0x47a7ae 0x457957 0x299ef86 0x482741
+#	0x299ef85	github.com/minio/minio/cmd.(*mrfState).healRoutine+0xc5	github.com/minio/minio/cmd/mrf.go:220
+
+1 @ 0x47a7ae 0x457957 0x2a68825 0x482741
+#	0x2a68824	github.com/minio/minio/cmd.sharedLock.backgroundRoutine+0x1e4	github.com/minio/minio/cmd/shared-lock.go:45
+
+1 @ 0x47a7ae 0x457957 0x2a68ee5 0x482741
+#	0x2a68ee4	github.com/minio/minio/cmd.handleSignals+0xc4	github.com/minio/minio/cmd/signals.go:98
+
+1 @ 0x47a7ae 0x457957 0x2a733a5 0x482741
+#	0x2a733a4	github.com/minio/minio/cmd.(*SRStats).trackEWMA+0x84	github.com/minio/minio/cmd/site-replication-metrics.go:231
+
+1 @ 0x47a7ae 0x457957 0x2a7d8ad 0x482741
+#	0x2a7d8ac	github.com/minio/minio/cmd.(*siteResyncMetrics).save+0x10c	github.com/minio/minio/cmd/site-replication-utils.go:166
+
+1 @ 0x47a7ae 0x457957 0x2aa807d 0x482741
+#	0x2aa807c	github.com/minio/minio/cmd.(*SiteReplicationSys).startHealRoutine+0x13c	github.com/minio/minio/cmd/site-replication.go:4267
+
+1 @ 0x47a7ae 0x457957 0x2b34e2b 0x482741
+#	0x2b34e2a	github.com/minio/minio/cmd.(*xlStorageDiskIDCheck).monitorDiskWritable+0x32a	github.com/minio/minio/cmd/xl-storage-disk-id-check.go:1065
+
+1 @ 0x47a7ae 0x457957 0x2b64751 0x482741
+#	0x2b64750	github.com/minio/minio/cmd.(*xlStorage).cleanupTrashImmediateCallers+0xb0	github.com/minio/minio/cmd/xl-storage.go:1205
+
+1 @ 0x47a7ae 0x457957 0x920e0f 0x73910c 0x923025 0x2a5e613 0x482741
+#	0x920e0e	github.com/minio/minio/internal/http.(*httpListener).Accept+0x8e	github.com/minio/minio/internal/http/listener.go:68
+#	0x73910b	net/http.(*Server).Serve+0x30b						net/http/server.go:3424
+#	0x923024	github.com/minio/minio/internal/http.(*Server).Init.func2+0x24		github.com/minio/minio/internal/http/server.go:132
+#	0x2a5e612	github.com/minio/minio/cmd.serverMain.func10.1+0x72			github.com/minio/minio/cmd/server-main.go:921
+
+1 @ 0x47a7ae 0x4589fd 0x4589d4 0x47c025 0x48e368 0x1818192 0x2b79698 0x482741
+#	0x47c024	sync.runtime_SemacquireWaitGroup+0x24			runtime/sema.go:110
+#	0x48e367	sync.(*WaitGroup).Wait+0x47				sync/waitgroup.go:118
+#	0x1818191	github.com/minio/console/api.(*Server).Serve+0xb71	github.com/minio/console@v1.7.7-0.20250905210349-2017f33b26e1/api/custom-server.go:346
+#	0x2b79697	github.com/minio/minio/cmd.serverMain.func15.2.1+0x17	github.com/minio/minio/cmd/server-main.go:1020
+
+1 @ 0x47a7ae 0x4589fd 0x4589d4 0x47c025 0x48e368 0xfa2215 0xfa2210 0x482741
+#	0x47c024	sync.runtime_SemacquireWaitGroup+0x24						runtime/sema.go:110
+#	0x48e367	sync.(*WaitGroup).Wait+0x47							sync/waitgroup.go:118
+#	0xfa2214	github.com/minio/pkg/v3/workers.(*Workers).Wait+0x174				github.com/minio/pkg/v3@v3.1.3/workers/workers.go:62
+#	0xfa220f	github.com/minio/minio/internal/event.(*TargetList).startSendWorkers+0x16f	github.com/minio/minio/internal/event/targetlist.go:374
+
+1 @ 0x47a7ae 0x47ebe5 0x17cd2a8 0x482741
+#	0x47ebe4	time.Sleep+0x164							runtime/time.go:338
+#	0x17cd2a7	github.com/minio/console/pkg/logger.(*logOnceType).cleanupRoutine+0x27	github.com/minio/console@v1.7.7-0.20250905210349-2017f33b26e1/pkg/logger/logonce.go:62
+
+1 @ 0x47a7ae 0x47ebe5 0xf28586 0x482741
+#	0x47ebe4	time.Sleep+0x164								runtime/time.go:338
+#	0xf28585	github.com/minio/minio/internal/logger.(*logOnceType).cleanupRoutine+0x25	github.com/minio/minio/internal/logger/logonce.go:125
+

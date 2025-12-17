@@ -22,6 +22,10 @@ npm run build
 
 echo "📁 Copying React build to Go embed location..."
 cd ..
+
+# Copy built files to pkg/web/static for embedding
+rm -rf pkg/web/static/build
+mkdir -p pkg/web/static/build
 cp -r web/build/* pkg/web/static/build/
 
 echo "🔧 Building Go application..."
@@ -29,12 +33,5 @@ go build -o mc-tool
 
 echo "✅ Build completed successfully!"
 echo "🚀 You can now run: ./mc-tool web --port 8080"
-
-# Copy built files to pkg/web/static for embedding
-echo "Copying built files..."
-rm -rf ../pkg/web/static/build
-mkdir -p ../pkg/web/static/build
-cp -r build/* ../pkg/web/static/build/
-
 echo "React web UI build completed!"
 echo "Built files are in pkg/web/static/build/"

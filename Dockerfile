@@ -24,8 +24,8 @@ RUN curl -sSL https://dl.min.io/client/mc/release/linux-amd64/mc \
 
 # Download mc (MinIO client) version 2021-11-16 for admin profile support
 RUN curl -sSL https://dl.min.io/client/mc/release/linux-amd64/archive/mc.RELEASE.2021-11-16T20-37-36Z \
-      -o /usr/local/bin/mc-2021 \
-    && chmod +x /usr/local/bin/mc-2021
+      -o /usr/local/bin/mc21 \
+    && chmod +x /usr/local/bin/mc21
 
 # Download golang latest release
 RUN curl -sSL https://go.dev/dl/go1.25.1.linux-amd64.tar.gz \

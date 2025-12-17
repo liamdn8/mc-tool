@@ -42,12 +42,6 @@ const Sidebar = () => {
                     path: '/replication-operator/compare',
                     icon: GitCompare,
                     label: t('operations_compare', 'Compare Buckets')
-                },
-                {
-                    id: 'resync',
-                    path: '/replication-operator/resync',
-                    icon: Zap,
-                    label: t('replication_resync', 'Replication Resync')
                 }
             ]
         },
@@ -62,20 +56,26 @@ const Sidebar = () => {
                     path: '/tracing/analyzer',
                     icon: Activity,
                     label: t('trace_error_analyzer', 'Trace Error Analyzer')
+                },
+                {
+                    id: 'profiler',
+                    path: '/tracing/profiler',
+                    icon: Activity,
+                    label: t('profiler', 'Profiler')
                 }
             ]
         },
         { 
-            id: 'checklist', 
-            path: '/checklist',
+            id: 'validate', 
+            path: '/validate',
             icon: CheckSquare, 
-            label: t('checklist', 'Checklist'),
+            label: t('validate', 'Validate'),
             subItems: [
                 {
-                    id: 'config-checklist',
-                    path: '/checklist/configuration',
+                    id: 'config-validate',
+                    path: '/validate/configuration',
                     icon: List,
-                    label: t('configuration_checklist', 'Configuration Checklist')
+                    label: t('configuration_validate', 'Configuration Validation')
                 }
             ]
         },

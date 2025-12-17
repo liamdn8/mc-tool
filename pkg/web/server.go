@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -35,11 +34,12 @@ type Server struct {
 
 // NewServer creates a new web server
 func NewServer(cfg *config.WebConfig) *Server {
-	// Get the current executable path
-	execPath, err := os.Executable()
-	if err != nil {
-		execPath = "mc-tool" // fallback to PATH lookup
-	}
+	// Auto-detect mc-tool executable path
+	execPath := services.FindMCToolExecutable()
+
+	logger.GetLogger().Info("Using mc-tool executable", map[string]interface{}{
+		"path": execPath,
+	})
 
 	// Initialize services
 	jobManager := models.NewJobManager()
@@ -71,12 +71,24 @@ func (s *Server) Start() error {
 		return fmt.Errorf("failed to load static files: %w", err)
 	}
 
+	// Base path for the application
+	basePath := "/minio-webtool"
+
+	// Redirect root to base path
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" {
+			http.Redirect(w, r, basePath+"/", http.StatusMovedPermanently)
+			return
+		}
+		http.NotFound(w, r)
+	})
+
 	// Serve new site replication UI by default
-	mux.HandleFunc("/", s.handlers.System.HandleIndex)
+	mux.HandleFunc(basePath+"/", s.handlers.System.HandleIndex)
 
 	// Custom static file handler with proper MIME types
-	staticHandler := http.StripPrefix("/static/", http.FileServer(http.FS(staticFS)))
-	mux.HandleFunc("/static/", func(w http.ResponseWriter, r *http.Request) {
+	staticHandler := http.StripPrefix(basePath+"/static/", http.FileServer(http.FS(staticFS)))
+	mux.HandleFunc(basePath+"/static/", func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
 
 		// Set correct MIME type based on file extension
@@ -101,68 +113,70 @@ func (s *Server) Start() error {
 	})
 
 	// System endpoints
-	mux.HandleFunc("/healthz", s.handlers.System.HandleHealthz)
-	mux.HandleFunc("/api/health", s.handlers.System.HandleHealth)
-	mux.HandleFunc("/api/mc-config", s.handlers.System.HandleMCConfig)
+	mux.HandleFunc(basePath+"/healthz", s.handlers.System.HandleHealthz)
+	mux.HandleFunc(basePath+"/api/health", s.handlers.System.HandleHealth)
+	mux.HandleFunc(basePath+"/api/mc-config", s.handlers.System.HandleMCConfig)
 
 	// Site endpoints
-	mux.HandleFunc("/api/aliases", s.handlers.Site.HandleGetAliases)
-	mux.HandleFunc("/api/aliases-stats", s.handlers.Site.HandleGetAliasesWithStats)
-	mux.HandleFunc("/api/alias-health", s.handlers.Site.HandleAliasHealth)
-	mux.HandleFunc("/api/alias-health-fast", s.handlers.Site.HandleAliasHealthFast)
-	mux.HandleFunc("/api/sites", s.handlers.Site.HandleSites)
-	mux.HandleFunc("/api/sites/health", s.handlers.Site.HandleSiteHealth)
+	mux.HandleFunc(basePath+"/api/aliases", s.handlers.Site.HandleGetAliases)
+	mux.HandleFunc(basePath+"/api/aliases-stats", s.handlers.Site.HandleGetAliasesWithStats)
+	mux.HandleFunc(basePath+"/api/alias-health", s.handlers.Site.HandleAliasHealth)
+	mux.HandleFunc(basePath+"/api/alias-health-fast", s.handlers.Site.HandleAliasHealthFast)
+	mux.HandleFunc(basePath+"/api/sites", s.handlers.Site.HandleSites)
+	mux.HandleFunc(basePath+"/api/sites/health", s.handlers.Site.HandleSiteHealth)
 
 	// Bucket endpoints
-	mux.HandleFunc("/api/buckets", s.handlers.Bucket.HandleGetBuckets)
-	mux.HandleFunc("/api/bucket-stats", s.handlers.Bucket.HandleGetBucketStats)
+	mux.HandleFunc(basePath+"/api/buckets", s.handlers.Bucket.HandleGetBuckets)
+	mux.HandleFunc(basePath+"/api/bucket-stats", s.handlers.Bucket.HandleGetBucketStats)
 
 	// Analysis endpoints
-	mux.HandleFunc("/api/compare", s.handlers.Analysis.HandleCompare)
-	mux.HandleFunc("/api/analyze", s.handlers.Analysis.HandleAnalyze)
-	mux.HandleFunc("/api/profile", s.handlers.Analysis.HandleProfile)
-	mux.HandleFunc("/api/checklist", s.handlers.Analysis.HandleChecklist)
+	mux.HandleFunc(basePath+"/api/compare", s.handlers.Analysis.HandleCompare)
+	mux.HandleFunc(basePath+"/api/analyze", s.handlers.Analysis.HandleAnalyze)
+	mux.HandleFunc(basePath+"/api/profile", s.handlers.Analysis.HandleProfile)
+	mux.HandleFunc(basePath+"/api/validate", s.handlers.Analysis.HandleValidate)
 
 	// Job endpoints
-	mux.HandleFunc("/api/jobs/", s.handlers.System.HandleJobStatus)
+	mux.HandleFunc(basePath+"/api/jobs/", s.handlers.System.HandleJobStatus)
 
 	// Site Replication APIs
-	mux.HandleFunc("/api/replication/info", s.handlers.Replication.HandleReplicationInfo)
-	mux.HandleFunc("/api/replication/status", s.handlers.Replication.HandleReplicationStatus)
-	mux.HandleFunc("/api/replication/compare", s.handlers.Replication.HandleReplicationCompare)
-	mux.HandleFunc("/api/replication/split-brain-check", s.handlers.Replication.HandleSplitBrainCheck)
+	mux.HandleFunc(basePath+"/api/replication/info", s.handlers.Replication.HandleReplicationInfo)
+	mux.HandleFunc(basePath+"/api/replication/status", s.handlers.Replication.HandleReplicationStatus)
+	mux.HandleFunc(basePath+"/api/replication/compare", s.handlers.Replication.HandleReplicationCompare)
+	mux.HandleFunc(basePath+"/api/replication/split-brain-check", s.handlers.Replication.HandleSplitBrainCheck)
 
 	// Site Replication Management APIs
-	mux.HandleFunc("/api/replication/add", s.handlers.Replication.HandleReplicationAdd)
-	mux.HandleFunc("/api/replication/add-smart", s.handlers.Replication.HandleReplicationAddSmart)
-	mux.HandleFunc("/api/replication/remove", s.handlers.Replication.HandleReplicationRemove)
-	mux.HandleFunc("/api/replication/remove-site", s.handlers.Replication.HandleReplicationRemoveSite)
-	mux.HandleFunc("/api/replication/remove-site-smart", s.handlers.Replication.HandleReplicationRemoveSiteSmart)
-	mux.HandleFunc("/api/replication/resync", s.handlers.Replication.HandleReplicationResync)
+	mux.HandleFunc(basePath+"/api/replication/add", s.handlers.Replication.HandleReplicationAdd)
+	mux.HandleFunc(basePath+"/api/replication/add-smart", s.handlers.Replication.HandleReplicationAddSmart)
+	mux.HandleFunc(basePath+"/api/replication/remove", s.handlers.Replication.HandleReplicationRemove)
+	mux.HandleFunc(basePath+"/api/replication/remove-site", s.handlers.Replication.HandleReplicationRemoveSite)
+	mux.HandleFunc(basePath+"/api/replication/remove-site-smart", s.handlers.Replication.HandleReplicationRemoveSiteSmart)
+	mux.HandleFunc(basePath+"/api/replication/resync", s.handlers.Replication.HandleReplicationResync)
 
 	// Operations APIs
-	mux.HandleFunc("/api/operations/resync/options", s.handlers.Operations.HandleGetResyncOptions)
-	mux.HandleFunc("/api/operations/resync/start", s.handlers.Operations.HandleStartResync)
-	mux.HandleFunc("/api/operations/resync/status", s.handlers.Operations.HandleGetResyncStatus)
-	mux.HandleFunc("/api/operations/sync-policies", s.handlers.Operations.HandleSyncPolicies)
-	mux.HandleFunc("/api/operations/sync-lifecycle", s.handlers.Operations.HandleSyncLifecycle)
-	mux.HandleFunc("/api/operations/validate-consistency", s.handlers.Operations.HandleValidateConsistency)
-	mux.HandleFunc("/api/operations/health-check", s.handlers.Operations.HandleHealthCheck)
-	mux.HandleFunc("/api/operations/compare", s.handlers.Operations.HandleCompare)
-	mux.HandleFunc("/api/operations/checklist", s.handlers.Operations.HandleChecklist)
-	mux.HandleFunc("/api/operations/buckets", s.handlers.Operations.HandleGetBuckets)
-	mux.HandleFunc("/api/operations/path-suggestions", s.handlers.Operations.HandleGetPathSuggestions)
-	mux.HandleFunc("/api/operations/bucket-versioning", s.handlers.Operations.HandleGetBucketVersioning)
-	mux.HandleFunc("/api/operations/trace", s.handlers.Operations.HandleTrace)
+	mux.HandleFunc(basePath+"/api/operations/resync/options", s.handlers.Operations.HandleGetResyncOptions)
+	mux.HandleFunc(basePath+"/api/operations/resync/start", s.handlers.Operations.HandleStartResync)
+	mux.HandleFunc(basePath+"/api/operations/resync/status", s.handlers.Operations.HandleGetResyncStatus)
+	mux.HandleFunc(basePath+"/api/operations/sync-policies", s.handlers.Operations.HandleSyncPolicies)
+	mux.HandleFunc(basePath+"/api/operations/sync-lifecycle", s.handlers.Operations.HandleSyncLifecycle)
+	mux.HandleFunc(basePath+"/api/operations/validate-consistency", s.handlers.Operations.HandleValidateConsistency)
+	mux.HandleFunc(basePath+"/api/operations/health-check", s.handlers.Operations.HandleHealthCheck)
+	mux.HandleFunc(basePath+"/api/operations/compare", s.handlers.Operations.HandleCompare)
+	mux.HandleFunc(basePath+"/api/operations/validate", s.handlers.Operations.HandleValidate)
+	mux.HandleFunc(basePath+"/api/operations/validate-bucket-config", s.handlers.Operations.HandleValidateBucketConfig)
+	mux.HandleFunc(basePath+"/api/operations/buckets", s.handlers.Operations.HandleGetBuckets)
+	mux.HandleFunc(basePath+"/api/operations/path-suggestions", s.handlers.Operations.HandleGetPathSuggestions)
+	mux.HandleFunc(basePath+"/api/operations/bucket-versioning", s.handlers.Operations.HandleGetBucketVersioning)
+	mux.HandleFunc(basePath+"/api/operations/trace", s.handlers.Operations.HandleTrace)
+	mux.HandleFunc(basePath+"/api/operations/profile", s.handlers.Operations.HandleProfile)
 
 	// Terminal APIs
-	mux.HandleFunc("/api/terminal/ws", s.handlers.Terminal.HandleWebsocket)
+	mux.HandleFunc(basePath+"/api/terminal/ws", s.handlers.Terminal.HandleWebsocket)
 
 	s.httpServer = &http.Server{
 		Addr:         fmt.Sprintf(":%d", s.config.Port),
 		Handler:      middleware.CORS(middleware.Logging(mux)),
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
+		ReadTimeout:  10 * time.Minute, // Long timeout for operations like profile, trace
+		WriteTimeout: 10 * time.Minute, // Long timeout for streaming responses
 		IdleTimeout:  60 * time.Second,
 	}
 

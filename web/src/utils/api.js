@@ -1,8 +1,12 @@
 // API utility functions for React app
+import { API_BASE_PATH } from '../config';
 
 export async function apiCall(endpoint, options = {}) {
+    // Prepend API_BASE_PATH if endpoint starts with /api
+    const url = endpoint.startsWith('/api') ? API_BASE_PATH + endpoint.substring(4) : endpoint;
+    
     try {
-        const response = await fetch(endpoint, {
+        const response = await fetch(url, {
             ...options,
             headers: {
                 'Content-Type': 'application/json',
@@ -15,12 +19,12 @@ export async function apiCall(endpoint, options = {}) {
             const text = await response.text();
             data = text ? JSON.parse(text) : {};
         } catch (parseError) {
-            console.error(`Failed to parse JSON from ${endpoint}:`, parseError);
+            console.error(`Failed to parse JSON from ${url}:`, parseError);
             data = {};
         }
         return { response, data };
     } catch (error) {
-        console.error(`API call to ${endpoint} failed:`, error);
+        console.error(`API call to ${url} failed:`, error);
         throw error;
     }
 }
@@ -236,6 +240,22 @@ export async function runTraceCapture(payload) {
         return data;
     } catch (error) {
         console.error('Error capturing trace:', error);
+        throw error;
+    }
+}
+
+export async function runProfileCapture(payload) {
+    try {
+        const { response, data } = await apiCall('/api/operations/profile', {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+        if (!response.ok) {
+            throw new Error(data?.error || 'Failed to capture profile');
+        }
+        return data;
+    } catch (error) {
+        console.error('Error capturing profile:', error);
         throw error;
     }
 }

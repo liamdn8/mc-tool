@@ -14,7 +14,7 @@ import (
 	"github.com/liamdn8/mc-tool/pkg/web/models"
 )
 
-// AnalysisHandler handles analysis-related requests like compare, analyze, profile, checklist
+// AnalysisHandler handles analysis-related requests like compare, analyze, profile, validate
 type AnalysisHandler struct {
 	BaseHandler
 	executablePath string
@@ -116,8 +116,8 @@ func (h *AnalysisHandler) HandleProfile(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
-// HandleChecklist handles POST /api/checklist
-func (h *AnalysisHandler) HandleChecklist(w http.ResponseWriter, r *http.Request) {
+// HandleValidate handles POST /api/validate
+func (h *AnalysisHandler) HandleValidate(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		h.RespondError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
@@ -134,8 +134,8 @@ func (h *AnalysisHandler) HandleChecklist(w http.ResponseWriter, r *http.Request
 	}
 
 	// Create job
-	job := h.jobManager.CreateJob("checklist")
-	go h.runChecklistJob(job, req.Alias, req.Bucket)
+	job := h.jobManager.CreateJob("validate")
+	go h.runValidateJob(job, req.Alias, req.Bucket)
 
 	h.RespondJSON(w, map[string]interface{}{
 		"job_id": job.ID,
@@ -258,8 +258,8 @@ func (h *AnalysisHandler) runProfileJob(job *models.Job, req struct {
 	job.Complete(resultData, "Profiling completed successfully")
 }
 
-func (h *AnalysisHandler) runChecklistJob(job *models.Job, alias, bucket string) {
-	job.UpdateStatus("running", "Running checklist...")
+func (h *AnalysisHandler) runValidateJob(job *models.Job, alias, bucket string) {
+	job.UpdateStatus("running", "Running validation...")
 
 	var output strings.Builder
 	bucketPath := fmt.Sprintf("%s/%s", alias, bucket)
@@ -414,5 +414,5 @@ func (h *AnalysisHandler) runChecklistJob(job *models.Job, alias, bucket string)
 		"errors":        errorCount,
 	}
 
-	job.Complete(resultData, "Checklist completed")
+	job.Complete(resultData, "Validation completed")
 }

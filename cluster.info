@@ -1,0 +1,16 @@
+{
+  "deployment_id": "9148d770-e614-4338-a91b-f3cb46f5eaeb",
+  "cluster_name": "1-servers-1-disks-2025-09-07T16:13:09Z",
+  "used_capacity": 0,
+  "info": {
+    "minio_version": "2025-09-07T16:13:09Z",
+    "no_of_server_pools": 1,
+    "no_of_servers": 1,
+    "no_of_drives": 1,
+    "no_of_buckets": 5,
+    "no_of_objects": 0,
+    "total_drive_space": 1026108821504,
+    "used_drive_space": 14599557120,
+    "edition": ""
+  }
+}

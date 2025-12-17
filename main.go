@@ -40,9 +40,6 @@ var (
 	profileDuration string
 	profileOutput   string
 	profileMCPath   string
-	detectLeaks     bool
-	monitorInterval string
-	thresholdMB     int
 
 	// Trace command flags
 	traceDuration        string
@@ -52,6 +49,10 @@ var (
 	traceGroupByAPI      bool
 	traceGroupByClient   bool
 	traceGroupByVersions bool
+
+	// Validate config command flags
+	validateLifecycleOnly bool
+	validateEventsOnly    bool
 )
 
 func main() {
@@ -119,42 +120,75 @@ Examples:
 		Run:  runChecklist,
 	}
 
-	debugCmd := &cobra.Command{
-		Use:   "profile <type> <alias>",
-		Short: "Profile MinIO server for performance analysis and memory leak detection",
-		Long: `Profile MinIO server using mc admin profile command to analyze performance and detect memory leaks.
+	validateCmd := &cobra.Command{
+		Use:   "validate <bucket-name> <alias1> <alias2> [alias3...]",
+		Short: "Validate bucket configuration consistency across multiple aliases",
+		Long: `Compare bucket lifecycle and event notification configurations across multiple MinIO aliases.
 
-Profile Types:
-- cpu: CPU profiling to identify performance bottlenecks
-- heap: Memory heap profiling for memory leak detection  
-- goroutine: Goroutine profiling to find goroutine leaks
-- allocs: Allocation profiling for GC pressure analysis
-- block: Blocking profiling for synchronization issues
-- mutex: Mutex contention profiling
+This command helps ensure consistent configuration across replicated or multi-site MinIO deployments.
+The first alias is used as the reference, and all other aliases are compared against it.
 
-Features:
-- Supports both latest mc and mc-2021 versions
-- Continuous memory leak monitoring
-- Automatic leak detection with configurable thresholds
-- Detailed memory growth analysis
-- Saves profiles to files for further analysis
+Configurations checked:
+- Bucket lifecycle (ILM) policies
+- Event notifications
 
 Examples:
-  # Basic heap profile for memory analysis
-  mc-tool profile heap minio-prod
+  # Validate lifecycle and events for test-bucket across 3 sites
+  mc-tool validate test-bucket site1 site2 site3
 
-  # CPU profile with custom duration
-  mc-tool profile cpu minio-prod --duration 30s
+  # Validate only lifecycle configuration
+  mc-tool validate test-bucket site1 site2 --lifecycle-only
 
-  # Memory leak detection with monitoring
-  mc-tool profile heap minio-prod --detect-leaks --monitor-interval 30s --duration 10m
+  # Validate only event notifications
+  mc-tool validate test-bucket site1 site2 site3 --events-only
 
-  # Save profile to file with older mc version
-  mc-tool profile goroutine minio-prod --output /tmp/goroutine.pprof --mc-path mc-2021
+  # Verbose output with detailed configuration display
+  mc-tool validate test-bucket site1 site2 site3 --verbose
 
-  # Continuous leak monitoring with custom threshold
-  mc-tool profile heap minio-prod --detect-leaks --threshold-mb 100 --duration 1h`,
-		Args: cobra.ExactArgs(2),
+  # Skip TLS verification for self-signed certificates
+  mc-tool validate test-bucket site1 site2 site3 --insecure`,
+		Args: cobra.MinimumNArgs(2),
+		Run:  runValidate,
+	}
+
+	debugCmd := &cobra.Command{
+		Use:   "profile <alias>",
+		Short: "Profile MinIO server using mc admin profile start/stop",
+		Long: `Profile MinIO server by running 'mc admin profile start', waiting, then 'mc admin profile stop'.
+Automatically extracts profile.zip and provides go tool pprof commands.
+
+Profile Types (can combine multiple with comma):
+- cpu: CPU profiling to identify performance bottlenecks
+- mem: Memory heap profiling for memory leak detection  
+- goroutines: Goroutine profiling to find goroutine leaks
+- block: Blocking profiling for synchronization issues
+- mutex: Mutex contention profiling
+- trace: Execution trace
+- threads: Thread profiling
+
+Features:
+- Automatically runs profile start, waits specified duration, then profile stop
+- Downloads and extracts profile.zip to timestamped directory
+- Displays ready-to-use 'go tool pprof' commands
+- Supports --insecure for self-signed certificates
+- Works with mc21 (MinIO Client 2021 version)
+
+Examples:
+  # Profile with default types (cpu,mem,block,goroutines) for 30 seconds
+  mc-tool profile minio-prod
+
+  # CPU and memory profile for 60 seconds
+  mc-tool profile minio-prod --type cpu,mem --duration 60s
+
+  # Profile with custom output directory
+  mc-tool profile minio-prod --output /tmp/profiles
+
+  # Profile with insecure mode for self-signed certs
+  mc-tool profile minio-prod --insecure
+
+  # Use specific mc binary path
+  mc-tool profile minio-prod --mc-path /usr/local/bin/mc21`,
+		Args: cobra.ExactArgs(1),
 		Run:  runProfile,
 	}
 
@@ -182,15 +216,17 @@ Examples:
 	checklistCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Verbose output")
 	checklistCmd.Flags().BoolVar(&insecure, "insecure", false, "Skip TLS certificate verification (overrides config setting)")
 
-	debugCmd.Flags().StringVar(&profileType, "type", "", "Profile type (auto-detected from command)")
+	validateCmd.Flags().BoolVar(&validateLifecycleOnly, "lifecycle-only", false, "Only validate lifecycle configuration")
+	validateCmd.Flags().BoolVar(&validateEventsOnly, "events-only", false, "Only validate event notifications")
+	validateCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Verbose output with detailed configuration")
+	validateCmd.Flags().BoolVar(&insecure, "insecure", false, "Skip TLS certificate verification for self-signed certificates")
+
+	debugCmd.Flags().StringVar(&profileType, "type", "cpu,mem,block,goroutines", "Profile types to collect (comma-separated): cpu,mem,block,mutex,trace,threads,goroutines")
 	debugCmd.Flags().StringVar(&profileDuration, "duration", "30s", "Profile duration (e.g., 30s, 1m, 5m)")
-	debugCmd.Flags().StringVar(&profileOutput, "output", "", "Output file path for profile data")
-	debugCmd.Flags().StringVar(&profileMCPath, "mc-path", "mc", "Path to mc binary (mc, mc-2021, or custom path)")
-	debugCmd.Flags().BoolVar(&detectLeaks, "detect-leaks", false, "Enable memory leak detection monitoring")
-	debugCmd.Flags().StringVar(&monitorInterval, "monitor-interval", "10s", "Monitoring interval for leak detection")
-	debugCmd.Flags().IntVar(&thresholdMB, "threshold-mb", 50, "Memory growth threshold in MB for leak detection")
+	debugCmd.Flags().StringVar(&profileOutput, "output", "", "Output directory for extracted profile data (default: /tmp/profile-<timestamp>)")
+	debugCmd.Flags().StringVar(&profileMCPath, "mc-path", "mc21", "Path to mc binary (mc21, mc-2021, or custom path)")
 	debugCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Verbose output")
-	debugCmd.Flags().BoolVar(&insecure, "insecure", false, "Skip TLS certificate verification")
+	debugCmd.Flags().BoolVar(&insecure, "insecure", false, "Skip TLS certificate verification (pass --insecure to mc)")
 
 	traceCmd.Flags().StringVar(&traceDuration, "duration", "5s", "Trace capture duration between 1s and 5m")
 	traceCmd.Flags().StringVar(&traceMCPath, "mc-path", "mc", "Path to mc binary (mc, mc-2021, or custom path)")
@@ -233,6 +269,7 @@ Examples:
 	rootCmd.AddCommand(compareCmd)
 	rootCmd.AddCommand(analyzeCmd)
 	rootCmd.AddCommand(checklistCmd)
+	rootCmd.AddCommand(validateCmd)
 	rootCmd.AddCommand(debugCmd)
 	rootCmd.AddCommand(traceCmd)
 	rootCmd.AddCommand(webCmd)
@@ -354,6 +391,162 @@ func runChecklist(cmd *cobra.Command, args []string) {
 	err = validation.CheckBucketConfiguration(ctx, minioClient, bucket)
 	if err != nil {
 		log.Fatalf("Error checking bucket configuration: %v", err)
+	}
+}
+
+func runValidate(cmd *cobra.Command, args []string) {
+	bucket := args[0]
+	aliases := args[1:]
+
+	if len(aliases) < 2 {
+		log.Fatal("At least 2 aliases required for comparison")
+	}
+
+	// Determine what to check
+	checkLifecycle := !validateEventsOnly
+	checkEvents := !validateLifecycleOnly
+
+	// Load MinIO configuration
+	cfg, err := config.LoadMCConfig()
+	if err != nil {
+		log.Fatalf("Error loading MC config: %v", err)
+	}
+
+	// Validate all aliases exist
+	for _, alias := range aliases {
+		if _, ok := cfg.Aliases[alias]; !ok {
+			log.Fatalf("Alias '%s' not found in MC config", alias)
+		}
+	}
+
+	validator := validation.NewBucketValidator(bucket, aliases, verbose, insecure)
+
+	fmt.Printf("╔══════════════════════════════════════════════════════════════╗\n")
+	fmt.Printf("║  Bucket Configuration Validation                            ║\n")
+	fmt.Printf("╚══════════════════════════════════════════════════════════════╝\n\n")
+	fmt.Printf("🪣 Bucket: %s\n", bucket)
+	fmt.Printf("📍 Reference: %s\n", validator.ReferenceAlias)
+	fmt.Printf("🔍 Comparing: %s\n\n", strings.Join(aliases, ", "))
+
+	// Check bucket existence on all aliases
+	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	fmt.Println("📦 Bucket Existence Check")
+	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+	for _, alias := range aliases {
+		exists := validator.CheckBucketExists(alias)
+		status := "✅ Found"
+		if !exists {
+			status = "❌ Missing"
+		}
+		fmt.Printf("  %-20s %s\n", alias+":", status)
+	}
+	fmt.Println()
+
+	// Validate lifecycle if requested
+	if checkLifecycle {
+		fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+		fmt.Println("♻️  Lifecycle Configuration")
+		fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+		results, err := validator.ValidateLifecycle()
+		if err != nil {
+			log.Fatalf("Error validating lifecycle: %v", err)
+		}
+
+		printValidationResults(results)
+		fmt.Println()
+	}
+
+	// Validate events if requested
+	if checkEvents {
+		fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+		fmt.Println("📢 Event Notifications")
+		fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+		results, err := validator.ValidateEvents()
+		if err != nil {
+			log.Fatalf("Error validating events: %v", err)
+		}
+
+		printValidationResults(results)
+		fmt.Println()
+	}
+
+	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	fmt.Println("✅ Validation complete")
+	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+}
+
+func printValidationResults(results []validation.ValidationResult) {
+	matchCount := 0
+	mismatchCount := 0
+
+	for _, result := range results {
+		if result.Status == "reference" {
+			// Print reference
+			if result.Configured {
+				count := result.RuleCount
+				if count == 0 {
+					count = result.EventCount
+				}
+				if count > 0 {
+					fmt.Printf("  📍 %s (Reference): ✅ Configured (%d rule(s))\n", result.Alias, count)
+				} else {
+					fmt.Printf("  📍 %s (Reference): ✅ Configured\n", result.Alias)
+				}
+				if verbose {
+					fmt.Printf("     %s\n", strings.TrimSpace(result.ConfigRaw))
+				}
+			} else {
+				fmt.Printf("  📍 %s (Reference): ⚠️  Not configured\n", result.Alias)
+			}
+		} else {
+			// Print comparison results
+			switch result.Status {
+			case "match":
+				count := result.RuleCount
+				if count == 0 {
+					count = result.EventCount
+				}
+				if count > 0 {
+					fmt.Printf("  %-20s ✅ Match (%d rule(s))\n", result.Alias+":", count)
+				} else {
+					fmt.Printf("  %-20s ✅ Match (not configured)\n", result.Alias+":")
+				}
+				if verbose && result.Configured {
+					fmt.Printf("     %s\n", strings.TrimSpace(result.ConfigRaw))
+				}
+				matchCount++
+			case "mismatch":
+				count := result.RuleCount
+				if count == 0 {
+					count = result.EventCount
+				}
+				if result.Configured {
+					fmt.Printf("  %-20s ⚠️  Mismatch (%d rule(s), differs from reference)\n", result.Alias+":", count)
+				} else {
+					fmt.Printf("  %-20s ⚠️  Mismatch (not configured)\n", result.Alias+":")
+				}
+				if verbose {
+					fmt.Printf("     %s\n", strings.TrimSpace(result.ConfigRaw))
+				}
+				mismatchCount++
+			case "error":
+				fmt.Printf("  %-20s ❌ Error: %v\n", result.Alias+":", result.Error)
+				mismatchCount++
+			}
+		}
+	}
+
+	// Summary
+	total := len(results) - 1 // Exclude reference
+	if matchCount == total {
+		fmt.Printf("\n  Summary: ✅ All %d aliases match reference\n", total)
+	} else if matchCount > 0 {
+		fmt.Printf("\n  Summary: ⚠️  %d/%d match, %d mismatch\n", matchCount, total, mismatchCount)
+	} else {
+		fmt.Printf("\n  Summary: ❌ All %d aliases differ from reference\n", total)
 	}
 }
 
@@ -593,8 +786,7 @@ func formatObjectCounts(items []trace.ObjectCount, limit int) string {
 }
 
 func runProfile(cmd *cobra.Command, args []string) {
-	profileTypeArg := args[0]
-	alias := args[1]
+	alias := args[0]
 
 	// Load MC configuration
 	cfg, err := config.LoadMCConfig()
@@ -614,98 +806,31 @@ func runProfile(cmd *cobra.Command, args []string) {
 		log.Fatalf("Invalid duration: %v", err)
 	}
 
-	// Parse monitor interval for leak detection
-	var monitorIntervalDuration time.Duration
-	if detectLeaks {
-		monitorIntervalDuration, err = time.ParseDuration(monitorInterval)
-		if err != nil {
-			log.Fatalf("Invalid monitor interval: %v", err)
-		}
-	}
-
-	// Validate profile type
-	validTypes := []string{"cpu", "heap", "goroutine", "allocs", "block", "mutex"}
-	validType := false
-	for _, t := range validTypes {
-		if profileTypeArg == t {
-			validType = true
-			break
-		}
-	}
-	if !validType {
-		log.Fatalf("Invalid profile type: %s (valid types: %s)", profileTypeArg, strings.Join(validTypes, ", "))
-	}
-
 	// Check if mc binary exists
-	if profileMCPath != "mc" && profileMCPath != "mc-2021" {
-		// Custom path - check if it exists
-		if _, err := os.Stat(profileMCPath); err != nil {
-			log.Fatalf("MC binary not found at: %s", profileMCPath)
-		}
-	} else {
-		// Standard path - check if it's available
-		if _, err := exec.LookPath(profileMCPath); err != nil {
-			// Try to find available versions
-			versions := profile.GetAvailableMCVersions()
-			if len(versions) == 0 {
-				log.Fatalf("No mc binary found. Please install MinIO client or specify custom path with --mc-path")
-			}
-			fmt.Printf("Available MC versions: %s\n", strings.Join(versions, ", "))
-			profileMCPath = versions[0] // Use first available
-			fmt.Printf("Using: %s\n", profileMCPath)
-		}
-	}
-
-	if verbose {
-		fmt.Printf("🔧 Using alias: %s\n", alias)
-		fmt.Printf("� Profile type: %s\n", profileTypeArg)
-		fmt.Printf("⏱️  Duration: %s\n", duration)
-		fmt.Printf("� MC Binary: %s\n", profileMCPath)
-		if detectLeaks {
-			fmt.Printf("🕵️  Leak detection: enabled\n")
-			fmt.Printf("📈 Monitor interval: %s\n", monitorIntervalDuration)
-			fmt.Printf("🚨 Threshold: %d MB\n", thresholdMB)
-		}
-		if profileOutput != "" {
-			fmt.Printf("� Output: %s\n", profileOutput)
-		}
-		fmt.Println()
-	}
-
-	// Test mc admin profile command availability
-	if err := profile.TestMCAdminProfile(profileMCPath, alias); err != nil {
-		fmt.Printf("⚠️  Warning: Failed to test mc admin profile: %v\n", err)
-		fmt.Printf("💡 Try using mc-2021 version: --mc-path mc-2021\n")
-		fmt.Printf("💡 Or check if alias is properly configured: mc alias list\n")
-
-		// Still proceed but with warning
+	mcBinary := profileMCPath
+	if _, err := exec.LookPath(mcBinary); err != nil {
+		log.Fatalf("MC binary not found: %s\nPlease install mc21 or specify path with --mc-path", mcBinary)
 	}
 
 	// Create profile options
-	opts := profile.ProfileOptions{
-		Alias:           alias,
-		ProfileType:     profileTypeArg,
-		Duration:        duration,
-		Output:          profileOutput,
-		Verbose:         verbose,
-		MCPath:          profileMCPath,
-		DetectLeaks:     detectLeaks,
-		MonitorInterval: monitorIntervalDuration,
-		ThresholdMB:     thresholdMB,
+	opts := profile.MC21ProfileOptions{
+		Alias:       alias,
+		ProfileType: profileType,
+		Duration:    duration,
+		Output:      profileOutput,
+		Verbose:     verbose,
+		MCPath:      mcBinary,
+		Insecure:    insecure,
 	}
 
 	// Run profiling
-	if detectLeaks && profileTypeArg == "heap" {
-		// Use memory leak monitoring for heap profiles
-		err = profile.MonitorMemoryLeaks(opts)
-	} else {
-		// Standard profiling
-		err = profile.RunProfile(opts)
+	result, err := profile.RunMC21Profile(opts)
+	if err != nil {
+		log.Fatalf("Profiling failed: %v", err)
 	}
 
-	if err != nil {
-		log.Fatalf("Profile failed: %v", err)
-	}
+	// Display analysis commands
+	profile.PrintProfileCommands(result)
 }
 
 func runWeb(cmd *cobra.Command, args []string) {

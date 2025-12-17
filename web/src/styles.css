@@ -2,9 +2,16 @@
 :root {
     --primary-color: #0B5FC3;
     --primary-hover: #094A9E;
+    --primary-light: #E3F2FD;
     --success-color: #4CAF50;
+    --success-light: #E8F5E9;
+    --success-text: #1B5E20;
     --warning-color: #FF9800;
+    --warning-light: #FFF3E0;
+    --warning-text: #E65100;
     --danger-color: #F44336;
+    --danger-light: #FFEBEE;
+    --danger-text: #B71C1C;
     --text-primary: #1E1E1E;
     --text-secondary: #6B6B6B;
     --text-muted: #9E9E9E;
@@ -393,6 +400,39 @@ body {
     50% { opacity: 0.6; }
 }
 
+/* Alerts */
+.alert {
+    padding: 12px 16px;
+    border-radius: 6px;
+    border: 1px solid;
+    margin-bottom: 16px;
+    font-size: 14px;
+}
+
+.alert-success {
+    background-color: var(--success-light);
+    color: var(--success-text);
+    border-color: var(--success-color);
+}
+
+.alert-warning {
+    background-color: var(--warning-light);
+    color: var(--warning-text);
+    border-color: var(--warning-color);
+}
+
+.alert-danger {
+    background-color: var(--danger-light);
+    color: var(--danger-text);
+    border-color: var(--danger-color);
+}
+
+.alert-info {
+    background-color: var(--primary-light);
+    color: #0D47A1;
+    border-color: var(--primary-color);
+}
+
 /* Loading spinner */
 .loading {
     display: flex;
@@ -413,6 +453,10 @@ body {
 @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
+}
+
+.spin {
+    animation: spin 1s linear infinite;
 }
 
 /* Modal */

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { GitCompare, List, Zap, ArrowRight, Activity } from 'lucide-react';
+import { GitCompare, List, Zap, ArrowRight, Activity, AlertTriangle } from 'lucide-react';
 import { useI18n } from '../utils/i18n';
 
 const OperationsPage = ({ sites, replicationInfo }) => {
@@ -152,7 +152,10 @@ const OperationsPage = ({ sites, replicationInfo }) => {
             {!hasReplication && (
                 <div className="card" style={{ marginBottom: '24px', backgroundColor: '#fff3cd', border: '1px solid #ffeaa7' }}>
                     <div style={{ padding: '16px' }}>
-                        <h4 style={{ margin: '0 0 8px 0', color: '#856404' }}>{t('operations_replication_warning_title', '⚠️ Site Replication Not Configured')}</h4>
+                        <h4 style={{ margin: '0 0 8px 0', color: '#856404', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <AlertTriangle size={18} />
+                            <span>{t('operations_replication_warning_title', 'Site Replication Not Configured')}</span>
+                        </h4>
                         <p style={{ margin: 0, color: '#856404' }}>
                             {t('operations_replication_warning_desc', 'Some operations require site replication to be configured. However, compare and checklist operations can work with individual aliases.')}
                         </p>

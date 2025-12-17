@@ -7,7 +7,7 @@ module.exports = {
     path: path.resolve(__dirname, 'build'),
     filename: '[name].[contenthash].js',
     chunkFilename: '[name].[contenthash].chunk.js',
-    publicPath: '/static/',
+    publicPath: '/minio-webtool/static/',
     clean: true,
   },
   optimization: {

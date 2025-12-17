@@ -10,11 +10,12 @@ const OverviewPage = lazy(() => import('./pages/OverviewPage'));
 const SitesPage = lazy(() => import('./pages/SitesPage'));
 const ReplicationOperatorPage = lazy(() => import('./pages/ReplicationOperatorPage'));
 const TracingPage = lazy(() => import('./pages/TracingPage'));
-const ChecklistPage = lazy(() => import('./pages/ChecklistPage'));
+const ValidatePage = lazy(() => import('./pages/ValidatePage'));
 const CompareOperations = lazy(() => import('./components/operations/CompareOperations'));
-const ChecklistOperations = lazy(() => import('./components/operations/ChecklistOperations'));
+const ValidateOperations = lazy(() => import('./components/operations/ValidateOperations'));
 const SiteOperations = lazy(() => import('./components/operations/SiteOperations'));
 const TraceOperations = lazy(() => import('./components/operations/TraceOperations'));
+const ProfileOperations = lazy(() => import('./components/operations/ProfileOperations'));
 const TerminalPage = lazy(() => import('./pages/TerminalPage'));
 
 // Loading spinner component
@@ -173,7 +174,7 @@ function App() {
 
     return (
         <I18nProvider>
-            <Router>
+            <Router basename="/minio-webtool">
                 <div className="app-container">
                     <Header onRefresh={loadInitialData} />
                     <div className="app-layout">
@@ -193,15 +194,15 @@ function App() {
                                         {/* Replication Operator Routes */}
                                         <Route path="/replication-operator" element={<ReplicationOperatorPage {...pageProps} />} />
                                         <Route path="/replication-operator/compare" element={<CompareOperations sites={sites} />} />
-                                        <Route path="/replication-operator/resync" element={<SiteOperations hasReplication={replicationInfo?.enabled} />} />
                                         
                                         {/* Tracing Routes */}
                                         <Route path="/tracing" element={<TracingPage sites={sites} />} />
                                         <Route path="/tracing/analyzer" element={<TraceOperations sites={sites} />} />
+                                        <Route path="/tracing/profiler" element={<ProfileOperations sites={sites} />} />
                                         
-                                        {/* Checklist Routes */}
-                                        <Route path="/checklist" element={<ChecklistPage sites={sites} />} />
-                                        <Route path="/checklist/configuration" element={<ChecklistOperations />} />
+                                        {/* Validate Routes */}
+                                        <Route path="/validate" element={<ValidatePage sites={sites} />} />
+                                        <Route path="/validate/configuration" element={<ValidateOperations />} />
                                         
                                         {/* Terminal */}
                                         <Route path="/terminal" element={<TerminalPage />} />

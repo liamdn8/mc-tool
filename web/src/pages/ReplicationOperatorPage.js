@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { GitCompare, Zap, ArrowRight } from 'lucide-react';
+import { GitCompare, Zap, ArrowRight, AlertTriangle } from 'lucide-react';
 import { useI18n } from '../utils/i18n';
 
 const ReplicationOperatorPage = ({ sites, replicationInfo }) => {
@@ -86,8 +86,9 @@ const ReplicationOperatorPage = ({ sites, replicationInfo }) => {
             {!hasReplication && (
                 <div className="card" style={{ marginBottom: '24px', backgroundColor: '#fff3cd', border: '1px solid #ffeaa7' }}>
                     <div style={{ padding: '16px' }}>
-                        <h4 style={{ margin: '0 0 8px 0', color: '#856404' }}>
-                            {t('operations_replication_warning_title', '⚠️ Site Replication Not Configured')}
+                        <h4 style={{ margin: '0 0 8px 0', color: '#856404', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <AlertTriangle size={18} />
+                            <span>{t('operations_replication_warning_title', 'Site Replication Not Configured')}</span>
                         </h4>
                         <p style={{ margin: 0, color: '#856404' }}>
                             {t('replication_operator_warning', 'Some operations require site replication to be configured. Compare operations can work with individual aliases.')}

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/liamdn8/mc-tool/pkg/logger"
+	"github.com/liamdn8/mc-tool/pkg/profile"
 	"github.com/liamdn8/mc-tool/pkg/trace"
 )
 
@@ -16,6 +17,7 @@ type OperationsService struct {
 	minioService       *MinIOService
 	replicationService *ReplicationService
 	buckets            *bucketService
+	executablePath     string
 }
 
 // NewOperationsService creates a new operations service
@@ -26,6 +28,7 @@ func NewOperationsService(minioService *MinIOService, replicationService *Replic
 		minioService:       minioService,
 		replicationService: replicationService,
 		buckets:            buckets,
+		executablePath:     minioService.executablePath,
 	}
 }
 
@@ -38,6 +41,15 @@ type TraceCaptureOptions struct {
 	GroupByAPI      bool
 	GroupByClient   bool
 	GroupByVersions bool
+	Insecure        bool // Skip TLS certificate verification
+}
+
+// ProfileCaptureOptions encapsulates configuration for profile captures
+type ProfileCaptureOptions struct {
+	Alias       string
+	Duration    time.Duration
+	ProfileType string // cpu,mem,block,mutex,goroutines
+	Insecure    bool   // Skip TLS certificate verification
 }
 
 // SyncBucketPolicies synchronizes bucket policies across all sites
@@ -351,12 +363,13 @@ func (os *OperationsService) HealthCheck() (map[string]interface{}, error) {
 }
 
 // CompareBuckets compares content between two aliases
-func (os *OperationsService) CompareBuckets(sourceAlias, destAlias, path string, compareVersion bool) (map[string]interface{}, error) {
+func (os *OperationsService) CompareBuckets(sourceAlias, destAlias, path string, compareVersion bool, insecure bool) (map[string]interface{}, error) {
 	logger.GetLogger().Info("Starting bucket comparison", map[string]interface{}{
 		"source":         sourceAlias,
 		"dest":           destAlias,
 		"path":           path,
 		"compareVersion": compareVersion,
+		"insecure":       insecure,
 	})
 
 	// Build mc-tool compare command
@@ -371,14 +384,17 @@ func (os *OperationsService) CompareBuckets(sourceAlias, destAlias, path string,
 		dest = destAlias
 	}
 
-	// Use mc-tool compare command with --insecure flag and optionally --versions
-	args := []string{"compare", "--insecure"}
+	// Use mc-tool compare command with optional --insecure flag and --versions
+	args := []string{"compare"}
+	if insecure {
+		args = append(args, "--insecure")
+	}
 	if compareVersion {
 		args = append(args, "--versions")
 	}
 	args = append(args, source, dest)
 
-	cmd = exec.Command("./mc-tool", args...)
+	cmd = exec.Command(os.executablePath, args...)
 
 	output, err := cmd.CombinedOutput()
 	outputStr := string(output)
@@ -540,7 +556,7 @@ func (os *OperationsService) RunTraceCapture(opts TraceCaptureOptions) (map[stri
 		Alias:               alias,
 		MCPath:              "mc",
 		Duration:            duration,
-		Insecure:            false,
+		Insecure:            opts.Insecure,
 		Verbose:             false,
 		StatusCodeFilters:   statusCodes,
 		ErrorMessageFilters: errorFilters,
@@ -677,6 +693,382 @@ func (os *OperationsService) RunTraceCapture(opts TraceCaptureOptions) (map[stri
 	return response, nil
 }
 
+// RunProfileCapture executes mc admin profile and returns analysis commands
+func (os *OperationsService) RunProfileCapture(opts ProfileCaptureOptions) (map[string]interface{}, error) {
+	alias := strings.TrimSpace(opts.Alias)
+	if alias == "" {
+		return nil, fmt.Errorf("alias is required")
+	}
+
+	duration := opts.Duration
+	if duration <= 0 {
+		duration = 30 * time.Second
+	}
+	if duration < time.Second {
+		duration = time.Second
+	}
+	if duration > 5*time.Minute {
+		duration = 5 * time.Minute
+	}
+
+	profileType := strings.TrimSpace(opts.ProfileType)
+	if profileType == "" {
+		profileType = "cpu,mem"
+	}
+
+	logger.GetLogger().Info("Starting profile capture", map[string]interface{}{
+		"alias":        alias,
+		"duration":     duration.String(),
+		"profile_type": profileType,
+	})
+
+	// Run mc21 profile
+	profileOpts := profile.MC21ProfileOptions{
+		Alias:       alias,
+		ProfileType: profileType,
+		Duration:    duration,
+		Output:      "/tmp",
+		Verbose:     false,
+		MCPath:      "mc21",
+		Insecure:    opts.Insecure,
+	}
+
+	result, err := profile.RunMC21Profile(profileOpts)
+	if err != nil {
+		logger.GetLogger().Error("Profile capture failed", map[string]interface{}{
+			"alias": alias,
+			"error": err.Error(),
+		})
+		return nil, err
+	}
+
+	logger.GetLogger().Info("Profile capture completed", map[string]interface{}{
+		"alias":      alias,
+		"output_dir": result.OutputDir,
+		"cpu_files":  len(result.CPUFiles),
+		"mem_files":  len(result.MemFiles),
+		"other":      len(result.OtherFiles),
+	})
+
+	// Build command suggestions
+	commands := buildProfileCommands(result)
+
+	// Parse profiles for analysis
+	profileAnalysis := make(map[string]interface{})
+
+	// Parse CPU profiles
+	if len(result.CPUFiles) > 0 {
+		if analysis, err := parseProfileFile(result.CPUFiles[0], "cpu"); err == nil {
+			profileAnalysis["cpu"] = analysis
+		}
+	}
+
+	// Parse Memory profiles
+	if len(result.MemFiles) > 0 {
+		if analysis, err := parseProfileFile(result.MemFiles[0], "mem"); err == nil {
+			profileAnalysis["mem"] = analysis
+		}
+	}
+
+	// Parse Other profiles
+	if len(result.OtherFiles) > 0 {
+		for _, file := range result.OtherFiles {
+			profileType := "other"
+			basename := file[strings.LastIndex(file, "/")+1:]
+			if strings.Contains(basename, "block") {
+				profileType = "block"
+			} else if strings.Contains(basename, "mutex") {
+				profileType = "mutex"
+			} else if strings.Contains(basename, "goroutine") {
+				profileType = "goroutines"
+			} else if strings.Contains(basename, "thread") {
+				profileType = "threads"
+			}
+
+			if analysis, err := parseProfileFile(file, profileType); err == nil {
+				profileAnalysis[profileType] = analysis
+			}
+		}
+	}
+
+	response := map[string]interface{}{
+		"success":   true,
+		"alias":     alias,
+		"duration":  duration.String(),
+		"outputDir": result.OutputDir,
+		"files": map[string]interface{}{
+			"cpu":   result.CPUFiles,
+			"mem":   result.MemFiles,
+			"other": result.OtherFiles,
+		},
+		"commands": commands,
+		"analysis": profileAnalysis,
+	}
+
+	return response, nil
+}
+
+// buildProfileCommands generates suggested analysis commands
+func buildProfileCommands(result *profile.MC21ProfileResult) map[string]interface{} {
+	commands := map[string]interface{}{}
+
+	// CPU commands
+	if len(result.CPUFiles) > 0 {
+		cpuCmds := []map[string]string{}
+		for _, file := range result.CPUFiles {
+			cpuCmds = append(cpuCmds,
+				map[string]string{
+					"label":   "Web UI (recommended)",
+					"command": fmt.Sprintf("go tool pprof -http=:8080 %s", file),
+				},
+				map[string]string{
+					"label":   "Top 10 CPU-intensive functions",
+					"command": fmt.Sprintf("go tool pprof -top -nodecount=10 %s", file),
+				},
+				map[string]string{
+					"label":   "Flamegraph SVG",
+					"command": fmt.Sprintf("go tool pprof -svg %s > cpu-flamegraph.svg", file),
+				},
+			)
+		}
+		commands["cpu"] = cpuCmds
+	}
+
+	// Memory commands
+	if len(result.MemFiles) > 0 {
+		memCmds := []map[string]string{}
+		for _, file := range result.MemFiles {
+			memCmds = append(memCmds,
+				map[string]string{
+					"label":   "Web UI (recommended)",
+					"command": fmt.Sprintf("go tool pprof -http=:8080 %s", file),
+				},
+				map[string]string{
+					"label":   "Top 10 memory allocations",
+					"command": fmt.Sprintf("go tool pprof -top -nodecount=10 -alloc_space %s", file),
+				},
+				map[string]string{
+					"label":   "Top 10 in-use memory",
+					"command": fmt.Sprintf("go tool pprof -top -nodecount=10 -inuse_space %s", file),
+				},
+			)
+		}
+		commands["mem"] = memCmds
+	}
+
+	// Other profile commands
+	if len(result.OtherFiles) > 0 {
+		otherCmds := []map[string]string{}
+		for _, file := range result.OtherFiles {
+			basename := file[strings.LastIndex(file, "/")+1:]
+			var label string
+			if strings.Contains(basename, "block") {
+				label = "Block Profile"
+			} else if strings.Contains(basename, "mutex") {
+				label = "Mutex Profile"
+			} else if strings.Contains(basename, "goroutine") {
+				label = "Goroutine Profile"
+			} else {
+				label = "Other Profile"
+			}
+
+			otherCmds = append(otherCmds,
+				map[string]string{
+					"label":   fmt.Sprintf("%s - Web UI", label),
+					"command": fmt.Sprintf("go tool pprof -http=:8080 %s", file),
+				},
+				map[string]string{
+					"label":   fmt.Sprintf("%s - Top 10", label),
+					"command": fmt.Sprintf("go tool pprof -top -nodecount=10 %s", file),
+				},
+			)
+		}
+		commands["other"] = otherCmds
+	}
+
+	return commands
+}
+
+// ProfileFunction represents a function in pprof output
+type ProfileFunction struct {
+	Rank    int     `json:"rank"`
+	Flat    int64   `json:"flat"`
+	FlatPct float64 `json:"flatPct"`
+	Cum     int64   `json:"cum"`
+	CumPct  float64 `json:"cumPct"`
+	Name    string  `json:"name"`
+}
+
+// ProfileAnalysis represents analyzed profile data
+type ProfileAnalysis struct {
+	Type      string            `json:"type"`
+	Unit      string            `json:"unit"`
+	Total     int64             `json:"total"`
+	Functions []ProfileFunction `json:"functions"`
+}
+
+// parseProfileFile parses a pprof file and returns analysis data
+func parseProfileFile(filepath string, profileType string) (*ProfileAnalysis, error) {
+	// Run go tool pprof -top -nodecount=50 to get top functions
+	cmd := exec.Command("go", "tool", "pprof", "-top", "-nodecount=50", filepath)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("failed to run pprof: %v", err)
+	}
+
+	analysis := &ProfileAnalysis{
+		Type:      profileType,
+		Functions: []ProfileFunction{},
+	}
+
+	// Parse output
+	lines := strings.Split(string(output), "\n")
+	var total int64
+	rank := 1
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		// Extract total from header like "Total: 10000ms"
+		if strings.HasPrefix(line, "Total:") {
+			parts := strings.Fields(line)
+			if len(parts) >= 2 {
+				totalStr := parts[1]
+				// Parse unit
+				if strings.HasSuffix(totalStr, "ms") {
+					analysis.Unit = "ms"
+					totalStr = strings.TrimSuffix(totalStr, "ms")
+				} else if strings.HasSuffix(totalStr, "s") {
+					analysis.Unit = "s"
+					totalStr = strings.TrimSuffix(totalStr, "s")
+				} else if strings.HasSuffix(totalStr, "GB") {
+					analysis.Unit = "bytes"
+					totalStr = strings.TrimSuffix(totalStr, "GB")
+					if val, err := fmt.Sscanf(totalStr, "%f", &total); err == nil && val == 1 {
+						total = int64(total * 1024 * 1024 * 1024)
+					}
+				} else if strings.HasSuffix(totalStr, "MB") {
+					analysis.Unit = "bytes"
+					totalStr = strings.TrimSuffix(totalStr, "MB")
+					var fval float64
+					if _, err := fmt.Sscanf(totalStr, "%f", &fval); err == nil {
+						total = int64(fval * 1024 * 1024)
+					}
+				} else if strings.HasSuffix(totalStr, "KB") {
+					analysis.Unit = "bytes"
+					totalStr = strings.TrimSuffix(totalStr, "KB")
+					var fval float64
+					if _, err := fmt.Sscanf(totalStr, "%f", &fval); err == nil {
+						total = int64(fval * 1024)
+					}
+				} else if strings.HasSuffix(totalStr, "B") {
+					analysis.Unit = "bytes"
+					totalStr = strings.TrimSuffix(totalStr, "B")
+					fmt.Sscanf(totalStr, "%d", &total)
+				}
+				if analysis.Unit == "ms" || analysis.Unit == "s" {
+					var fval float64
+					if _, err := fmt.Sscanf(totalStr, "%f", &fval); err == nil {
+						if analysis.Unit == "s" {
+							total = int64(fval * 1000) // convert to ms
+							analysis.Unit = "ms"
+						} else {
+							total = int64(fval)
+						}
+					}
+				}
+			}
+			continue
+		}
+
+		// Parse function lines like: "  10ms  5.00%  20ms  10.00%  runtime.scanobject"
+		// Format: flat flat% sum% cum cum% function
+		fields := strings.Fields(line)
+		if len(fields) < 6 {
+			continue
+		}
+
+		// Check if first field looks like a value (number with optional unit)
+		if !strings.ContainsAny(fields[0], "0123456789") {
+			continue
+		}
+
+		var flat int64
+		var flatPct, cumPct float64
+		var cum int64
+		var funcName string
+
+		// Parse flat value
+		flatStr := fields[0]
+		if strings.HasSuffix(flatStr, "ms") {
+			flatStr = strings.TrimSuffix(flatStr, "ms")
+			fmt.Sscanf(flatStr, "%d", &flat)
+		} else if strings.HasSuffix(flatStr, "MB") {
+			flatStr = strings.TrimSuffix(flatStr, "MB")
+			var fval float64
+			fmt.Sscanf(flatStr, "%f", &fval)
+			flat = int64(fval * 1024 * 1024)
+		} else if strings.HasSuffix(flatStr, "KB") {
+			flatStr = strings.TrimSuffix(flatStr, "KB")
+			var fval float64
+			fmt.Sscanf(flatStr, "%f", &fval)
+			flat = int64(fval * 1024)
+		} else if strings.HasSuffix(flatStr, "B") {
+			flatStr = strings.TrimSuffix(flatStr, "B")
+			fmt.Sscanf(flatStr, "%d", &flat)
+		}
+
+		// Parse flat%
+		flatPctStr := strings.TrimSuffix(fields[1], "%")
+		fmt.Sscanf(flatPctStr, "%f", &flatPct)
+
+		// Skip sum% field (fields[2])
+
+		// Parse cum value
+		cumStr := fields[3]
+		if strings.HasSuffix(cumStr, "ms") {
+			cumStr = strings.TrimSuffix(cumStr, "ms")
+			fmt.Sscanf(cumStr, "%d", &cum)
+		} else if strings.HasSuffix(cumStr, "MB") {
+			cumStr = strings.TrimSuffix(cumStr, "MB")
+			var fval float64
+			fmt.Sscanf(cumStr, "%f", &fval)
+			cum = int64(fval * 1024 * 1024)
+		} else if strings.HasSuffix(cumStr, "KB") {
+			cumStr = strings.TrimSuffix(cumStr, "KB")
+			var fval float64
+			fmt.Sscanf(cumStr, "%f", &fval)
+			cum = int64(fval * 1024)
+		} else if strings.HasSuffix(cumStr, "B") {
+			cumStr = strings.TrimSuffix(cumStr, "B")
+			fmt.Sscanf(cumStr, "%d", &cum)
+		}
+
+		// Parse cum%
+		cumPctStr := strings.TrimSuffix(fields[4], "%")
+		fmt.Sscanf(cumPctStr, "%f", &cumPct)
+
+		// Function name is everything after cum%
+		funcName = strings.Join(fields[5:], " ")
+
+		analysis.Functions = append(analysis.Functions, ProfileFunction{
+			Rank:    rank,
+			Flat:    flat,
+			FlatPct: flatPct,
+			Cum:     cum,
+			CumPct:  cumPct,
+			Name:    funcName,
+		})
+		rank++
+	}
+
+	analysis.Total = total
+	return analysis, nil
+}
+
 // GetBucketsForAlias returns list of buckets for a specific alias
 func (os *OperationsService) GetBucketsForAlias(alias string) ([]string, error) {
 	return os.buckets.ListBuckets(alias)
@@ -692,9 +1084,9 @@ func (os *OperationsService) GetPathSuggestionsForBucket(alias, bucket string) (
 	return os.buckets.SuggestPaths(alias, bucket)
 }
 
-// ConfigurationChecklist performs comprehensive configuration checks
-func (os *OperationsService) ConfigurationChecklist() (map[string]interface{}, error) {
-	logger.GetLogger().Info("Starting configuration checklist", nil)
+// ConfigurationValidation performs comprehensive configuration checks
+func (os *OperationsService) ConfigurationValidation() (map[string]interface{}, error) {
+	logger.GetLogger().Info("Starting configuration validation", nil)
 
 	aliases, err := os.minioService.GetAliases()
 	if err != nil {
@@ -784,7 +1176,7 @@ func (os *OperationsService) ConfigurationChecklist() (map[string]interface{}, e
 		"timestamp": "generated",
 	}
 
-	logger.GetLogger().Info("Configuration checklist completed", map[string]interface{}{
+	logger.GetLogger().Info("Configuration validation completed", map[string]interface{}{
 		"total":    totalChecks,
 		"passed":   passedChecks,
 		"failed":   failedChecks,
@@ -794,7 +1186,420 @@ func (os *OperationsService) ConfigurationChecklist() (map[string]interface{}, e
 	return results, nil
 }
 
-// Helper methods for checklist
+// ValidateBucketConfiguration validates bucket lifecycle and event configuration across multiple aliases
+func (os *OperationsService) ValidateBucketConfiguration(aliases []string, bucket string, checkLifecycle, checkEvents bool) (map[string]interface{}, error) {
+	logger.GetLogger().Info("Starting bucket configuration validation", map[string]interface{}{
+		"aliases": aliases,
+		"bucket":  bucket,
+	})
+
+	// First, check if bucket exists on all aliases
+	bucketExistence := make(map[string]bool)
+	for _, alias := range aliases {
+		cmd := exec.Command("mc", "ls", fmt.Sprintf("%s/%s", alias, bucket))
+		err := cmd.Run()
+		bucketExistence[alias] = (err == nil)
+	}
+
+	results := make(map[string]interface{})
+	results["bucket"] = bucket
+	results["bucket_existence"] = bucketExistence
+
+	// Determine reference alias (first one where bucket exists)
+	var referenceAlias string
+	for _, alias := range aliases {
+		if bucketExistence[alias] {
+			referenceAlias = alias
+			break
+		}
+	}
+
+	if referenceAlias == "" {
+		return map[string]interface{}{
+			"bucket":           bucket,
+			"bucket_existence": bucketExistence,
+			"error":            "Bucket does not exist on any of the selected aliases",
+			"missing_buckets":  aliases,
+		}, nil
+	}
+
+	results["reference_alias"] = referenceAlias
+
+	// Check which aliases are missing the bucket
+	missingBuckets := []string{}
+	for _, alias := range aliases {
+		if !bucketExistence[alias] {
+			missingBuckets = append(missingBuckets, alias)
+		}
+	}
+	results["missing_buckets"] = missingBuckets
+
+	// Validate lifecycle configuration if requested
+	if checkLifecycle {
+		lifecycleResults := os.validateBucketLifecycle(aliases, bucket, referenceAlias, bucketExistence)
+		results["lifecycle"] = lifecycleResults
+	}
+
+	// Validate event configuration if requested
+	if checkEvents {
+		eventResults := os.validateBucketEvents(aliases, bucket, referenceAlias, bucketExistence)
+		results["events"] = eventResults
+	}
+
+	// Calculate summary
+	summary := map[string]interface{}{
+		"total_aliases":   len(aliases),
+		"buckets_found":   len(aliases) - len(missingBuckets),
+		"buckets_missing": len(missingBuckets),
+	}
+
+	if checkLifecycle || checkEvents {
+		summary["validation_performed"] = true
+	}
+
+	results["summary"] = summary
+
+	logger.GetLogger().Info("Bucket configuration validation completed", summary)
+
+	return results, nil
+}
+
+// compareLifecycleRules compares two lifecycle rule arrays, ignoring IDs and timestamps
+func compareLifecycleRules(refRules, targetRules []interface{}) bool {
+	if len(refRules) != len(targetRules) {
+		return false
+	}
+
+	// If both are empty or nil, they match
+	if len(refRules) == 0 {
+		return true
+	}
+
+	// Convert to JSON strings without IDs for comparison
+	refRulesJSON, err1 := json.Marshal(normalizeLifecycleRules(refRules))
+	targetRulesJSON, err2 := json.Marshal(normalizeLifecycleRules(targetRules))
+
+	if err1 != nil || err2 != nil {
+		return false
+	}
+
+	return string(refRulesJSON) == string(targetRulesJSON)
+}
+
+// normalizeLifecycleRules removes IDs from rules for comparison
+func normalizeLifecycleRules(rules []interface{}) []interface{} {
+	normalized := make([]interface{}, len(rules))
+	for i, rule := range rules {
+		if ruleMap, ok := rule.(map[string]interface{}); ok {
+			// Create a copy without the ID field
+			normalizedRule := make(map[string]interface{})
+			for k, v := range ruleMap {
+				if k != "ID" {
+					normalizedRule[k] = v
+				}
+			}
+			normalized[i] = normalizedRule
+		} else {
+			normalized[i] = rule
+		}
+	}
+	return normalized
+}
+
+// validateBucketLifecycle compares lifecycle configuration across aliases
+func (os *OperationsService) validateBucketLifecycle(aliases []string, bucket string, referenceAlias string, bucketExistence map[string]bool) map[string]interface{} {
+	results := make(map[string]interface{})
+
+	// Get reference lifecycle configuration
+	refCmd := exec.Command("mc", "ilm", "ls", fmt.Sprintf("%s/%s", referenceAlias, bucket), "--json")
+	refOutput, refErr := refCmd.CombinedOutput()
+
+	if refErr != nil {
+		results["reference_error"] = fmt.Sprintf("Failed to get lifecycle from %s: %v", referenceAlias, refErr)
+		results["reference_configured"] = false
+		return results
+	}
+
+	refLifecycle := string(refOutput)
+	results["reference_configured"] = strings.TrimSpace(refLifecycle) != "" && !strings.Contains(refLifecycle, "no lifecycle configuration")
+	results["reference_config"] = refLifecycle
+
+	// Parse reference lifecycle rules for comparison
+	var refRules []interface{}
+	var refLifecycleData map[string]interface{}
+	if json.Unmarshal([]byte(refLifecycle), &refLifecycleData) == nil {
+		if status, ok := refLifecycleData["status"].(string); ok && status == "success" {
+			if config, ok := refLifecycleData["config"].(map[string]interface{}); ok {
+				if rules, ok := config["Rules"].([]interface{}); ok {
+					refRules = rules
+				}
+			}
+		}
+	}
+
+	// Compare with all aliases (including reference)
+	comparisons := []map[string]interface{}{}
+	matchCount := 0
+	mismatchCount := 0
+
+	for _, alias := range aliases {
+		comparison := map[string]interface{}{
+			"alias": alias,
+		}
+
+		// Check if bucket exists on this alias
+		if !bucketExistence[alias] {
+			comparison["status"] = "error"
+			comparison["error"] = "Bucket does not exist"
+			comparison["configured"] = false
+			comparison["is_reference"] = (alias == referenceAlias)
+			mismatchCount++
+			comparisons = append(comparisons, comparison)
+			continue
+		}
+
+		// Mark if this is the reference alias
+		comparison["is_reference"] = (alias == referenceAlias)
+
+		var targetLifecycle string
+		var err error
+
+		if alias == referenceAlias {
+			// Use already retrieved reference data
+			targetLifecycle = refLifecycle
+		} else {
+			// Get lifecycle for comparison alias
+			cmd := exec.Command("mc", "ilm", "ls", fmt.Sprintf("%s/%s", alias, bucket), "--json")
+			var output []byte
+			output, err = cmd.CombinedOutput()
+			targetLifecycle = string(output)
+		}
+
+		if err != nil {
+			comparison["status"] = "error"
+			comparison["error"] = fmt.Sprintf("Failed to get lifecycle: %v", err)
+			comparison["configured"] = false
+			comparison["config_raw"] = ""
+			mismatchCount++
+		} else {
+			// Check if lifecycle is configured and parse rules
+			var lifecycleData map[string]interface{}
+			var targetRules []interface{}
+			isConfigured := false
+			configSummary := "Not configured"
+
+			if json.Unmarshal([]byte(targetLifecycle), &lifecycleData) == nil {
+				if status, ok := lifecycleData["status"].(string); ok && status == "success" {
+					if config, ok := lifecycleData["config"].(map[string]interface{}); ok {
+						if rules, ok := config["Rules"].([]interface{}); ok && len(rules) > 0 {
+							isConfigured = true
+							configSummary = fmt.Sprintf("%d rule(s)", len(rules))
+							targetRules = rules
+						}
+					}
+				}
+			}
+
+			comparison["configured"] = isConfigured
+			comparison["config_raw"] = targetLifecycle
+			comparison["config_summary"] = configSummary
+
+			// Compare rules content (ignore IDs, timestamps, etc.)
+			rulesMatch := compareLifecycleRules(refRules, targetRules)
+
+			if rulesMatch {
+				comparison["status"] = "match"
+				if alias == referenceAlias {
+					comparison["message"] = "Reference alias"
+				} else {
+					comparison["message"] = "Lifecycle configuration matches reference"
+				}
+				matchCount++
+			} else {
+				comparison["status"] = "mismatch"
+				comparison["message"] = "Lifecycle configuration differs from reference"
+				mismatchCount++
+			}
+		}
+
+		comparisons = append(comparisons, comparison)
+	}
+
+	results["comparisons"] = comparisons
+	results["match_count"] = matchCount
+	results["mismatch_count"] = mismatchCount
+
+	return results
+}
+
+// parseEventNotifications extracts event configuration from mc event list output
+func parseEventNotifications(eventsOutput string) []map[string]interface{} {
+	var events []map[string]interface{}
+
+	lines := strings.Split(strings.TrimSpace(eventsOutput), "\n")
+	for _, line := range lines {
+		if strings.TrimSpace(line) != "" {
+			var eventData map[string]interface{}
+			if json.Unmarshal([]byte(line), &eventData) == nil {
+				if status, ok := eventData["status"].(string); ok && status == "success" {
+					events = append(events, eventData)
+				}
+			}
+		}
+	}
+
+	return events
+}
+
+// compareEventNotifications compares two event notification arrays, ignoring ARNs
+func compareEventNotifications(refEvents, targetEvents []map[string]interface{}) bool {
+	if len(refEvents) != len(targetEvents) {
+		return false
+	}
+
+	// If both are empty, they match
+	if len(refEvents) == 0 {
+		return true
+	}
+
+	// For simplicity, compare normalized JSON (you may want more sophisticated comparison)
+	refJSON, err1 := json.Marshal(normalizeEventNotifications(refEvents))
+	targetJSON, err2 := json.Marshal(normalizeEventNotifications(targetEvents))
+
+	if err1 != nil || err2 != nil {
+		return false
+	}
+
+	return string(refJSON) == string(targetJSON)
+}
+
+// normalizeEventNotifications removes ARN-specific fields for comparison
+func normalizeEventNotifications(events []map[string]interface{}) []map[string]interface{} {
+	normalized := make([]map[string]interface{}, len(events))
+	for i, event := range events {
+		normalizedEvent := make(map[string]interface{})
+		for k, v := range event {
+			// Keep only the event configuration fields, not status/target specific fields
+			if k == "event" || k == "prefix" || k == "suffix" || k == "events" {
+				normalizedEvent[k] = v
+			}
+		}
+		normalized[i] = normalizedEvent
+	}
+	return normalized
+}
+
+// validateBucketEvents compares event notification configuration across aliases
+func (os *OperationsService) validateBucketEvents(aliases []string, bucket string, referenceAlias string, bucketExistence map[string]bool) map[string]interface{} {
+	results := make(map[string]interface{})
+
+	// Get reference event configuration
+	refCmd := exec.Command("mc", "event", "list", fmt.Sprintf("%s/%s", referenceAlias, bucket), "--json")
+	refOutput, refErr := refCmd.CombinedOutput()
+
+	if refErr != nil {
+		results["reference_error"] = fmt.Sprintf("Failed to get events from %s: %v", referenceAlias, refErr)
+		results["reference_configured"] = false
+		return results
+	}
+
+	refEvents := string(refOutput)
+	results["reference_configured"] = strings.TrimSpace(refEvents) != "" && !strings.Contains(refEvents, "no event notification found")
+	results["reference_config"] = refEvents
+
+	// Parse reference events for comparison
+	refEventsList := parseEventNotifications(refEvents)
+
+	// Compare with all aliases (including reference)
+	comparisons := []map[string]interface{}{}
+	matchCount := 0
+	mismatchCount := 0
+
+	for _, alias := range aliases {
+		comparison := map[string]interface{}{
+			"alias": alias,
+		}
+
+		// Check if bucket exists on this alias
+		if !bucketExistence[alias] {
+			comparison["status"] = "error"
+			comparison["error"] = "Bucket does not exist"
+			comparison["configured"] = false
+			comparison["is_reference"] = (alias == referenceAlias)
+			mismatchCount++
+			comparisons = append(comparisons, comparison)
+			continue
+		}
+
+		// Mark if this is the reference alias
+		comparison["is_reference"] = (alias == referenceAlias)
+
+		var targetEvents string
+		var err error
+
+		if alias == referenceAlias {
+			// Use already retrieved reference data
+			targetEvents = refEvents
+		} else {
+			// Get events for comparison alias
+			cmd := exec.Command("mc", "event", "list", fmt.Sprintf("%s/%s", alias, bucket), "--json")
+			var output []byte
+			output, err = cmd.CombinedOutput()
+			targetEvents = string(output)
+		}
+
+		if err != nil {
+			comparison["status"] = "error"
+			comparison["error"] = fmt.Sprintf("Failed to get events: %v", err)
+			comparison["configured"] = false
+			comparison["config_raw"] = ""
+			mismatchCount++
+		} else {
+			// Check if events are configured and parse them
+			isConfigured := false
+			configSummary := "Not configured"
+
+			targetEventsList := parseEventNotifications(targetEvents)
+			eventCount := len(targetEventsList)
+
+			if eventCount > 0 {
+				isConfigured = true
+				configSummary = fmt.Sprintf("%d event(s)", eventCount)
+			}
+
+			comparison["configured"] = isConfigured
+			comparison["config_raw"] = targetEvents
+			comparison["config_summary"] = configSummary
+
+			// Compare event configurations (ignore ARNs which may differ)
+			eventsMatch := compareEventNotifications(refEventsList, targetEventsList)
+
+			if eventsMatch {
+				comparison["status"] = "match"
+				if alias == referenceAlias {
+					comparison["message"] = "Reference alias"
+				} else {
+					comparison["message"] = "Event configuration matches reference"
+				}
+				matchCount++
+			} else {
+				comparison["status"] = "mismatch"
+				comparison["message"] = "Event configuration differs from reference"
+				mismatchCount++
+			}
+		}
+
+		comparisons = append(comparisons, comparison)
+	}
+
+	results["comparisons"] = comparisons
+	results["match_count"] = matchCount
+	results["mismatch_count"] = mismatchCount
+
+	return results
+}
+
+// Helper methods for validation
 func (os *OperationsService) checkEnvironmentVariables(alias string) []map[string]interface{} {
 	checks := []map[string]interface{}{}
 

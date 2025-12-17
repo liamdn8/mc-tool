@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Activity, Play, Filter, AlertCircle, BarChart3 } from 'lucide-react';
 import { runTraceCapture } from '../../utils/api';
 import { useI18n } from '../../utils/i18n';
+import ErrorAlert from '../ErrorAlert';
 
 const MAX_TABLE_ROWS = 100;
 const PAGE_SIZE_OPTIONS = [20, 50, 100];
@@ -259,7 +260,8 @@ const TraceOperations = ({ sites = [] }) => {
         errorInput: '',
         groupByAPI: true,
         groupByClient: false,
-        groupByVersions: false
+        groupByVersions: false,
+        insecure: false
     });
     const [results, setResults] = useState(null);
     const [rawViewMode, setRawViewMode] = useState('table');
@@ -496,7 +498,8 @@ const TraceOperations = ({ sites = [] }) => {
             errorContains: parseErrorFilters(form.errorInput),
             groupByApi: form.groupByAPI,
             groupByClient: form.groupByClient,
-            groupByVersions: form.groupByVersions
+            groupByVersions: form.groupByVersions,
+            insecure: form.insecure
         };
 
         try {
@@ -1283,22 +1286,7 @@ const TraceOperations = ({ sites = [] }) => {
                 </div>
 
                 <div style={{ padding: '20px' }}>
-                    {errorMessage && (
-                        <div style={{
-                            marginBottom: '16px',
-                            border: '1px solid #f87171',
-                            backgroundColor: '#fee2e2',
-                            color: '#b91c1c',
-                            padding: '12px',
-                            borderRadius: '6px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px'
-                        }}>
-                            <AlertCircle size={18} />
-                            <span>{errorMessage}</span>
-                        </div>
-                    )}
+                    {errorMessage && <ErrorAlert message={errorMessage} onClose={() => setErrorMessage('')} />}
 
                     <div style={{
                         display: 'grid',
@@ -1403,6 +1391,38 @@ const TraceOperations = ({ sites = [] }) => {
                                 }}
                             />
                         </div>
+                    </div>
+
+                    <div>
+                        <div style={{ margin: '0 0 20px 0' }}>
+                            <label style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                padding: '12px',
+                                border: '1px solid #d1d5db',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                border: form.insecure ? `1px solid #FF9800` : '1px solid #d1d5db',
+                                backgroundColor: form.insecure ? '#fdfbf8ff' : '#ffffff',
+                                fontSize: '13px',
+                                gap: '8px'
+                            }}>
+                                <input
+                                    type="checkbox"
+                                    checked={form.insecure}
+                                    onChange={(e) => handleChange('insecure', e.target.checked)}
+                                />
+                                <span>{t('insecure_option', 'Skip TLS certificate verification (--insecure)')}</span>
+                            </label>
+                        </div>
+                        {/* <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: '#374151' }}>
+                            <input
+                                type="checkbox"
+                                checked={form.insecure}
+                                onChange={(e) => handleChange('insecure', e.target.checked)}
+                            />
+                            {t('insecure_option', 'Skip TLS certificate verification (--insecure)')}
+                        </label> */}
                     </div>
 
                     <div style={{

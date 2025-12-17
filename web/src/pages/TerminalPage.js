@@ -81,7 +81,8 @@ const TerminalPage = () => {
         }
 
         const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-        const socket = new WebSocket(`${protocol}://${window.location.host}/api/terminal/ws`);
+        const basePath = '/minio-webtool';
+        const socket = new WebSocket(`${protocol}://${window.location.host}${basePath}/api/terminal/ws`);
         socketRef.current = socket;
 
         term.onData((data) => {

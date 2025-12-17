@@ -10,6 +10,7 @@ import {
     Square,
     Terminal,
     Eraser,
+    AlertTriangle,
 } from 'lucide-react';
 import { useI18n } from '../../utils/i18n';
 import {
@@ -502,9 +503,13 @@ const SiteOperations = ({ hasReplication }) => {
                             borderRadius: '8px',
                             color: '#7c5400',
                             fontSize: '14px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px'
                         }}
                     >
-                        ⚠️ {t('resync_requires_replication', 'Configure site replication to enable resync operations.')}
+                        <AlertTriangle size={16} />
+                        <span>{t('resync_requires_replication', 'Configure site replication to enable resync operations.')}</span>
                     </div>
                 )}
 

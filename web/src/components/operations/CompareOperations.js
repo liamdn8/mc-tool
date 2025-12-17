@@ -1,14 +1,18 @@
 import React, { useState } from 'react';
-import { GitCompare, Play } from 'lucide-react';
+import { GitCompare, Play, BarChart3, CheckCircle, AlertTriangle } from 'lucide-react';
+import ErrorAlert from '../ErrorAlert';
+import { apiCall } from '../../utils/api';
 
 const CompareOperations = ({ sites }) => {
     const [compareResults, setCompareResults] = useState(null);
+    const [error, setError] = useState(null);
     const [compareFormData, setCompareFormData] = useState({
         sourceAlias: '',
         destAlias: '',
         bucket: '',
         path: '',
-        compareVersion: false
+        compareVersion: false,
+        insecure: false
     });
     const [availableBuckets, setAvailableBuckets] = useState({});
     const [pathSuggestions, setPathSuggestions] = useState([]);
@@ -35,9 +39,8 @@ const CompareOperations = ({ sites }) => {
         }
 
         try {
-            const response = await fetch(`/api/operations/buckets?alias=${encodeURIComponent(alias)}`);
+            const { response, data: result } = await apiCall(`/api/operations/buckets?alias=${encodeURIComponent(alias)}`);
             if (response.ok) {
-                const result = await response.json();
                 setAvailableBuckets(prev => ({ ...prev, [alias]: result.buckets || [] }));
             } else {
                 setAvailableBuckets(prev => ({ ...prev, [alias]: [] }));
@@ -56,9 +59,8 @@ const CompareOperations = ({ sites }) => {
         }
 
         try {
-            const response = await fetch(`/api/operations/path-suggestions?alias=${encodeURIComponent(alias)}&bucket=${encodeURIComponent(bucket)}`);
+            const { response, data: result } = await apiCall(`/api/operations/path-suggestions?alias=${encodeURIComponent(alias)}&bucket=${encodeURIComponent(bucket)}`);
             if (response.ok) {
-                const result = await response.json();
                 setPathSuggestions(result.paths || []);
             } else {
                 setPathSuggestions([]);
@@ -82,9 +84,8 @@ const CompareOperations = ({ sites }) => {
         }
 
         try {
-            const response = await fetch(`/api/operations/bucket-versioning?sourceAlias=${encodeURIComponent(sourceAlias)}&destAlias=${encodeURIComponent(destAlias)}&bucket=${encodeURIComponent(bucket)}`);
+            const { response, data: result } = await apiCall(`/api/operations/bucket-versioning?sourceAlias=${encodeURIComponent(sourceAlias)}&destAlias=${encodeURIComponent(destAlias)}&bucket=${encodeURIComponent(bucket)}`);
             if (response.ok) {
-                const result = await response.json();
                 setVersioningStatus({
                     bothVersioned: result.bothVersioned,
                     sourceVersioning: result.sourceVersioning,
@@ -155,26 +156,25 @@ const CompareOperations = ({ sites }) => {
 
     const executeCompare = async () => {
         setIsRunning(true);
+        setError(null);
         try {
-            const response = await fetch('/api/operations/compare', {
+            const { response, data: result } = await apiCall('/api/operations/compare', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     sourceAlias: compareFormData.sourceAlias,
                     destAlias: compareFormData.destAlias,
                     path: compareFormData.bucket + (compareFormData.path ? '/' + compareFormData.path : ''),
-                    compareVersion: compareFormData.compareVersion
+                    compareVersion: compareFormData.compareVersion,
+                    insecure: compareFormData.insecure
                 })
             });
-            
-            const result = await response.json();
             if (response.ok) {
                 setCompareResults(result);
             } else {
-                alert(`Compare failed: ${result.error || 'Unknown error'}`);
+                setError(result.error || 'Unknown error');
             }
-        } catch (error) {
-            alert(`Compare failed: ${error.message}`);
+        } catch (err) {
+            setError(err.message || 'Network error occurred');
         } finally {
             setIsRunning(false);
         }
@@ -387,8 +387,9 @@ const CompareOperations = ({ sites }) => {
         
         return (
             <div style={{ marginTop: '20px', padding: '16px', border: '1px solid #e9ecef', borderRadius: '8px', backgroundColor: '#fafafa' }}>
-                <h5 style={{ margin: '0 0 16px 0', color: '#495057' }}>
-                    📊 Comparison Results
+                <h5 style={{ margin: '0 0 16px 0', color: '#495057', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <BarChart3 size={20} />
+                    <span>Comparison Results</span>
                     {compareFormData.compareVersion && (
                         <span style={{ 
                             fontSize: '12px', 
@@ -456,7 +457,7 @@ const CompareOperations = ({ sites }) => {
                     {renderTable(
                         different,
                         'different',
-                        '⚠️ Different Content',
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><AlertTriangle size={16} /> Different Content</span>,
                         'No differences found'
                     )}
                     
@@ -469,7 +470,9 @@ const CompareOperations = ({ sites }) => {
                             borderRadius: '6px',
                             border: '1px solid #c3e6cb'
                         }}>
-                            <div style={{ fontSize: '48px', marginBottom: '16px' }}>✅</div>
+                            <div style={{ fontSize: '48px', marginBottom: '16px', display: 'flex', justifyContent: 'center' }}>
+                                <CheckCircle size={48} color="#28a745" />
+                            </div>
                             <div style={{ fontSize: '18px', fontWeight: '600', marginBottom: '8px' }}>Perfect Match!</div>
                             <div style={{ fontSize: '14px' }}>All files are identical between the two locations.</div>
                         </div>
@@ -484,6 +487,7 @@ const CompareOperations = ({ sites }) => {
 
     return (
         <div>
+            {error && <ErrorAlert message={error} onClose={() => setError(null)} />}
             <div className="card">
                 <div className="card-header">
                     <h3 className="card-title">
@@ -632,6 +636,34 @@ const CompareOperations = ({ sites }) => {
                                                 '(Versioning only enabled on one side)' :
                                                 '(Versioning not enabled on either bucket)'
                                     ) : '(Checking versioning status...)'}
+                                </span>
+                            </label>
+
+                            <label style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                gap: '8px', 
+                                fontSize: '14px', 
+                                fontWeight: '500',
+                                cursor: 'pointer'
+                            }}>
+                                <input 
+                                    type="checkbox"
+                                    checked={compareFormData.insecure}
+                                    onChange={(e) => setCompareFormData(prev => ({ ...prev, insecure: e.target.checked }))}
+                                    style={{ 
+                                        width: '16px', 
+                                        height: '16px',
+                                        cursor: 'pointer'
+                                    }}
+                                />
+                                <span>Insecure</span>
+                                <span style={{ 
+                                    fontSize: '12px', 
+                                    color: '#6c757d',
+                                    fontWeight: 'normal'
+                                }}>
+                                    Skip TLS certificate verification (--insecure)
                                 </span>
                             </label>
                         </div>

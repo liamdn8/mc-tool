@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, RefreshCw } from 'lucide-react';
+import { Plus, Trash2, RefreshCw, Brain } from 'lucide-react';
 import { useI18n } from '../utils/i18n';
 import SplitBrainWarning from '../components/SplitBrainWarning';
 import { getHealthBadgeClass, getHealthBadgeText } from '../utils/healthStatus';
@@ -622,7 +622,11 @@ const SitesPage = ({ sites, replicationInfo, checkingReplication, onRefresh }) =
                                     margin: '16px',
                                     fontSize: '0.875rem'
                                 }}>
-                                    <strong>{t('smart_add_title', '🧠 Smart Add Feature:')}</strong> {t('smart_add_description', 'Automatically detects existing clusters and intelligently:')}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                                        <Brain size={18} style={{ color: '#004085' }} />
+                                        <strong>{t('smart_add_title', 'Smart Add Feature:')}</strong>
+                                    </div>
+                                    <div>{t('smart_add_description', 'Automatically detects existing clusters and intelligently:')}</div>
                                     <ul style={{ margin: '8px 0 0 20px', padding: 0 }}>
                                         <li>{t('smart_add_create_cluster', 'Creates new cluster if no clusters exist')}</li>
                                         <li>{t('smart_add_use_existing', 'Adds to existing cluster if one cluster found')}</li>
