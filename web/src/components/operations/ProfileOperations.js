@@ -157,55 +157,30 @@ const ProfileOperations = ({ sites = [] }) => {
         const maxValue = Math.max(...top10.map(f => f.cumPct));
 
         return (
-            <div style={{ padding: '20px', backgroundColor: '#f9fafb', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
-                <h4 style={{ marginBottom: '16px', fontSize: '14px', fontWeight: '600', color: '#374151' }}>
+            <div className="p-5 bg-gray-50 rounded-lg border">
+                <h4 className="mb-4 text-sm font-semibold text-primary">
                     {t('profile_top_functions', 'Top 10 Functions by Cumulative %')}
                 </h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div className="flex flex-col gap-3">
                     {top10.map((item, idx) => (
-                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <div style={{ 
-                                minWidth: '30px', 
-                                fontSize: '12px', 
-                                fontWeight: '600',
-                                color: '#6b7280',
-                                textAlign: 'right'
-                            }}>
+                        <div key={idx} className="flex items-center gap-3">
+                            <div className="text-xs font-semibold text-secondary text-right" style={{ minWidth: '30px' }}>
                                 #{item.rank}
                             </div>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ 
-                                    display: 'flex', 
-                                    alignItems: 'center', 
-                                    marginBottom: '4px',
-                                    fontSize: '11px',
-                                    gap: '8px'
-                                }}>
-                                    <code style={{ 
-                                        flex: 1, 
-                                        overflow: 'hidden',
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center mb-1 text-xs gap-2">
+                                    <code className="flex-1 overflow-hidden text-primary" style={{ 
                                         textOverflow: 'ellipsis',
                                         whiteSpace: 'nowrap',
-                                        fontSize: '11px',
-                                        color: '#374151'
+                                        fontSize: '11px'
                                     }}>
                                         {item.name}
                                     </code>
-                                    <span style={{ 
-                                        fontWeight: '600',
-                                        color: '#2563eb',
-                                        minWidth: '60px',
-                                        textAlign: 'right'
-                                    }}>
+                                    <span className="font-semibold text-info text-right" style={{ minWidth: '60px' }}>
                                         {item.cumPct.toFixed(2)}%
                                     </span>
                                 </div>
-                                <div style={{ 
-                                    height: '6px', 
-                                    backgroundColor: '#e5e7eb',
-                                    borderRadius: '3px',
-                                    overflow: 'hidden'
-                                }}>
+                                <div className="bg-secondary rounded-sm overflow-hidden" style={{ height: '6px' }}>
                                     <div style={{ 
                                         height: '100%',
                                         width: `${(item.cumPct / maxValue) * 100}%`,
@@ -224,14 +199,7 @@ const ProfileOperations = ({ sites = [] }) => {
     const renderProfileTable = (analysis) => {
         if (!analysis || !analysis.functions || analysis.functions.length === 0) {
             return (
-                <div style={{
-                    padding: '40px',
-                    textAlign: 'center',
-                    color: '#6b7280',
-                    backgroundColor: '#f9fafb',
-                    borderRadius: '8px',
-                    border: '1px solid #e5e7eb'
-                }}>
+                <div className="empty-state">
                     No profile data available
                 </div>
             );
@@ -240,12 +208,9 @@ const ProfileOperations = ({ sites = [] }) => {
         const SortableHeader = ({ column, label, align = 'left' }) => (
             <th 
                 onClick={() => handleSort(column)}
+                className="p-3 text-xs font-normal text-secondary"
                 style={{ 
-                    padding: '12px', 
-                    textAlign: align, 
-                    fontSize: '12px', 
-                    fontWeight: '400',
-                    color: '#6b7280',
+                    textAlign: align,
                     cursor: 'pointer',
                     userSelect: 'none',
                     whiteSpace: 'nowrap'

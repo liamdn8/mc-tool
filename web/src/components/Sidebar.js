@@ -13,10 +13,13 @@ import {
     RefreshCw
 } from 'lucide-react';
 import { useI18n } from '../utils/i18n';
+import { useContentsPanel } from '../contexts/ContentsPanelContext';
+import PanelGroup, { Panel } from './PanelGroup';
 
 const Sidebar = () => {
     const { t } = useI18n();
     const location = useLocation();
+    const { contentsComponent } = useContentsPanel();
 
     const navItems = [
         { 
@@ -97,49 +100,69 @@ const Sidebar = () => {
 
     return (
         <aside className="app-sidebar">
-            <nav className="sidebar-nav">
-                {navItems.map(item => {
-                    const Icon = item.icon;
-                    const hasSubItems = item.subItems && item.subItems.length > 0;
-                    const isExpanded = isParentActive(item);
-                    
-                    return (
-                        <div key={item.id}>
-                            <Link
-                                to={item.path}
-                                className={`nav-link ${isParentActive(item) ? 'active' : ''}`}
-                            >
-                                <Icon size={20} />
-                                <span>{item.label}</span>
-                            </Link>
+            <PanelGroup direction="vertical">
+                <Panel 
+                    id="sidebar-navigation" 
+                    title="Navigation"
+                    collapsible={false}
+                    size={contentsComponent ? 65 : 100}
+                >
+                    <nav className="sidebar-nav">
+                        {navItems.map(item => {
+                            const Icon = item.icon;
+                            const hasSubItems = item.subItems && item.subItems.length > 0;
+                            const isExpanded = isParentActive(item);
                             
-                            {hasSubItems && isExpanded && (
-                                <div className="sub-nav">
-                                    {item.subItems.map(subItem => {
-                                        const SubIcon = subItem.icon;
-                                        return (
-                                            <Link
-                                                key={subItem.id}
-                                                to={subItem.path}
-                                                className={`nav-link sub-nav-link ${isActive(subItem.path) ? 'active' : ''}`}
-                                            >
-                                                <SubIcon size={16} />
-                                                <span>{subItem.label}</span>
-                                            </Link>
-                                        );
-                                    })}
+                            return (
+                                <div key={item.id}>
+                                    <Link
+                                        to={item.path}
+                                        className={`nav-link ${isParentActive(item) ? 'active' : ''}`}
+                                    >
+                                        <Icon size={20} />
+                                        <span>{item.label}</span>
+                                    </Link>
+                                    
+                                    {hasSubItems && isExpanded && (
+                                        <div className="sub-nav">
+                                            {item.subItems.map(subItem => {
+                                                const SubIcon = subItem.icon;
+                                                return (
+                                                    <Link
+                                                        key={subItem.id}
+                                                        to={subItem.path}
+                                                        className={`nav-link sub-nav-link ${isActive(subItem.path) ? 'active' : ''}`}
+                                                    >
+                                                        <SubIcon size={16} />
+                                                        <span>{subItem.label}</span>
+                                                    </Link>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
                                 </div>
-                            )}
+                            );
+                        })}
+                    </nav>
+                    <div className="sidebar-footer">
+                        <div className="mc-status">
+                            <Circle className="status-indicator" size={8} />
+                            <span>{t('mc_tool_running', 'mc-tool running')}</span>
                         </div>
-                    );
-                })}
-            </nav>
-            <div className="sidebar-footer">
-                <div className="mc-status">
-                    <Circle className="status-indicator" size={8} />
-                    <span>{t('mc_tool_running', 'mc-tool running')}</span>
-                </div>
-            </div>
+                    </div>
+                </Panel>
+
+                {contentsComponent && (
+                    <Panel 
+                        id="sidebar-contents" 
+                        title="Contents"
+                        collapsible={true}
+                        size={35}
+                    >
+                        {contentsComponent}
+                    </Panel>
+                )}
+            </PanelGroup>
         </aside>
     );
 };

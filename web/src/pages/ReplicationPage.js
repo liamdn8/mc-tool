@@ -50,7 +50,7 @@ const ReplicationPage = ({ sites, replicationInfo, onRefresh }) => {
 
             {!hasReplication ? (
                 <div className="card">
-                    <div style={{ textAlign: 'center', padding: '40px' }}>
+                    <div className="empty-state">
                         <h3>{t('replication_no_config_title', 'No Site Replication Configured')}</h3>
                         <p>{t('replication_no_config_description', 'Go to the Sites page to set up site replication.')}</p>
                     </div>
@@ -115,11 +115,11 @@ const ReplicationPage = ({ sites, replicationInfo, onRefresh }) => {
                                                     <div>
                                                         <strong>{site.name}</strong>
                                                         <br />
-                                                        <small style={{ color: 'var(--text-muted)' }}>{site.url}</small>
+                                                        <small className="text-muted">{site.url}</small>
                                                     </div>
                                                 </td>
                                                 <td>
-                                                    <code style={{ fontSize: '12px' }}>
+                                                    <code className="text-xs">
                                                         {site.deploymentID || '-'}
                                                     </code>
                                                 </td>

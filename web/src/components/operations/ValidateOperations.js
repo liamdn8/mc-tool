@@ -1,18 +1,47 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { CheckSquare, Play, CheckCircle, AlertCircle, XCircle, Loader, ChevronDown, ChevronRight } from 'lucide-react';
 import { apiCall } from '../../utils/api';
+import { useContentsPanel } from '../../contexts/ContentsPanelContext';
+import ConfigModal from '../validation/ConfigModal';
+import OverviewCards from '../validation/OverviewCards';
+import BucketExistenceTable from '../validation/BucketExistenceTable';
+import ConfigComparisonTable from '../validation/ConfigComparisonTable';
+import ValidationNavigation from '../validation/ValidationNavigation';
 
 const ValidateOperations = () => {
+    const { setContentsComponent } = useContentsPanel();
     const [aliases, setAliases] = useState([]);
     const [selectedAliases, setSelectedAliases] = useState([]);
     const [buckets, setBuckets] = useState([]);
-    const [selectedBucket, setSelectedBucket] = useState('');
+    const [selectedBuckets, setSelectedBuckets] = useState([]);
+    const [bucketSearch, setBucketSearch] = useState('');
     const [checkLifecycle, setCheckLifecycle] = useState(true);
     const [checkEvents, setCheckEvents] = useState(true);
     const [validationResults, setValidationResults] = useState(null);
     const [isRunning, setIsRunning] = useState(false);
     const [isLoadingBuckets, setIsLoadingBuckets] = useState(false);
-    const [expandedRows, setExpandedRows] = useState({});
+    const [modalConfig, setModalConfig] = useState(null);
+
+    // Update contents panel when validation results change
+    useEffect(() => {
+        if (validationResults) {
+            setContentsComponent(
+                <ValidationNavigation 
+                    validationResults={validationResults}
+                    checkLifecycle={checkLifecycle}
+                    checkEvents={checkEvents}
+                    embedded={true}
+                />
+            );
+        } else {
+            setContentsComponent(null);
+        }
+
+        // Cleanup when component unmounts
+        return () => {
+            setContentsComponent(null);
+        };
+    }, [validationResults, checkLifecycle, checkEvents, setContentsComponent]);
 
     // Load aliases on mount
     useEffect(() => {
@@ -25,7 +54,7 @@ const ValidateOperations = () => {
             loadBuckets(selectedAliases[0]);
         } else {
             setBuckets([]);
-            setSelectedBucket('');
+            setSelectedBuckets([]);
         }
     }, [selectedAliases]);
 
@@ -75,14 +104,39 @@ const ValidateOperations = () => {
         }
     };
 
+    const handleBucketToggle = (bucketName) => {
+        setSelectedBuckets(prev => {
+            if (prev.includes(bucketName)) {
+                return prev.filter(b => b !== bucketName);
+            } else {
+                return [...prev, bucketName];
+            }
+        });
+    };
+
+    const handleSelectAllBuckets = () => {
+        if (selectedBuckets.length === buckets.length) {
+            setSelectedBuckets([]);
+        } else {
+            setSelectedBuckets([...buckets]);
+        }
+    };
+
+    // Filter buckets based on search
+    const filteredBuckets = useMemo(() => {
+        if (!bucketSearch.trim()) return buckets;
+        const searchLower = bucketSearch.toLowerCase();
+        return buckets.filter(bucket => bucket.toLowerCase().includes(searchLower));
+    }, [buckets, bucketSearch]);
+
     const executeValidation = async () => {
         if (selectedAliases.length === 0) {
             alert('Please select at least one alias');
             return;
         }
 
-        if (!selectedBucket) {
-            alert('Please select a bucket');
+        if (selectedBuckets.length === 0) {
+            alert('Please select at least one bucket');
             return;
         }
 
@@ -99,7 +153,7 @@ const ValidateOperations = () => {
                 method: 'POST',
                 body: JSON.stringify({
                     aliases: selectedAliases,
-                    bucket: selectedBucket,
+                    buckets: selectedBuckets,
                     check_lifecycle: checkLifecycle,
                     check_events: checkEvents
                 })
@@ -117,458 +171,65 @@ const ValidateOperations = () => {
     };
 
     // Calculate severity based on configuration consistency
-    const calculateSeverity = (comparisons, referenceConfigured) => {
-        if (!comparisons || comparisons.length === 0) {
-            return referenceConfigured ? 'success' : 'info';
-        }
-
-        const totalAliases = comparisons.length;
-        const matchCount = comparisons.filter(c => c.status === 'match').length;
-        const allNotConfigured = !referenceConfigured && comparisons.every(c => !c.configured);
+    const calculateTableSeverity = (table, buckets, aliases) => {
+        if (!table || table.length === 0) return 'info';
         
-        // All same (all configured and match, or all not configured)
-        if (allNotConfigured || matchCount === totalAliases) {
-            return 'success';
-        }
+        let totalCells = 0;
+        let matchCells = 0;
         
-        // Half or more match
-        if (matchCount >= totalAliases / 2) {
-            return 'warning';
-        }
+        table.forEach(row => {
+            aliases.forEach(alias => {
+                const cell = row[alias];
+                if (cell && cell.status !== 'not_exist') {
+                    totalCells++;
+                    if (cell.status === 'match') matchCells++;
+                }
+            });
+        });
         
-        // Less than half match
+        if (totalCells === 0) return 'info';
+        if (matchCells === totalCells) return 'success';
+        if (matchCells >= totalCells / 2) return 'warning';
         return 'danger';
     };
 
-    const renderSummaryCards = () => {
-        if (!validationResults) return null;
-
-        const { bucket_existence, missing_buckets, lifecycle, events } = validationResults;
-        const totalAliases = selectedAliases.length;
-        const foundCount = totalAliases - (missing_buckets?.length || 0);
-
-        const cards = [
-            {
-                label: 'Selected Aliases',
-                value: totalAliases,
-                tone: '#2563eb'
-            },
-            {
-                label: 'Bucket Found',
-                value: foundCount,
-                tone: foundCount === totalAliases ? '#059669' : '#dc2626'
-            },
-            {
-                label: 'Bucket Missing',
-                value: missing_buckets?.length || 0,
-                tone: missing_buckets?.length > 0 ? '#dc2626' : '#6b7280'
-            }
-        ];
-
-        if (checkLifecycle && lifecycle) {
-            const severity = calculateSeverity(lifecycle.comparisons, lifecycle.reference_configured);
-            cards.push({
-                label: 'Lifecycle Status',
-                value: severity === 'success' ? '✓' : severity === 'warning' ? '⚠' : '✗',
-                tone: severity === 'success' ? '#059669' : severity === 'warning' ? '#f59e0b' : '#dc2626'
-            });
-        }
-
-        if (checkEvents && events) {
-            const severity = calculateSeverity(events.comparisons, events.reference_configured);
-            cards.push({
-                label: 'Events Status',
-                value: severity === 'success' ? '✓' : severity === 'warning' ? '⚠' : '✗',
-                tone: severity === 'success' ? '#059669' : severity === 'warning' ? '#f59e0b' : '#dc2626'
-            });
-        }
-
-        return (
-            <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-                gap: '16px',
-                marginBottom: '20px'
-            }}>
-                {cards.map(card => (
-                    <div key={card.label} style={{
-                        border: '1px solid #e5e7eb',
-                        borderRadius: '8px',
-                        padding: '16px',
-                        backgroundColor: 'white'
-                    }}>
-                        <div style={{
-                            fontSize: '26px',
-                            fontWeight: 600,
-                            color: card.tone
-                        }}>{card.value}</div>
-                        <div style={{
-                            marginTop: '4px',
-                            fontSize: '13px',
-                            color: '#6b7280'
-                        }}>{card.label}</div>
-                    </div>
-                ))}
-            </div>
-        );
-    };
-
-    const renderBucketExistenceTable = () => {
-        if (!validationResults || !validationResults.bucket_existence) return null;
-
-        const existence = validationResults.bucket_existence;
-        const missingBuckets = validationResults.missing_buckets || [];
-        const severity = missingBuckets.length === 0 ? 'success' : 
-                        missingBuckets.length >= selectedAliases.length / 2 ? 'danger' : 'warning';
-
-        return (
-            <div style={{ marginBottom: '24px' }}>
-                <div style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    gap: '8px',
-                    marginBottom: '12px' 
-                }}>
-                    <h4 style={{ fontSize: '16px', fontWeight: 600, color: '#1f2937', margin: 0 }}>
-                        Bucket Existence
-                    </h4>
-                    {severity === 'success' && <CheckCircle size={20} style={{ color: '#059669' }} />}
-                    {severity === 'warning' && <AlertCircle size={20} style={{ color: '#f59e0b' }} />}
-                    {severity === 'danger' && <XCircle size={20} style={{ color: '#dc2626' }} />}
-                </div>
-
-                <div style={{ border: '1px solid #e5e7eb', borderRadius: '6px', overflow: 'hidden' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                        <thead style={{ backgroundColor: '#f9fafb' }}>
-                            <tr>
-                                <th style={{ textAlign: 'left', padding: '12px', fontSize: '13px', fontWeight: 600, color: '#6b7280' }}>
-                                    Alias
-                                </th>
-                                <th style={{ textAlign: 'left', padding: '12px', fontSize: '13px', fontWeight: 600, color: '#6b7280' }}>
-                                    Bucket: {validationResults.bucket}
-                                </th>
-                                <th style={{ textAlign: 'center', padding: '12px', fontSize: '13px', fontWeight: 600, color: '#6b7280', width: '100px' }}>
-                                    Status
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {Object.entries(existence).map(([alias, exists], index) => (
-                                <tr key={alias} style={{ 
-                                    borderTop: index > 0 ? '1px solid #f3f4f6' : 'none',
-                                    backgroundColor: index % 2 === 0 ? 'white' : '#f9fafb'
-                                }}>
-                                    <td style={{ padding: '12px', fontFamily: 'monospace', fontSize: '13px', fontWeight: 500 }}>
-                                        {alias}
-                                    </td>
-                                    <td style={{ padding: '12px', fontSize: '13px', color: '#4b5563' }}>
-                                        {exists ? 'Bucket exists' : 'Bucket not found'}
-                                    </td>
-                                    <td style={{ padding: '12px', textAlign: 'center' }}>
-                                        {exists ? (
-                                            <span style={{
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                gap: '4px',
-                                                padding: '4px 10px',
-                                                backgroundColor: '#d1fae5',
-                                                color: '#065f46',
-                                                borderRadius: '12px',
-                                                fontSize: '12px',
-                                                fontWeight: 500
-                                            }}>
-                                                <CheckCircle size={14} />
-                                                Found
-                                            </span>
-                                        ) : (
-                                            <span style={{
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                gap: '4px',
-                                                padding: '4px 10px',
-                                                backgroundColor: '#fee2e2',
-                                                color: '#991b1b',
-                                                borderRadius: '12px',
-                                                fontSize: '12px',
-                                                fontWeight: 500
-                                            }}>
-                                                <XCircle size={14} />
-                                                Missing
-                                            </span>
-                                        )}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        );
-    };
-
-    const renderConfigTable = (configType, configData) => {
-        if (!configData) return null;
-
-        const { comparisons, reference_configured } = configData;
-        if (!comparisons || comparisons.length === 0) return null;
-
-        // Find reference row
-        const referenceRow = comparisons.find(c => c.is_reference);
-        const comparisonRows = comparisons.filter(c => !c.is_reference);
+    const openConfigModal = (bucket, alias, config, configType) => {
+        // Always use the first selected alias as the reference site
+        let referenceConfig = null;
+        let referenceAlias = null;
         
-        const severity = calculateSeverity(comparisons, reference_configured);
-
-        const toggleRow = (alias) => {
-            setExpandedRows(prev => ({
-                ...prev,
-                [`${configType}-${alias}`]: !prev[`${configType}-${alias}`]
-            }));
-        };
-
-        const formatConfig = (configRaw) => {
-            if (!configRaw) return 'No configuration';
-            try {
-                const parsed = JSON.parse(configRaw);
-                return JSON.stringify(parsed, null, 2);
-            } catch {
-                return configRaw;
+        if (validationResults && configType) {
+            const table = validationResults[configType];
+            if (table) {
+                const row = table.find(r => r.bucket === bucket);
+                if (row) {
+                    // Get the first alias from validation results (this is the first selected alias)
+                    const firstAlias = validationResults.aliases && validationResults.aliases.length > 0 
+                        ? validationResults.aliases[0] 
+                        : null;
+                    
+                    if (firstAlias) {
+                        const cell = row[firstAlias];
+                        if (cell && cell.status !== 'not_exist' && cell.status !== 'not_configured' && cell.value) {
+                            referenceConfig = cell.value;
+                            referenceAlias = firstAlias;
+                        }
+                    }
+                }
             }
-        };
+        }
+        
+        setModalConfig({ 
+            bucket, 
+            alias, 
+            value: config,
+            referenceValue: referenceConfig,
+            referenceAlias: referenceAlias
+        });
+    };
 
-        return (
-            <div style={{ marginBottom: '24px' }}>
-                <div style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    gap: '8px',
-                    marginBottom: '12px' 
-                }}>
-                    <h4 style={{ fontSize: '16px', fontWeight: 600, color: '#1f2937', margin: 0, textTransform: 'capitalize' }}>
-                        {configType} Configuration
-                    </h4>
-                    {severity === 'success' && <CheckCircle size={20} style={{ color: '#059669' }} />}
-                    {severity === 'warning' && <AlertCircle size={20} style={{ color: '#f59e0b' }} />}
-                    {severity === 'danger' && <XCircle size={20} style={{ color: '#dc2626' }} />}
-                </div>
-
-                <div style={{ border: '1px solid #e5e7eb', borderRadius: '6px', overflow: 'hidden' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                        <thead style={{ backgroundColor: '#f9fafb' }}>
-                            <tr>
-                                <th style={{ textAlign: 'left', padding: '12px', fontSize: '13px', fontWeight: 600, color: '#6b7280', width: '40px' }}>
-                                </th>
-                                <th style={{ textAlign: 'left', padding: '12px', fontSize: '13px', fontWeight: 600, color: '#6b7280' }}>
-                                    Alias
-                                </th>
-                                <th style={{ textAlign: 'left', padding: '12px', fontSize: '13px', fontWeight: 600, color: '#6b7280' }}>
-                                    Configuration Status
-                                </th>
-                                <th style={{ textAlign: 'left', padding: '12px', fontSize: '13px', fontWeight: 600, color: '#6b7280' }}>
-                                    Comparison Result
-                                </th>
-                                <th style={{ textAlign: 'center', padding: '12px', fontSize: '13px', fontWeight: 600, color: '#6b7280', width: '120px' }}>
-                                    Match Status
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {/* Reference row */}
-                            {referenceRow && (
-                                <>
-                                    <tr style={{ backgroundColor: '#eff6ff', borderBottom: '2px solid #2563eb' }}>
-                                        <td style={{ padding: '12px' }}>
-                                            <button
-                                                onClick={() => toggleRow(referenceRow.alias)}
-                                                style={{
-                                                    background: 'none',
-                                                    border: 'none',
-                                                    cursor: 'pointer',
-                                                    padding: '4px',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    color: '#2563eb'
-                                                }}
-                                            >
-                                                {expandedRows[`${configType}-${referenceRow.alias}`] ? 
-                                                    <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                                            </button>
-                                        </td>
-                                        <td style={{ padding: '12px', fontFamily: 'monospace', fontSize: '13px', fontWeight: 600 }}>
-                                            {referenceRow.alias} <span style={{ fontSize: '11px', color: '#6b7280', fontWeight: 'normal' }}>(Reference)</span>
-                                        </td>
-                                        <td style={{ padding: '12px', fontSize: '13px' }}>
-                                            {referenceRow.configured ? (
-                                                <span style={{ color: '#059669', fontWeight: 500 }}>
-                                                    {referenceRow.config_summary || 'Configured'}
-                                                </span>
-                                            ) : (
-                                                <span style={{ color: '#6b7280' }}>Not configured</span>
-                                            )}
-                                        </td>
-                                        <td style={{ padding: '12px', fontSize: '13px', color: '#6b7280' }}>
-                                            -
-                                        </td>
-                                        <td style={{ padding: '12px', textAlign: 'center' }}>
-                                            <span style={{
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                gap: '4px',
-                                                padding: '4px 10px',
-                                                backgroundColor: '#dbeafe',
-                                                color: '#1e40af',
-                                                borderRadius: '12px',
-                                                fontSize: '12px',
-                                                fontWeight: 500
-                                            }}>
-                                                Reference
-                                            </span>
-                                        </td>
-                                    </tr>
-                                    {expandedRows[`${configType}-${referenceRow.alias}`] && (
-                                        <tr style={{ backgroundColor: '#f0f9ff' }}>
-                                            <td colSpan="5" style={{ padding: '12px' }}>
-                                                <div style={{ 
-                                                    backgroundColor: '#1e293b', 
-                                                    color: '#e2e8f0', 
-                                                    padding: '12px', 
-                                                    borderRadius: '4px',
-                                                    fontSize: '12px',
-                                                    fontFamily: 'monospace',
-                                                    overflowX: 'auto',
-                                                    maxHeight: '300px',
-                                                    overflowY: 'auto'
-                                                }}>
-                                                    <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-                                                        {formatConfig(referenceRow.config_raw)}
-                                                    </pre>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    )}
-                                </>
-                            )}
-                            
-                            {/* Comparison rows */}
-                            {comparisonRows.map((comparison, index) => {
-                                const isMatch = comparison.status === 'match';
-                                const isError = comparison.status === 'error';
-                                const isExpanded = expandedRows[`${configType}-${comparison.alias}`];
-                                
-                                return (
-                                    <React.Fragment key={comparison.alias}>
-                                        <tr style={{ 
-                                            borderTop: '1px solid #f3f4f6',
-                                            backgroundColor: index % 2 === 0 ? 'white' : '#f9fafb'
-                                        }}>
-                                            <td style={{ padding: '12px' }}>
-                                                <button
-                                                    onClick={() => toggleRow(comparison.alias)}
-                                                    style={{
-                                                        background: 'none',
-                                                        border: 'none',
-                                                        cursor: 'pointer',
-                                                        padding: '4px',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        color: '#6b7280'
-                                                    }}
-                                                >
-                                                    {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                                                </button>
-                                            </td>
-                                            <td style={{ padding: '12px', fontFamily: 'monospace', fontSize: '13px', fontWeight: 500 }}>
-                                                {comparison.alias}
-                                            </td>
-                                            <td style={{ padding: '12px', fontSize: '13px' }}>
-                                                {comparison.configured ? (
-                                                    <span style={{ color: '#059669', fontWeight: 500 }}>
-                                                        {comparison.config_summary || 'Configured'}
-                                                    </span>
-                                                ) : (
-                                                    <span style={{ color: '#6b7280' }}>Not configured</span>
-                                                )}
-                                            </td>
-                                            <td style={{ padding: '12px', fontSize: '13px', color: '#4b5563' }}>
-                                                {comparison.message || comparison.error || '-'}
-                                            </td>
-                                            <td style={{ padding: '12px', textAlign: 'center' }}>
-                                                {isError ? (
-                                                    <span style={{
-                                                        display: 'inline-flex',
-                                                        alignItems: 'center',
-                                                        gap: '4px',
-                                                        padding: '4px 10px',
-                                                        backgroundColor: '#fee2e2',
-                                                        color: '#991b1b',
-                                                        borderRadius: '12px',
-                                                        fontSize: '12px',
-                                                        fontWeight: 500
-                                                    }}>
-                                                        <XCircle size={14} />
-                                                        Error
-                                                    </span>
-                                                ) : isMatch ? (
-                                                    <span style={{
-                                                        display: 'inline-flex',
-                                                        alignItems: 'center',
-                                                        gap: '4px',
-                                                        padding: '4px 10px',
-                                                        backgroundColor: '#d1fae5',
-                                                        color: '#065f46',
-                                                        borderRadius: '12px',
-                                                        fontSize: '12px',
-                                                        fontWeight: 500
-                                                    }}>
-                                                        <CheckCircle size={14} />
-                                                        Match
-                                                    </span>
-                                                ) : (
-                                                    <span style={{
-                                                        display: 'inline-flex',
-                                                        alignItems: 'center',
-                                                        gap: '4px',
-                                                        padding: '4px 10px',
-                                                        backgroundColor: '#fef3c7',
-                                                        color: '#92400e',
-                                                        borderRadius: '12px',
-                                                        fontSize: '12px',
-                                                        fontWeight: 500
-                                                    }}>
-                                                        <AlertCircle size={14} />
-                                                        Mismatch
-                                                    </span>
-                                                )}
-                                            </td>
-                                        </tr>
-                                        {isExpanded && (
-                                            <tr style={{ backgroundColor: index % 2 === 0 ? '#fafafa' : '#f5f5f5' }}>
-                                                <td colSpan="5" style={{ padding: '12px' }}>
-                                                    <div style={{ 
-                                                        backgroundColor: '#1e293b', 
-                                                        color: '#e2e8f0', 
-                                                        padding: '12px', 
-                                                        borderRadius: '4px',
-                                                        fontSize: '12px',
-                                                        fontFamily: 'monospace',
-                                                        overflowX: 'auto',
-                                                        maxHeight: '300px',
-                                                        overflowY: 'auto'
-                                                    }}>
-                                                        <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-                                                            {formatConfig(comparison.config_raw)}
-                                                        </pre>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        )}
-                                    </React.Fragment>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        );
+    const closeModal = () => {
+        setModalConfig(null);
     };
 
     const renderValidationResults = () => {
@@ -576,38 +237,49 @@ const ValidateOperations = () => {
 
         return (
             <div style={{ marginTop: '24px' }}>
-                <h3 style={{ 
-                    fontSize: '18px', 
-                    fontWeight: 600, 
-                    color: '#111827',
-                    marginBottom: '16px',
-                    paddingBottom: '12px',
-                    borderBottom: '2px solid #e5e7eb'
+                <h3 className="card-title" style={{ 
+                    marginBottom: '16px', 
+                    paddingBottom: '12px', 
+                    borderBottom: '2px solid var(--border-color)' 
                 }}>
                     Validation Results
                 </h3>
                 
-                {renderSummaryCards()}
-                {renderBucketExistenceTable()}
+                <OverviewCards 
+                    validationResults={validationResults}
+                    checkLifecycle={checkLifecycle}
+                    checkEvents={checkEvents}
+                    calculateTableSeverity={calculateTableSeverity}
+                />
                 
-                {validationResults.lifecycle && renderConfigTable('lifecycle', validationResults.lifecycle)}
-                {validationResults.events && renderConfigTable('events', validationResults.events)}
+                <BucketExistenceTable validationResults={validationResults} />
+                
+                {validationResults.lifecycle_table && (
+                    <ConfigComparisonTable 
+                        configType="lifecycle_table"
+                        configTable={validationResults.lifecycle_table}
+                        validationResults={validationResults}
+                        calculateTableSeverity={calculateTableSeverity}
+                        onViewConfig={(bucket, alias, config) => openConfigModal(bucket, alias, config, 'lifecycle_table')}
+                    />
+                )}
+                
+                {validationResults.events_table && (
+                    <ConfigComparisonTable 
+                        configType="events_table"
+                        configTable={validationResults.events_table}
+                        validationResults={validationResults}
+                        calculateTableSeverity={calculateTableSeverity}
+                        onViewConfig={(bucket, alias, config) => openConfigModal(bucket, alias, config, 'events_table')}
+                    />
+                )}
 
                 {validationResults.error && (
-                    <div style={{
-                        padding: '16px',
-                        backgroundColor: '#fee2e2',
-                        border: '1px solid #fecaca',
-                        borderRadius: '8px',
-                        color: '#991b1b',
-                        display: 'flex',
-                        alignItems: 'start',
-                        gap: '12px'
-                    }}>
-                        <XCircle size={20} style={{ flexShrink: 0, marginTop: '2px' }} />
-                        <div>
-                            <strong style={{ display: 'block', marginBottom: '4px' }}>Validation Error</strong>
-                            {validationResults.error}
+                    <div className="alert alert-danger">
+                        <XCircle size={20} style={{ marginRight: '12px', display: 'inline-block', verticalAlign: 'middle' }} />
+                        <div style={{ display: 'inline-block' }}>
+                            <strong>Validation Error</strong>
+                            <div>{validationResults.error}</div>
                         </div>
                     </div>
                 )}
@@ -693,42 +365,108 @@ const ValidateOperations = () => {
 
                     {/* Bucket Selection */}
                     <div style={{ marginBottom: '20px' }}>
-                        <label style={{ 
-                            display: 'block', 
-                            fontSize: '13px', 
-                            color: '#4b5563', 
-                            marginBottom: '6px' 
-                        }}>
-                            Select Bucket
-                            <span style={{ color: '#dc2626', marginLeft: '4px' }}>*</span>
-                        </label>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                            <label style={{ 
+                                display: 'block', 
+                                fontSize: '13px', 
+                                color: '#4b5563'
+                            }}>
+                                Select Buckets
+                                <span style={{ color: '#dc2626', marginLeft: '4px' }}>*</span>
+                            </label>
+                            <button
+                                type="button"
+                                onClick={handleSelectAllBuckets}
+                                style={{
+                                    padding: '6px 12px',
+                                    fontSize: '12px',
+                                    backgroundColor: 'white',
+                                    color: '#2563eb',
+                                    border: '1px solid #2563eb',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer',
+                                    fontWeight: 500
+                                }}
+                            >
+                                {selectedBuckets.length === buckets.length ? 'Deselect All' : 'Select All'}
+                            </button>
+                        </div>
+                        <input
+                            type="text"
+                            placeholder="Search buckets..."
+                            value={bucketSearch}
+                            onChange={(e) => setBucketSearch(e.target.value)}
+                            disabled={buckets.length === 0 || selectedAliases.length === 0}
+                            style={{
+                                width: '100%',
+                                padding: '8px 12px',
+                                fontSize: '14px',
+                                border: '1px solid #d1d5db',
+                                borderRadius: '6px',
+                                marginBottom: '8px',
+                                backgroundColor: (buckets.length === 0 || selectedAliases.length === 0) ? '#f3f4f6' : 'white'
+                            }}
+                        />
                         {isLoadingBuckets ? (
                             <div style={{ padding: '14px', textAlign: 'center', color: '#6b7280', backgroundColor: '#f9fafb', borderRadius: '6px', border: '1px solid #e5e7eb' }}>
                                 <Loader className="spin" size={18} style={{ display: 'inline-block', marginRight: '8px' }} />
                                 Loading buckets...
                             </div>
                         ) : (
-                            <select
-                                value={selectedBucket}
-                                onChange={(e) => setSelectedBucket(e.target.value)}
-                                disabled={selectedAliases.length === 0}
-                                required
-                                style={{
-                                    width: '100%',
-                                    padding: '10px',
-                                    fontSize: '14px',
-                                    border: '1px solid #d1d5db',
-                                    borderRadius: '6px',
-                                    backgroundColor: selectedAliases.length === 0 ? '#f3f4f6' : 'white',
-                                    color: '#111827',
-                                    cursor: selectedAliases.length === 0 ? 'not-allowed' : 'pointer'
-                                }}
-                            >
-                                <option value="">Select bucket...</option>
-                                {buckets.map(bucket => (
-                                    <option key={bucket} value={bucket}>{bucket}</option>
-                                ))}
-                            </select>
+                            <div style={{
+                                maxHeight: '200px',
+                                overflowY: 'auto',
+                                border: '1px solid #d1d5db',
+                                borderRadius: '6px',
+                                backgroundColor: selectedAliases.length === 0 ? '#f3f4f6' : 'white',
+                                padding: '8px'
+                            }}>
+                                {buckets.length === 0 ? (
+                                    <div style={{ padding: '12px', textAlign: 'center', color: '#6b7280' }}>
+                                        {selectedAliases.length === 0 ? 'Select aliases first' : 'No buckets found'}
+                                    </div>
+                                ) : filteredBuckets.length === 0 ? (
+                                    <div style={{ padding: '12px', textAlign: 'center', color: '#6b7280' }}>
+                                        No buckets match "{bucketSearch}"
+                                    </div>
+                                ) : (
+                                    filteredBuckets.map(bucket => (
+                                        <label
+                                            key={bucket}
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                padding: '8px',
+                                                cursor: selectedAliases.length === 0 ? 'not-allowed' : 'pointer',
+                                                borderRadius: '4px',
+                                                backgroundColor: selectedBuckets.includes(bucket) ? '#eff6ff' : 'transparent',
+                                                opacity: selectedAliases.length === 0 ? 0.5 : 1
+                                            }}
+                                            onMouseEnter={(e) => {
+                                                if (selectedAliases.length > 0 && !selectedBuckets.includes(bucket)) {
+                                                    e.currentTarget.style.backgroundColor = '#f9fafb';
+                                                }
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                if (!selectedBuckets.includes(bucket)) {
+                                                    e.currentTarget.style.backgroundColor = 'transparent';
+                                                }
+                                            }}
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedBuckets.includes(bucket)}
+                                                onChange={() => handleBucketToggle(bucket)}
+                                                disabled={selectedAliases.length === 0}
+                                                style={{ marginRight: '8px', cursor: selectedAliases.length === 0 ? 'not-allowed' : 'pointer' }}
+                                            />
+                                            <span style={{ fontSize: '14px', color: '#111827', fontFamily: 'monospace' }}>
+                                                {bucket}
+                                            </span>
+                                        </label>
+                                    ))
+                                )}
+                            </div>
                         )}
                     </div>
 
@@ -795,7 +533,7 @@ const ValidateOperations = () => {
                     <button 
                         type="submit"
                         onClick={executeValidation}
-                        disabled={isRunning || selectedAliases.length === 0 || !selectedBucket}
+                        disabled={isRunning || selectedAliases.length === 0 || selectedBuckets.length === 0}
                         className="btn btn-primary"
                         style={{ 
                             display: 'inline-flex',
@@ -805,8 +543,8 @@ const ValidateOperations = () => {
                             fontSize: '15px',
                             width: '100%',
                             justifyContent: 'center',
-                            opacity: (isRunning || selectedAliases.length === 0 || !selectedBucket) ? 0.5 : 1,
-                            cursor: (isRunning || selectedAliases.length === 0 || !selectedBucket) ? 'not-allowed' : 'pointer'
+                            opacity: (isRunning || selectedAliases.length === 0 || selectedBuckets.length === 0) ? 0.5 : 1,
+                            cursor: (isRunning || selectedAliases.length === 0 || selectedBuckets.length === 0) ? 'not-allowed' : 'pointer'
                         }}
                     >
                         {isRunning ? (
@@ -825,6 +563,13 @@ const ValidateOperations = () => {
             </div>
 
             {renderValidationResults()}
+            
+            {modalConfig && (
+                <ConfigModal 
+                    config={modalConfig} 
+                    onClose={closeModal} 
+                />
+            )}
         </div>
     );
 };

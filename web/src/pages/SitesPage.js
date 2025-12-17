@@ -482,16 +482,16 @@ const SitesPage = ({ sites, replicationInfo, checkingReplication, onRefresh }) =
 
                 {checkingReplication ? (
                     <div>
-                        <div style={{ padding: '16px', textAlign: 'center', background: 'var(--bg-secondary)', borderRadius: '8px', marginBottom: '20px' }}>
-                            <div className="spinner" style={{ margin: '0 auto 12px', width: '20px', height: '20px', borderWidth: '2px' }}></div>
-                            <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '0.875rem' }}>
+                        <div className="p-4 text-center bg-secondary rounded-lg mb-5">
+                            <div className="spinner mx-auto mb-3" style={{ width: '20px', height: '20px', borderWidth: '2px' }}></div>
+                            <p className="text-muted m-0 text-sm">
                                 {t('checking_replication_status', 'Checking replication configuration...')}
                             </p>
                         </div>
                         
                         {/* Show sites table even while checking replication */}
                         {sites.length > 0 && (
-                            <div className="card" style={{ marginTop: '20px' }}>
+                            <div className="card mt-5">
                                 <div className="card-header">
                                     <h4 className="card-title">{t('available_aliases', 'Available Aliases')}</h4>
                                     <span className="badge badge-info">{sites.length} {t('aliases_total', 'total')}</span>
@@ -509,10 +509,10 @@ const SitesPage = ({ sites, replicationInfo, checkingReplication, onRefresh }) =
                                             {sites.map(site => (
                                                 <tr key={site.name}>
                                                     <td>
-                                                        <div className="site-name" style={{ fontWeight: '600' }}>{site.name}</div>
+                                                        <div className="font-semibold">{site.name}</div>
                                                     </td>
                                                     <td>
-                                                        <div className="site-url" style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>{site.url}</div>
+                                                        <div className="text-sm text-muted">{site.url}</div>
                                                     </td>
                                                     <td>
                                                         <span className={`badge ${getHealthBadgeClass(site.status)}`}>
@@ -533,33 +533,29 @@ const SitesPage = ({ sites, replicationInfo, checkingReplication, onRefresh }) =
                         
                         <div className="form-group">
                             <label className="form-label">{t('select_aliases')}</label>
-                            <div style={{ marginBottom: '16px' }}>
+                            <div className="mb-4">
                                 {sites.map(site => {
                                     const isDisabled = !site.healthy || site.status === 'checking' || site.status === 'timeout' || site.status === 'error';
                                     return (
                                         <label 
                                             key={site.name} 
+                                            className="checkbox-label mb-2"
                                             style={{ 
-                                                display: 'block', 
-                                                marginBottom: '8px',
+                                                display: 'block',
                                                 opacity: isDisabled ? 0.5 : 1,
                                                 cursor: isDisabled ? 'not-allowed' : 'pointer'
                                             }}
                                         >
                                             <input
                                                 type="checkbox"
+                                                className="checkbox mr-2"
                                                 checked={selectedAliases.includes(site.name)}
                                                 onChange={() => handleAliasToggle(site.name)}
                                                 disabled={isDisabled}
-                                                style={{ marginRight: '8px' }}
                                             />
                                             {site.name} ({site.url})
                                             {isDisabled && (
-                                                <span style={{ 
-                                                    marginLeft: '8px', 
-                                                    fontSize: '0.875rem',
-                                                    color: 'var(--text-muted)'
-                                                }}>
+                                                <span className="ml-2 text-sm text-muted">
                                                     - {site.status === 'checking' ? t('status_checking', 'Checking...') : t('status_unhealthy', 'Unhealthy')}
                                                 </span>
                                             )}

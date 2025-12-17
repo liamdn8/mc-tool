@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
-import { GitCompare, Play, BarChart3, CheckCircle, AlertTriangle, ChevronUp, ChevronDown } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { GitCompare, Play, BarChart3, CheckCircle, AlertTriangle, ChevronUp, ChevronDown, FileText, Folder, FileX } from 'lucide-react';
 import ErrorAlert from '../ErrorAlert';
 import { apiCall } from '../../utils/api';
+import { useContentsPanel } from '../../contexts/ContentsPanelContext';
+import CompareNavigation from './CompareNavigation';
 
 const CompareOperations = ({ sites }) => {
+    const { setContentsComponent } = useContentsPanel();
     const [compareResults, setCompareResults] = useState(null);
     const [error, setError] = useState(null);
     const [compareFormData, setCompareFormData] = useState({
@@ -30,6 +33,25 @@ const CompareOperations = ({ sites }) => {
         onlyInDest: { page: 1, pageSize: 10 },
         different: { page: 1, pageSize: 10 }
     });
+
+    // Update contents panel when results change
+    useEffect(() => {
+        if (compareResults) {
+            setContentsComponent(
+                <CompareNavigation 
+                    compareResults={compareResults}
+                    compareFormData={compareFormData}
+                />
+            );
+        } else {
+            setContentsComponent(null);
+        }
+
+        // Cleanup when component unmounts
+        return () => {
+            setContentsComponent(null);
+        };
+    }, [compareResults, compareFormData, setContentsComponent]);
 
     // Fetch buckets when source alias changes
     const fetchBucketsForAlias = async (alias) => {
@@ -208,13 +230,13 @@ const CompareOperations = ({ sites }) => {
 
         return (
             <div style={{ 
-                display: 'flex',
+                display: 'flex', 
                 flexWrap: 'wrap',
                 justifyContent: 'space-between', 
                 alignItems: 'center',
                 gap: '12px',
-                padding: '12px',
-                borderTop: '1px solid #d1d5db'
+                padding: '12px 0 0',
+                borderTop: '1px solid #e5e7eb'
             }}>
                 <span style={{ fontSize: '12px', color: '#4b5563' }}>
                     {((currentPage - 1) * pageSize) + 1}-{Math.min(currentPage * pageSize, totalItems)} of {totalItems}
@@ -223,10 +245,10 @@ const CompareOperations = ({ sites }) => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                     <label style={{ fontSize: '12px', color: '#4b5563', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                         Rows per page
-                        <select 
-                            value={pageSize} 
+                        <select
+                            value={pageSize}
                             onChange={(e) => updatePagination(category, { pageSize: parseInt(e.target.value), page: 1 })}
-                            style={{ 
+                            style={{
                                 padding: '6px 10px',
                                 borderRadius: '6px',
                                 border: '1px solid #d1d5db',
@@ -242,10 +264,10 @@ const CompareOperations = ({ sites }) => {
                     </label>
                     
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                        <button 
+                        <button
                             onClick={() => updatePagination(category, { page: Math.max(1, currentPage - 1) })}
                             disabled={currentPage === 1}
-                            style={{ 
+                            style={{
                                 padding: '6px 10px',
                                 borderRadius: '6px',
                                 border: '1px solid #d1d5db',
@@ -262,10 +284,10 @@ const CompareOperations = ({ sites }) => {
                             {currentPage} / {totalPages}
                         </span>
                         
-                        <button 
+                        <button
                             onClick={() => updatePagination(category, { page: Math.min(totalPages, currentPage + 1) })}
                             disabled={currentPage === totalPages}
-                            style={{ 
+                            style={{
                                 padding: '6px 10px',
                                 borderRadius: '6px',
                                 border: '1px solid #d1d5db',
@@ -284,33 +306,109 @@ const CompareOperations = ({ sites }) => {
     };
 
     // Render table for items
-    const renderTable = (items, category, title, emptyMessage) => {
+    const renderTable = (items, category, icon, title, emptyMessage) => {
         const paginated = paginateData(items, category);
+        const Icon = icon;
         
         return (
             <div>
                 {items.length === 0 ? (
-                    <div style={{ 
-                        padding: '40px',
-                        textAlign: 'center',
-                        color: '#6b7280',
-                        backgroundColor: '#f9fafb',
-                        borderRadius: '8px',
-                        border: '1px solid #e5e7eb',
-                        fontSize: '13px'
-                    }}>
+                    <div className="empty-state text-sm">
                         {emptyMessage}
                     </div>
                 ) : (
-                    <div style={{ 
-                        border: '1px solid #d1d5db',
-                        borderRadius: '6px',
-                        overflow: 'hidden'
-                    }}>
-                        <div style={{ overflowX: 'auto' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '500px' }}>
+                    <>
+                        {/* Pagination Controls - Top */}
+                        {paginated.totalPages > 1 && (
+                            <div style={{ 
+                                display: 'flex', 
+                                flexWrap: 'wrap',
+                                justifyContent: 'space-between', 
+                                alignItems: 'center',
+                                gap: '12px',
+                                padding: '0 0 12px',
+                                borderTop: 'none'
+                            }}>
+                                <span style={{ fontSize: '12px', color: '#4b5563' }}>
+                                    {((paginated.currentPage - 1) * paginated.pageSize) + 1}-{Math.min(paginated.currentPage * paginated.pageSize, paginated.totalItems)} of {paginated.totalItems}
+                                </span>
+                                
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                    <label style={{ fontSize: '12px', color: '#4b5563', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                        Rows per page
+                                        <select
+                                            value={paginated.pageSize}
+                                            onChange={(e) => updatePagination(category, { pageSize: parseInt(e.target.value), page: 1 })}
+                                            style={{
+                                                padding: '6px 10px',
+                                                borderRadius: '6px',
+                                                border: '1px solid #d1d5db',
+                                                fontSize: '12px',
+                                                backgroundColor: '#ffffff'
+                                            }}
+                                        >
+                                            <option value={10}>10</option>
+                                            <option value={20}>20</option>
+                                            <option value={50}>50</option>
+                                            <option value={100}>100</option>
+                                        </select>
+                                    </label>
+                                    
+                                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                        <button
+                                            onClick={() => updatePagination(category, { page: Math.max(1, paginated.currentPage - 1) })}
+                                            disabled={paginated.currentPage === 1}
+                                            style={{
+                                                padding: '6px 10px',
+                                                borderRadius: '6px',
+                                                border: '1px solid #d1d5db',
+                                                backgroundColor: paginated.currentPage === 1 ? '#f3f4f6' : '#ffffff',
+                                                color: '#1f2937',
+                                                fontSize: '12px',
+                                                cursor: paginated.currentPage === 1 ? 'not-allowed' : 'pointer'
+                                            }}
+                                        >
+                                            Prev
+                                        </button>
+                                        
+                                        <span style={{ fontSize: '12px', color: '#4b5563', minWidth: '60px', textAlign: 'center' }}>
+                                            {paginated.currentPage} / {paginated.totalPages}
+                                        </span>
+                                        
+                                        <button
+                                            onClick={() => updatePagination(category, { page: Math.min(paginated.totalPages, paginated.currentPage + 1) })}
+                                            disabled={paginated.currentPage === paginated.totalPages}
+                                            style={{
+                                                padding: '6px 10px',
+                                                borderRadius: '6px',
+                                                border: '1px solid #d1d5db',
+                                                backgroundColor: paginated.currentPage === paginated.totalPages ? '#f3f4f6' : '#ffffff',
+                                                color: '#1f2937',
+                                                fontSize: '12px',
+                                                cursor: paginated.currentPage === paginated.totalPages ? 'not-allowed' : 'pointer'
+                                            }}
+                                        >
+                                            Next
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        <div style={{ border: '1px solid #d1d5db', borderRadius: '6px', overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '640px' }}>
                                 <thead style={{ backgroundColor: '#f9fafb' }}>
                                     <tr>
+                                        <th style={{ 
+                                            padding: '12px', 
+                                            textAlign: 'left', 
+                                            fontSize: '12px', 
+                                            fontWeight: '400',
+                                            color: '#6b7280',
+                                            whiteSpace: 'nowrap'
+                                        }}>
+                                            #
+                                        </th>
                                         <th style={{ 
                                             padding: '12px', 
                                             textAlign: 'left', 
@@ -334,36 +432,51 @@ const CompareOperations = ({ sites }) => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {paginated.data.map((item, index) => (
-                                        <tr key={index} style={{ 
-                                            borderTop: '1px solid #f3f4f6'
-                                        }}>
-                                            <td style={{ 
-                                                padding: '12px',
-                                                fontSize: '12px',
-                                                color: '#111827',
-                                                fontFamily: 'monospace',
-                                                wordBreak: 'break-all'
-                                            }}>
-                                                {typeof item === 'string' ? item : item.path}
-                                            </td>
-                                            {category === 'different' && (
+                                    {paginated.data.map((item, index) => {
+                                        const globalIndex = (paginated.currentPage - 1) * paginated.pageSize + index + 1;
+                                        return (
+                                            <tr key={index} style={{ borderTop: '1px solid #f3f4f6' }}>
                                                 <td style={{ 
-                                                    padding: '12px',
-                                                    fontSize: '12px',
-                                                    color: '#6b7280'
+                                                    padding: '12px', 
+                                                    textAlign: 'center', 
+                                                    fontWeight: '600',
+                                                    fontSize: '13px',
+                                                    color: '#6b7280',
+                                                    whiteSpace: 'nowrap'
                                                 }}>
-                                                    {item.description}
+                                                    {globalIndex}
                                                 </td>
-                                            )}
-                                        </tr>
-                                    ))}
+                                                <td style={{ 
+                                                    padding: '12px', 
+                                                    fontSize: '12px', 
+                                                    color: '#111827',
+                                                    wordBreak: 'break-all',
+                                                    fontFamily: 'monospace'
+                                                }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                        <Icon size={14} style={{ flexShrink: 0, color: '#6b7280' }} />
+                                                        <span>{typeof item === 'string' ? item : item.path}</span>
+                                                    </div>
+                                                </td>
+                                                {category === 'different' && (
+                                                    <td style={{ 
+                                                        padding: '12px', 
+                                                        fontSize: '12px',
+                                                        color: '#4b5563'
+                                                    }}>
+                                                        {item.description}
+                                                    </td>
+                                                )}
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>
-                        
-                        {renderPaginationControls(category, paginated.totalItems, paginated.totalPages, paginated.currentPage, paginated.pageSize)}
-                    </div>
+
+                        {/* Pagination Controls - Bottom */}
+                        {paginated.totalPages > 1 && renderPaginationControls(category, paginated.totalItems, paginated.totalPages, paginated.currentPage, paginated.pageSize)}
+                    </>
                 )}
             </div>
         );
@@ -378,22 +491,16 @@ const CompareOperations = ({ sites }) => {
         const different = compareResults.different || [];
         
         return (
-            <div className="card" style={{ marginTop: '24px' }}>
+            <div className="card mt-6">
                 <div className="card-header">
-                    <h3 className="card-title" style={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        gap: '8px' 
+                    <h3 id="overview" className="card-title" style={{ 
+                        paddingBottom: '12px',
+                        borderBottom: '2px solid var(--border-color)'
                     }}>
-                        <BarChart3 size={18} />
                         Comparison Results
                     </h3>
-                    <p style={{ 
-                        margin: '8px 0 0 0', 
-                        fontSize: '13px', 
-                        color: '#6b7280' 
-                    }}>
-                        Comparing {compareFormData.sourceAlias} and {compareFormData.destAlias} 
+                    <p className="m-0 mt-2 text-sm text-secondary">
+                        Comparing {compareFormData.sourceAlias} → {compareFormData.destAlias}
                         {compareFormData.bucket && ` in bucket "${compareFormData.bucket}"`}
                         {compareFormData.path && ` at path "${compareFormData.path}"`}
                     </p>
@@ -418,147 +525,50 @@ const CompareOperations = ({ sites }) => {
                         </span>
                     </div>
 
-                    {/* Summary Stats Grid */}
-                    <div style={{ 
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-                        gap: '16px',
-                        marginBottom: '20px'
-                    }}>
-                        <div style={{ 
-                            border: '1px solid #e5e7eb',
-                            borderRadius: '8px',
-                            padding: '16px',
-                            backgroundColor: 'white'
-                        }}>
-                            <div style={{ 
-                                fontSize: '26px',
-                                fontWeight: '600',
-                                color: '#059669'
-                            }}>
+                    {/* Overview Cards */}
+                    <div className="stats-grid" style={{ marginBottom: '24px' }}>
+                        <div className="stat-card">
+                            <div className="stat-value" style={{ color: 'var(--success-color)' }}>
                                 {summary.identical || 0}
                             </div>
-                            <div style={{ 
-                                marginTop: '4px',
-                                fontSize: '13px',
-                                color: '#6b7280'
-                            }}>
-                                Identical
-                            </div>
+                            <div className="stat-label">Identical</div>
                         </div>
-                        <div style={{ 
-                            border: '1px solid #e5e7eb',
-                            borderRadius: '8px',
-                            padding: '16px',
-                            backgroundColor: 'white'
-                        }}>
-                            <div style={{ 
-                                fontSize: '26px',
-                                fontWeight: '600',
-                                color: '#f59e0b'
-                            }}>
+                        <div className="stat-card">
+                            <div className="stat-value" style={{ color: 'var(--warning-color)' }}>
                                 {summary.different || 0}
                             </div>
-                            <div style={{ 
-                                marginTop: '4px',
-                                fontSize: '13px',
-                                color: '#6b7280'
-                            }}>
-                                Different
-                            </div>
+                            <div className="stat-label">Different</div>
                         </div>
-                        <div style={{ 
-                            border: '1px solid #e5e7eb',
-                            borderRadius: '8px',
-                            padding: '16px',
-                            backgroundColor: 'white'
-                        }}>
-                            <div style={{ 
-                                fontSize: '26px',
-                                fontWeight: '600',
-                                color: '#dc2626'
-                            }}>
+                        <div className="stat-card">
+                            <div className="stat-value" style={{ color: 'var(--danger-color)' }}>
                                 {summary.missingInSource || 0}
                             </div>
-                            <div style={{ 
-                                marginTop: '4px',
-                                fontSize: '13px',
-                                color: '#6b7280'
-                            }}>
-                                Missing in Source
-                            </div>
+                            <div className="stat-label">Missing in Source</div>
                         </div>
-                        <div style={{ 
-                            border: '1px solid #e5e7eb',
-                            borderRadius: '8px',
-                            padding: '16px',
-                            backgroundColor: 'white'
-                        }}>
-                            <div style={{ 
-                                fontSize: '26px',
-                                fontWeight: '600',
-                                color: '#2563eb'
-                            }}>
+                        <div className="stat-card">
+                            <div className="stat-value" style={{ color: 'var(--primary-color)' }}>
                                 {summary.missingInTarget || 0}
                             </div>
-                            <div style={{ 
-                                marginTop: '4px',
-                                fontSize: '13px',
-                                color: '#6b7280'
-                            }}>
-                                Missing in Target
-                            </div>
+                            <div className="stat-label">Missing in Target</div>
                         </div>
-                        <div style={{ 
-                            border: '1px solid #e5e7eb',
-                            borderRadius: '8px',
-                            padding: '16px',
-                            backgroundColor: 'white'
-                        }}>
-                            <div style={{ 
-                                fontSize: '26px',
-                                fontWeight: '600',
-                                color: '#6b7280'
-                            }}>
+                        <div className="stat-card">
+                            <div className="stat-value" style={{ color: 'var(--text-muted)' }}>
                                 {summary.total || 0}
                             </div>
-                            <div style={{ 
-                                marginTop: '4px',
-                                fontSize: '13px',
-                                color: '#6b7280'
-                            }}>
-                                Total Compared
-                            </div>
+                            <div className="stat-label">Total Compared</div>
                         </div>
                     </div>
 
                     {/* Perfect Match Message */}
                     {onlyInSource.length === 0 && onlyInDest.length === 0 && different.length === 0 && (
-                        <div style={{ 
-                            padding: '40px',
-                            textAlign: 'center',
-                            color: '#059669',
-                            backgroundColor: '#f0fdf4',
-                            borderRadius: '8px',
-                            border: '1px solid #bbf7d0',
-                            marginTop: '24px'
-                        }}>
-                            <div style={{ 
-                                fontSize: '48px',
-                                marginBottom: '16px',
-                                display: 'flex',
-                                justifyContent: 'center'
-                            }}>
-                                <CheckCircle size={48} color="#059669" />
+                        <div id="perfect-match" className="p-6 text-center text-success bg-success-light rounded-lg border mt-6" style={{ borderColor: '#bbf7d0' }}>
+                            <div className="flex justify-center mb-4" style={{ fontSize: '48px' }}>
+                                <CheckCircle size={48} color="var(--success-color)" />
                             </div>
-                            <div style={{ 
-                                fontSize: '18px',
-                                fontWeight: '600',
-                                marginBottom: '8px'
-                            }}>
+                            <div className="text-xl font-semibold mb-2">
                                 Perfect Match!
                             </div>
-                            <div style={{ fontSize: '13px', color: '#047857' }}>
+                            <div className="text-sm" style={{ color: 'var(--success-color)' }}>
                                 All files are identical between the two locations.
                             </div>
                         </div>
@@ -568,60 +578,81 @@ const CompareOperations = ({ sites }) => {
                     {(onlyInSource.length > 0 || onlyInDest.length > 0 || different.length > 0) && (
                         <>
                             {onlyInSource.length > 0 && (
-                                <div style={{ marginTop: '24px' }}>
-                                    <h4 style={{ 
-                                        fontSize: '16px', 
-                                        fontWeight: '600', 
-                                        color: '#1f2937', 
-                                        marginBottom: '12px' 
+                                <div id="only-source" className="mt-6" style={{ 
+                                    scrollMarginTop: '80px',
+                                    paddingTop: '16px',
+                                    borderTop: '1px solid var(--border-color)'
+                                }}>
+                                    <h4 style={{
+                                        fontSize: '16px',
+                                        fontWeight: '600',
+                                        color: 'var(--text-primary)',
+                                        marginBottom: '12px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px'
                                     }}>
-                                        📤 Only in Source ({compareResults.sourceAlias})
+                                        <FileText size={18} style={{ color: 'var(--primary-color)' }} />
+                                        Only in Source ({compareResults.sourceAlias})
                                     </h4>
                                     {renderTable(
                                         onlyInSource,
                                         'onlyInSource',
-                                        '',
+                                        FileText,
                                         'No files found only in source'
                                     )}
                                 </div>
                             )}
                             
                             {onlyInDest.length > 0 && (
-                                <div style={{ marginTop: '24px' }}>
-                                    <h4 style={{ 
-                                        fontSize: '16px', 
-                                        fontWeight: '600', 
-                                        color: '#1f2937', 
-                                        marginBottom: '12px' 
+                                <div id="only-dest" className="mt-6" style={{ 
+                                    scrollMarginTop: '80px',
+                                    paddingTop: '16px',
+                                    borderTop: '1px solid var(--border-color)'
+                                }}>
+                                    <h4 style={{
+                                        fontSize: '16px',
+                                        fontWeight: '600',
+                                        color: 'var(--text-primary)',
+                                        marginBottom: '12px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px'
                                     }}>
-                                        📥 Only in Destination ({compareResults.destAlias})
+                                        <FileX size={18} style={{ color: 'var(--danger-color)' }} />
+                                        Only in Destination ({compareResults.destAlias})
                                     </h4>
                                     {renderTable(
                                         onlyInDest,
                                         'onlyInDest',
-                                        '',
+                                        FileX,
                                         'No files found only in destination'
                                     )}
                                 </div>
                             )}
                             
                             {different.length > 0 && (
-                                <div style={{ marginTop: '24px' }}>
-                                    <h4 style={{ 
-                                        fontSize: '16px', 
-                                        fontWeight: '600', 
-                                        color: '#1f2937', 
+                                <div id="different" className="mt-6" style={{ 
+                                    scrollMarginTop: '80px',
+                                    paddingTop: '16px',
+                                    borderTop: '1px solid var(--border-color)'
+                                }}>
+                                    <h4 style={{
+                                        fontSize: '16px',
+                                        fontWeight: '600',
+                                        color: 'var(--text-primary)',
                                         marginBottom: '12px',
                                         display: 'flex',
                                         alignItems: 'center',
                                         gap: '8px'
                                     }}>
-                                        <AlertTriangle size={16} /> Different Content
+                                        <AlertTriangle size={18} style={{ color: 'var(--warning-color)' }} />
+                                        Different Content
                                     </h4>
                                     {renderTable(
                                         different,
                                         'different',
-                                        '',
+                                        AlertTriangle,
                                         'No differences found'
                                     )}
                                 </div>

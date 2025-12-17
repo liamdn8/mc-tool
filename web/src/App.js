@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { I18nProvider } from './utils/i18n';
+import { ContentsPanelProvider } from './contexts/ContentsPanelContext';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import { loadAliases, loadSiteReplicationInfo, checkAliasHealth } from './utils/api';
@@ -174,45 +175,47 @@ function App() {
 
     return (
         <I18nProvider>
-            <Router basename="/minio-webtool">
-                <div className="app-container">
-                    <Header onRefresh={loadInitialData} />
-                    <div className="app-layout">
-                        <Sidebar />
-                        <main className="app-main">
-                            {loading ? (
-                                <div className="loading">
-                                    <div className="spinner"></div>
-                                </div>
-                            ) : (
-                                <Suspense fallback={<LoadingSpinner />}>
-                                    <Routes>
-                                        <Route path="/" element={<Navigate to="/overview" replace />} />
-                                        <Route path="/overview" element={<OverviewPage {...pageProps} />} />
-                                        <Route path="/sites" element={<SitesPage {...pageProps} />} />
-                                        
-                                        {/* Replication Operator Routes */}
-                                        <Route path="/replication-operator" element={<ReplicationOperatorPage {...pageProps} />} />
-                                        <Route path="/replication-operator/compare" element={<CompareOperations sites={sites} />} />
-                                        
-                                        {/* Tracing Routes */}
-                                        <Route path="/tracing" element={<TracingPage sites={sites} />} />
-                                        <Route path="/tracing/analyzer" element={<TraceOperations sites={sites} />} />
-                                        <Route path="/tracing/profiler" element={<ProfileOperations sites={sites} />} />
-                                        
-                                        {/* Validate Routes */}
-                                        <Route path="/validate" element={<ValidatePage sites={sites} />} />
-                                        <Route path="/validate/configuration" element={<ValidateOperations />} />
-                                        
-                                        {/* Terminal */}
-                                        <Route path="/terminal" element={<TerminalPage />} />
-                                    </Routes>
-                                </Suspense>
-                            )}
-                        </main>
+            <ContentsPanelProvider>
+                <Router basename="/minio-webtool">
+                    <div className="app-container">
+                        <Header onRefresh={loadInitialData} />
+                        <div className="app-layout">
+                            <Sidebar />
+                            <main className="app-main">
+                                {loading ? (
+                                    <div className="loading">
+                                        <div className="spinner"></div>
+                                    </div>
+                                ) : (
+                                    <Suspense fallback={<LoadingSpinner />}>
+                                        <Routes>
+                                            <Route path="/" element={<Navigate to="/overview" replace />} />
+                                            <Route path="/overview" element={<OverviewPage {...pageProps} />} />
+                                            <Route path="/sites" element={<SitesPage {...pageProps} />} />
+                                            
+                                            {/* Replication Operator Routes */}
+                                            <Route path="/replication-operator" element={<ReplicationOperatorPage {...pageProps} />} />
+                                            <Route path="/replication-operator/compare" element={<CompareOperations sites={sites} />} />
+                                            
+                                            {/* Tracing Routes */}
+                                            <Route path="/tracing" element={<TracingPage sites={sites} />} />
+                                            <Route path="/tracing/analyzer" element={<TraceOperations sites={sites} />} />
+                                            <Route path="/tracing/profiler" element={<ProfileOperations sites={sites} />} />
+                                            
+                                            {/* Validate Routes */}
+                                            <Route path="/validate" element={<ValidatePage sites={sites} />} />
+                                            <Route path="/validate/configuration" element={<ValidateOperations />} />
+                                            
+                                            {/* Terminal */}
+                                            <Route path="/terminal" element={<TerminalPage />} />
+                                        </Routes>
+                                    </Suspense>
+                                )}
+                            </main>
+                        </div>
                     </div>
-                </div>
-            </Router>
+                </Router>
+            </ContentsPanelProvider>
         </I18nProvider>
     );
 }

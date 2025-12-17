@@ -33,29 +33,29 @@ const ReplicationOperatorPage = ({ sites, replicationInfo }) => {
             color: '#4f46e5',
             requiresReplication: false
         },
-        {
-            id: 'resync',
-            titleKey: 'replication_resync_title',
-            titleFallback: 'Replication Resync',
-            descriptionKey: 'replication_resync_description',
-            descriptionFallback: 'Manage site replication, sync policies, and validate consistency across replicated sites',
-            featureKeys: [
-                'replication_resync_feature_1',
-                'replication_resync_feature_2',
-                'replication_resync_feature_3',
-                'replication_resync_feature_4'
-            ],
-            featureFallbacks: [
-                'Sync bucket policies across sites',
-                'Sync lifecycle configurations',
-                'Validate replication consistency',
-                'Health check for replicated sites'
-            ],
-            icon: Zap,
-            path: '/replication-operator/resync',
-            color: '#dc2626',
-            requiresReplication: true
-        }
+        // {
+        //     id: 'resync',
+        //     titleKey: 'replication_resync_title',
+        //     titleFallback: 'Replication Resync',
+        //     descriptionKey: 'replication_resync_description',
+        //     descriptionFallback: 'Manage site replication, sync policies, and validate consistency across replicated sites',
+        //     featureKeys: [
+        //         'replication_resync_feature_1',
+        //         'replication_resync_feature_2',
+        //         'replication_resync_feature_3',
+        //         'replication_resync_feature_4'
+        //     ],
+        //     featureFallbacks: [
+        //         'Sync bucket policies across sites',
+        //         'Sync lifecycle configurations',
+        //         'Validate replication consistency',
+        //         'Health check for replicated sites'
+        //     ],
+        //     icon: Zap,
+        //     path: '/replication-operator/resync',
+        //     color: '#dc2626',
+        //     requiresReplication: true
+        // }
     ];
 
     return (

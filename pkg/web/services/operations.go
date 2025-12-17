@@ -433,34 +433,34 @@ func (os *OperationsService) CompareBuckets(sourceAlias, destAlias, path string,
 		}
 
 		// Parse summary lines
-		if strings.Contains(line, "Identical:") {
-			fmt.Sscanf(line, "Identical: %d", &identical)
+		if strings.Contains(line, "[=] Identical:") {
+			fmt.Sscanf(line, "  [=] Identical: %d", &identical)
 			continue
 		}
-		if strings.Contains(line, "Different:") {
-			fmt.Sscanf(line, "Different: %d", &differentCount)
+		if strings.Contains(line, "[!] Different:") {
+			fmt.Sscanf(line, "  [!] Different: %d", &differentCount)
 			continue
 		}
 
 		// Parse difference lines
-		if inResults && (strings.HasPrefix(line, "+") || strings.HasPrefix(line, "-") || strings.HasPrefix(line, "⚠")) {
-			if strings.HasPrefix(line, "+") {
+		if inResults && (strings.HasPrefix(line, "[+]") || strings.HasPrefix(line, "[-]") || strings.HasPrefix(line, "[!]")) {
+			if strings.HasPrefix(line, "[+]") {
 				// Missing in target (only in source)
-				parts := strings.SplitN(line[1:], " - ", 2)
+				parts := strings.SplitN(line[3:], " - ", 2)
 				if len(parts) > 0 {
 					filename := strings.TrimSpace(parts[0])
 					onlyInSource = append(onlyInSource, filename)
 				}
-			} else if strings.HasPrefix(line, "-") {
+			} else if strings.HasPrefix(line, "[-]") {
 				// Missing in source (only in dest)
-				parts := strings.SplitN(line[1:], " - ", 2)
+				parts := strings.SplitN(line[3:], " - ", 2)
 				if len(parts) > 0 {
 					filename := strings.TrimSpace(parts[0])
 					onlyInDest = append(onlyInDest, filename)
 				}
-			} else if strings.HasPrefix(line, "⚠") {
+			} else if strings.HasPrefix(line, "[!]") {
 				// Different content
-				parts := strings.SplitN(line[1:], " - ", 2)
+				parts := strings.SplitN(line[3:], " - ", 2)
 				if len(parts) > 0 {
 					filename := strings.TrimSpace(parts[0])
 					description := "Content differs"
@@ -1186,82 +1186,259 @@ func (os *OperationsService) ConfigurationValidation() (map[string]interface{}, 
 	return results, nil
 }
 
-// ValidateBucketConfiguration validates bucket lifecycle and event configuration across multiple aliases
-func (os *OperationsService) ValidateBucketConfiguration(aliases []string, bucket string, checkLifecycle, checkEvents bool) (map[string]interface{}, error) {
+// ValidateBucketConfiguration validates bucket lifecycle and event configuration across multiple aliases and buckets
+func (os *OperationsService) ValidateBucketConfiguration(aliases []string, buckets []string, checkLifecycle, checkEvents bool) (map[string]interface{}, error) {
 	logger.GetLogger().Info("Starting bucket configuration validation", map[string]interface{}{
 		"aliases": aliases,
-		"bucket":  bucket,
+		"buckets": buckets,
 	})
 
-	// First, check if bucket exists on all aliases
-	bucketExistence := make(map[string]bool)
-	for _, alias := range aliases {
-		cmd := exec.Command("mc", "ls", fmt.Sprintf("%s/%s", alias, bucket))
-		err := cmd.Run()
-		bucketExistence[alias] = (err == nil)
-	}
-
-	results := make(map[string]interface{})
-	results["bucket"] = bucket
-	results["bucket_existence"] = bucketExistence
-
-	// Determine reference alias (first one where bucket exists)
-	var referenceAlias string
-	for _, alias := range aliases {
-		if bucketExistence[alias] {
-			referenceAlias = alias
-			break
+	// Build bucket existence matrix: buckets x aliases
+	bucketExistence := make(map[string]map[string]bool)
+	for _, bucket := range buckets {
+		bucketExistence[bucket] = make(map[string]bool)
+		for _, alias := range aliases {
+			cmd := exec.Command("mc", "ls", fmt.Sprintf("%s/%s", alias, bucket))
+			err := cmd.Run()
+			bucketExistence[bucket][alias] = (err == nil)
 		}
 	}
 
-	if referenceAlias == "" {
-		return map[string]interface{}{
-			"bucket":           bucket,
-			"bucket_existence": bucketExistence,
-			"error":            "Bucket does not exist on any of the selected aliases",
-			"missing_buckets":  aliases,
-		}, nil
-	}
-
-	results["reference_alias"] = referenceAlias
-
-	// Check which aliases are missing the bucket
-	missingBuckets := []string{}
-	for _, alias := range aliases {
-		if !bucketExistence[alias] {
-			missingBuckets = append(missingBuckets, alias)
-		}
-	}
-	results["missing_buckets"] = missingBuckets
-
-	// Validate lifecycle configuration if requested
+	// Build lifecycle comparison table
+	var lifecycleTable []map[string]interface{}
 	if checkLifecycle {
-		lifecycleResults := os.validateBucketLifecycle(aliases, bucket, referenceAlias, bucketExistence)
-		results["lifecycle"] = lifecycleResults
+		for _, bucket := range buckets {
+			// Find reference alias (first one where bucket exists)
+			var referenceAlias string
+			for _, alias := range aliases {
+				if bucketExistence[bucket][alias] {
+					referenceAlias = alias
+					break
+				}
+			}
+
+			if referenceAlias == "" {
+				continue // Skip if bucket doesn't exist anywhere
+			}
+
+			// Get reference lifecycle config
+			refConfig := os.getBucketLifecycleConfig(referenceAlias, bucket)
+
+			row := map[string]interface{}{
+				"bucket": bucket,
+			}
+
+			for _, alias := range aliases {
+				if !bucketExistence[bucket][alias] {
+					row[alias] = map[string]interface{}{
+						"status": "not_exist",
+						"value":  "Bucket not found",
+					}
+					continue
+				}
+
+				config := os.getBucketLifecycleConfig(alias, bucket)
+				if config == "" {
+					row[alias] = map[string]interface{}{
+						"status": "not_configured",
+						"value":  "Not configured",
+					}
+				} else {
+					// Compare lifecycle rules, ignoring auto-generated IDs
+					match := os.compareLifecycleConfigs(refConfig, config)
+					status := "match"
+					if !match {
+						status = "mismatch"
+					}
+					row[alias] = map[string]interface{}{
+						"status": status,
+						"value":  config,
+					}
+				}
+			}
+
+			lifecycleTable = append(lifecycleTable, row)
+		}
 	}
 
-	// Validate event configuration if requested
+	// Build events comparison table
+	var eventsTable []map[string]interface{}
 	if checkEvents {
-		eventResults := os.validateBucketEvents(aliases, bucket, referenceAlias, bucketExistence)
-		results["events"] = eventResults
+		for _, bucket := range buckets {
+			// Find reference alias (first one where bucket exists)
+			var referenceAlias string
+			for _, alias := range aliases {
+				if bucketExistence[bucket][alias] {
+					referenceAlias = alias
+					break
+				}
+			}
+
+			if referenceAlias == "" {
+				continue // Skip if bucket doesn't exist anywhere
+			}
+
+			// Get reference events config
+			refConfig := os.getBucketEventsConfig(referenceAlias, bucket)
+
+			row := map[string]interface{}{
+				"bucket": bucket,
+			}
+
+			for _, alias := range aliases {
+				if !bucketExistence[bucket][alias] {
+					row[alias] = map[string]interface{}{
+						"status": "not_exist",
+						"value":  "Bucket not found",
+					}
+					continue
+				}
+
+				config := os.getBucketEventsConfig(alias, bucket)
+				if config == "" {
+					row[alias] = map[string]interface{}{
+						"status": "not_configured",
+						"value":  "Not configured",
+					}
+				} else {
+					match := (config == refConfig)
+					status := "match"
+					if !match {
+						status = "mismatch"
+					}
+					row[alias] = map[string]interface{}{
+						"status": status,
+						"value":  config,
+					}
+				}
+			}
+
+			eventsTable = append(eventsTable, row)
+		}
 	}
 
-	// Calculate summary
-	summary := map[string]interface{}{
-		"total_aliases":   len(aliases),
-		"buckets_found":   len(aliases) - len(missingBuckets),
-		"buckets_missing": len(missingBuckets),
+	results := map[string]interface{}{
+		"buckets":          buckets,
+		"aliases":          aliases,
+		"bucket_existence": bucketExistence,
+		"lifecycle_table":  lifecycleTable,
+		"events_table":     eventsTable,
 	}
 
-	if checkLifecycle || checkEvents {
-		summary["validation_performed"] = true
-	}
-
-	results["summary"] = summary
-
-	logger.GetLogger().Info("Bucket configuration validation completed", summary)
+	logger.GetLogger().Info("Bucket configuration validation completed")
 
 	return results, nil
+}
+
+// getBucketLifecycleConfig gets lifecycle configuration for a bucket
+func (os *OperationsService) getBucketLifecycleConfig(alias, bucket string) string {
+	cmd := exec.Command("mc", "ilm", "export", fmt.Sprintf("%s/%s", alias, bucket))
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return ""
+	}
+
+	// Parse and normalize JSON
+	var lifecycleConfig interface{}
+	if err := json.Unmarshal(output, &lifecycleConfig); err != nil {
+		return string(output)
+	}
+
+	normalized, _ := json.Marshal(lifecycleConfig)
+	return string(normalized)
+}
+
+// compareLifecycleConfigs compares two lifecycle configurations, ignoring auto-generated ID fields
+func (os *OperationsService) compareLifecycleConfigs(config1, config2 string) bool {
+	if config1 == config2 {
+		return true
+	}
+
+	// Parse both configs
+	var lc1, lc2 map[string]interface{}
+	if err := json.Unmarshal([]byte(config1), &lc1); err != nil {
+		return false
+	}
+	if err := json.Unmarshal([]byte(config2), &lc2); err != nil {
+		return false
+	}
+
+	// Extract Rules arrays
+	rules1, ok1 := lc1["Rules"].([]interface{})
+	rules2, ok2 := lc2["Rules"].([]interface{})
+
+	if !ok1 || !ok2 {
+		return config1 == config2
+	}
+
+	if len(rules1) != len(rules2) {
+		return false
+	}
+
+	// Compare rules without ID fields
+	for i := range rules1 {
+		rule1, ok1 := rules1[i].(map[string]interface{})
+		rule2, ok2 := rules2[i].(map[string]interface{})
+
+		if !ok1 || !ok2 {
+			return false
+		}
+
+		// Create normalized copies without ID field
+		norm1 := make(map[string]interface{})
+		norm2 := make(map[string]interface{})
+
+		for k, v := range rule1 {
+			if k != "ID" {
+				norm1[k] = v
+			}
+		}
+
+		for k, v := range rule2 {
+			if k != "ID" {
+				norm2[k] = v
+			}
+		}
+
+		// Compare normalized rules
+		json1, _ := json.Marshal(norm1)
+		json2, _ := json.Marshal(norm2)
+
+		if string(json1) != string(json2) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// getBucketEventsConfig gets event notification configuration for a bucket
+func (os *OperationsService) getBucketEventsConfig(alias, bucket string) string {
+	cmd := exec.Command("mc", "event", "list", fmt.Sprintf("%s/%s", alias, bucket), "--json")
+	output, err := cmd.CombinedOutput()
+	if err != nil || strings.Contains(string(output), "No events configured") {
+		return ""
+	}
+
+	// Parse and normalize JSON
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	var events []interface{}
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		var event interface{}
+		if err := json.Unmarshal([]byte(line), &event); err == nil {
+			events = append(events, event)
+		}
+	}
+
+	if len(events) == 0 {
+		return ""
+	}
+
+	normalized, _ := json.Marshal(events)
+	return string(normalized)
 }
 
 // compareLifecycleRules compares two lifecycle rule arrays, ignoring IDs and timestamps

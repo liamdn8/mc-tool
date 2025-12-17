@@ -168,7 +168,7 @@ func (h *OperationsHandler) HandleValidateBucketConfig(w http.ResponseWriter, r 
 
 	var req struct {
 		Aliases        []string `json:"aliases"`
-		Bucket         string   `json:"bucket"`
+		Buckets        []string `json:"buckets"`
 		CheckLifecycle bool     `json:"check_lifecycle"`
 		CheckEvents    bool     `json:"check_events"`
 	}
@@ -183,12 +183,12 @@ func (h *OperationsHandler) HandleValidateBucketConfig(w http.ResponseWriter, r 
 		return
 	}
 
-	if req.Bucket == "" {
-		h.RespondError(w, http.StatusBadRequest, "Bucket is required")
+	if len(req.Buckets) == 0 {
+		h.RespondError(w, http.StatusBadRequest, "At least one bucket is required")
 		return
 	}
 
-	result, err := h.operationsService.ValidateBucketConfiguration(req.Aliases, req.Bucket, req.CheckLifecycle, req.CheckEvents)
+	result, err := h.operationsService.ValidateBucketConfiguration(req.Aliases, req.Buckets, req.CheckLifecycle, req.CheckEvents)
 	if err != nil {
 		h.RespondError(w, http.StatusInternalServerError, err.Error())
 		return

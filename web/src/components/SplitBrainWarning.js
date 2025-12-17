@@ -42,34 +42,23 @@ const SplitBrainWarning = ({ onRefresh }) => {
     };
 
     return (
-        <div style={{
+        <div className="p-4 rounded-lg my-4 border-2" style={{
             background: 'linear-gradient(135deg, #ff6b6b, #ee5a24)',
-            color: 'white',
-            padding: '16px',
-            borderRadius: '8px',
-            margin: '16px 0',
-            border: '2px solid #c0392b',
-            boxShadow: '0 4px 12px rgba(255, 107, 107, 0.3)'
+            borderColor: '#c0392b',
+            boxShadow: '0 4px 12px rgba(255, 107, 107, 0.3)',
+            color: 'white'
         }}>
-            <div style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                justifyContent: 'space-between'
-            }}>
-                <div style={{ flex: 1 }}>
-                    <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        marginBottom: '12px'
-                    }}>
-                        <AlertTriangle size={24} style={{ marginRight: '8px' }} />
-                        <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 'bold' }}>
+            <div className="flex items-start justify-between">
+                <div className="flex-1">
+                    <div className="flex items-center mb-3">
+                        <AlertTriangle size={24} className="mr-2" />
+                        <h3 className="m-0 text-xl font-bold">
                             {t('split_brain_title', '⚠️ SPLIT BRAIN DETECTED')}
                         </h3>
                     </div>
 
-                    <div style={{ marginBottom: '16px' }}>
-                        <p style={{ margin: '0 0 8px 0', fontSize: '1rem' }}>
+                    <div className="mb-4">
+                        <p className="m-0 mb-2 text-base">
                             <strong>
                                 {t(
                                     'split_brain_clusters_detected',
@@ -78,22 +67,18 @@ const SplitBrainWarning = ({ onRefresh }) => {
                                 )}
                             </strong>
                         </p>
-                        <p style={{ margin: '0 0 12px 0', fontSize: '0.9rem', opacity: 0.9 }}>
+                        <p className="m-0 mb-3 text-sm" style={{ opacity: 0.9 }}>
                             {t('split_brain_risk', 'This configuration can cause data inconsistency and conflicts.')}
                         </p>
                     </div>
 
                     {/* Warnings */}
                     {splitBrainData.warnings && splitBrainData.warnings.length > 0 && (
-                        <div style={{ marginBottom: '16px' }}>
-                            <h4 style={{ margin: '0 0 8px 0', fontSize: '1rem' }}>{t('split_brain_issues', 'Issues:')}</h4>
-                            <ul style={{ margin: 0, paddingLeft: '20px' }}>
+                        <div className="mb-4">
+                            <h4 className="m-0 mb-2 text-base">{t('split_brain_issues', 'Issues:')}</h4>
+                            <ul className="m-0" style={{ paddingLeft: '20px' }}>
                                 {splitBrainData.warnings.map((warning, index) => (
-                                    <li key={index} style={{ 
-                                        marginBottom: '4px', 
-                                        fontSize: '0.875rem',
-                                        lineHeight: '1.4'
-                                    }}>
+                                    <li key={index} className="mb-1 text-sm" style={{ lineHeight: '1.4' }}>
                                         {warning}
                                     </li>
                                 ))}
@@ -103,15 +88,11 @@ const SplitBrainWarning = ({ onRefresh }) => {
 
                     {/* Recommendations */}
                     {splitBrainData.recommendations && splitBrainData.recommendations.length > 0 && (
-                        <div style={{ marginBottom: '16px' }}>
-                            <h4 style={{ margin: '0 0 8px 0', fontSize: '1rem' }}>{t('split_brain_recommendations', 'Recommended Actions:')}</h4>
-                            <ol style={{ margin: 0, paddingLeft: '20px' }}>
+                        <div className="mb-4">
+                            <h4 className="m-0 mb-2 text-base">{t('split_brain_recommendations', 'Recommended Actions:')}</h4>
+                            <ol className="m-0" style={{ paddingLeft: '20px' }}>
                                 {splitBrainData.recommendations.map((rec, index) => (
-                                    <li key={index} style={{ 
-                                        marginBottom: '4px', 
-                                        fontSize: '0.875rem',
-                                        lineHeight: '1.4'
-                                    }}>
+                                    <li key={index} className="mb-1 text-sm" style={{ lineHeight: '1.4' }}>
                                         {rec}
                                     </li>
                                 ))}
@@ -120,24 +101,13 @@ const SplitBrainWarning = ({ onRefresh }) => {
                     )}
 
                     {/* Action Buttons */}
-                    <div style={{
-                        display: 'flex',
-                        gap: '12px',
-                        marginTop: '16px'
-                    }}>
+                    <div className="flex gap-3 mt-4">
                         <button
                             onClick={handleRefresh}
+                            className="btn btn-sm flex items-center gap-1 text-white"
                             style={{
-                                padding: '8px 16px',
                                 backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                                color: 'white',
-                                border: '1px solid rgba(255, 255, 255, 0.3)',
-                                borderRadius: '4px',
-                                cursor: 'pointer',
-                                fontSize: '0.875rem',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px'
+                                border: '1px solid rgba(255, 255, 255, 0.3)'
                             }}
                         >
                             <RefreshCw size={14} />
@@ -148,12 +118,10 @@ const SplitBrainWarning = ({ onRefresh }) => {
 
                 <button
                     onClick={handleDismiss}
+                    className="btn-icon text-white p-1"
                     style={{
                         background: 'none',
                         border: 'none',
-                        color: 'white',
-                        cursor: 'pointer',
-                        padding: '4px',
                         marginLeft: '16px'
                     }}
                     title={t('split_brain_dismiss', 'Dismiss warning')}
