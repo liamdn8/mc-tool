@@ -256,11 +256,11 @@ func DisplayResults(results []ComparisonResult, verbose bool) {
 		case "identical":
 			identical++
 			if verbose {
-				fmt.Printf("✓ %s - Identical\n", result.Key)
+				fmt.Printf("[=] %s - Identical\n", result.Key)
 			}
 		case "different":
 			different++
-			fmt.Printf("⚠ %s - Different (%s)\n", result.Key, strings.Join(result.Differences, ", "))
+			fmt.Printf("[!] %s - Different (%s)\n", result.Key, strings.Join(result.Differences, ", "))
 			if verbose {
 				if result.SourceInfo != nil {
 					fmt.Printf("  Source: ETag=%s, Size=%d, Modified=%s\n",
@@ -273,18 +273,18 @@ func DisplayResults(results []ComparisonResult, verbose bool) {
 			}
 		case "missing_source":
 			missingSource++
-			fmt.Printf("- %s - Missing in source\n", result.Key)
+			fmt.Printf("[-] %s - Missing in source\n", result.Key)
 		case "missing_target":
 			missingTarget++
-			fmt.Printf("+ %s - Missing in target\n", result.Key)
+			fmt.Printf("[+] %s - Missing in target\n", result.Key)
 		}
 	}
 
 	fmt.Println("\nSummary:")
-	fmt.Printf("  Identical: %d\n", identical)
-	fmt.Printf("  Different: %d\n", different)
-	fmt.Printf("  Missing in source: %d\n", missingSource)
-	fmt.Printf("  Missing in target: %d\n", missingTarget)
+	fmt.Printf("  [=] Identical: %d\n", identical)
+	fmt.Printf("  [!] Different: %d\n", different)
+	fmt.Printf("  [-] Missing in source: %d\n", missingSource)
+	fmt.Printf("  [+] Missing in target: %d\n", missingTarget)
 	fmt.Printf("  Total compared: %d\n", len(results))
 
 	if different > 0 || missingSource > 0 || missingTarget > 0 {

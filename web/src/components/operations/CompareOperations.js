@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { GitCompare, Play, BarChart3, CheckCircle, AlertTriangle } from 'lucide-react';
+import { GitCompare, Play, BarChart3, CheckCircle, AlertTriangle, ChevronUp, ChevronDown } from 'lucide-react';
 import ErrorAlert from '../ErrorAlert';
 import { apiCall } from '../../utils/api';
 
@@ -208,65 +208,76 @@ const CompareOperations = ({ sites }) => {
 
         return (
             <div style={{ 
-                display: 'flex', 
+                display: 'flex',
+                flexWrap: 'wrap',
                 justifyContent: 'space-between', 
-                alignItems: 'center', 
-                marginTop: '12px',
-                padding: '8px 0',
-                borderTop: '1px solid #e9ecef'
+                alignItems: 'center',
+                gap: '12px',
+                padding: '12px',
+                borderTop: '1px solid #d1d5db'
             }}>
-                <div style={{ fontSize: '14px', color: '#6c757d' }}>
-                    Showing {Math.min((currentPage - 1) * pageSize + 1, totalItems)} to {Math.min(currentPage * pageSize, totalItems)} of {totalItems} items
-                </div>
+                <span style={{ fontSize: '12px', color: '#4b5563' }}>
+                    {((currentPage - 1) * pageSize) + 1}-{Math.min(currentPage * pageSize, totalItems)} of {totalItems}
+                </span>
                 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <select 
-                        value={pageSize} 
-                        onChange={(e) => updatePagination(category, { pageSize: parseInt(e.target.value), page: 1 })}
-                        style={{ 
-                            padding: '4px 8px', 
-                            border: '1px solid #ccc', 
-                            borderRadius: '4px',
-                            fontSize: '14px'
-                        }}
-                    >
-                        <option value={10}>10</option>
-                        <option value={25}>25</option>
-                        <option value={50}>50</option>
-                        <option value={100}>100</option>
-                    </select>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <label style={{ fontSize: '12px', color: '#4b5563', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        Rows per page
+                        <select 
+                            value={pageSize} 
+                            onChange={(e) => updatePagination(category, { pageSize: parseInt(e.target.value), page: 1 })}
+                            style={{ 
+                                padding: '6px 10px',
+                                borderRadius: '6px',
+                                border: '1px solid #d1d5db',
+                                fontSize: '12px',
+                                backgroundColor: '#ffffff'
+                            }}
+                        >
+                            <option value={10}>10</option>
+                            <option value={20}>20</option>
+                            <option value={50}>50</option>
+                            <option value={100}>100</option>
+                        </select>
+                    </label>
                     
-                    <button 
-                        onClick={() => updatePagination(category, { page: Math.max(1, currentPage - 1) })}
-                        disabled={currentPage === 1}
-                        style={{ 
-                            padding: '4px 8px', 
-                            border: '1px solid #ccc', 
-                            borderRadius: '4px',
-                            backgroundColor: currentPage === 1 ? '#f5f5f5' : 'white',
-                            cursor: currentPage === 1 ? 'not-allowed' : 'pointer'
-                        }}
-                    >
-                        Previous
-                    </button>
-                    
-                    <span style={{ fontSize: '14px' }}>
-                        Page {currentPage} of {totalPages}
-                    </span>
-                    
-                    <button 
-                        onClick={() => updatePagination(category, { page: Math.min(totalPages, currentPage + 1) })}
-                        disabled={currentPage === totalPages}
-                        style={{ 
-                            padding: '4px 8px', 
-                            border: '1px solid #ccc', 
-                            borderRadius: '4px',
-                            backgroundColor: currentPage === totalPages ? '#f5f5f5' : 'white',
-                            cursor: currentPage === totalPages ? 'not-allowed' : 'pointer'
-                        }}
-                    >
-                        Next
-                    </button>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        <button 
+                            onClick={() => updatePagination(category, { page: Math.max(1, currentPage - 1) })}
+                            disabled={currentPage === 1}
+                            style={{ 
+                                padding: '6px 10px',
+                                borderRadius: '6px',
+                                border: '1px solid #d1d5db',
+                                backgroundColor: currentPage === 1 ? '#f3f4f6' : '#ffffff',
+                                color: '#1f2937',
+                                fontSize: '12px',
+                                cursor: currentPage === 1 ? 'not-allowed' : 'pointer'
+                            }}
+                        >
+                            Prev
+                        </button>
+                        
+                        <span style={{ fontSize: '12px', color: '#4b5563', minWidth: '60px', textAlign: 'center' }}>
+                            {currentPage} / {totalPages}
+                        </span>
+                        
+                        <button 
+                            onClick={() => updatePagination(category, { page: Math.min(totalPages, currentPage + 1) })}
+                            disabled={currentPage === totalPages}
+                            style={{ 
+                                padding: '6px 10px',
+                                borderRadius: '6px',
+                                border: '1px solid #d1d5db',
+                                backgroundColor: currentPage === totalPages ? '#f3f4f6' : '#ffffff',
+                                color: '#1f2937',
+                                fontSize: '12px',
+                                cursor: currentPage === totalPages ? 'not-allowed' : 'pointer'
+                            }}
+                        >
+                            Next
+                        </button>
+                    </div>
                 </div>
             </div>
         );
@@ -277,98 +288,79 @@ const CompareOperations = ({ sites }) => {
         const paginated = paginateData(items, category);
         
         return (
-            <div style={{ marginBottom: '24px' }}>
-                <h4 style={{ 
-                    margin: '0 0 12px 0', 
-                    fontSize: '16px', 
-                    fontWeight: '600',
-                    color: '#495057',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px'
-                }}>
-                    {title}
-                    <span style={{ 
-                        fontSize: '14px', 
-                        fontWeight: 'normal', 
-                        color: '#6c757d',
-                        backgroundColor: '#e9ecef',
-                        padding: '2px 8px',
-                        borderRadius: '12px'
-                    }}>
-                        {items.length}
-                    </span>
-                </h4>
-                
+            <div>
                 {items.length === 0 ? (
                     <div style={{ 
-                        padding: '20px', 
-                        textAlign: 'center', 
-                        color: '#6c757d',
-                        fontStyle: 'italic',
-                        backgroundColor: '#f8f9fa',
-                        borderRadius: '4px',
-                        border: '1px solid #e9ecef'
+                        padding: '40px',
+                        textAlign: 'center',
+                        color: '#6b7280',
+                        backgroundColor: '#f9fafb',
+                        borderRadius: '8px',
+                        border: '1px solid #e5e7eb',
+                        fontSize: '13px'
                     }}>
                         {emptyMessage}
                     </div>
                 ) : (
                     <div style={{ 
-                        border: '1px solid #e9ecef',
-                        borderRadius: '4px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '6px',
                         overflow: 'hidden'
                     }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                            <thead>
-                                <tr style={{ backgroundColor: '#f8f9fa' }}>
-                                    <th style={{ 
-                                        padding: '12px', 
-                                        textAlign: 'left', 
-                                        borderBottom: '1px solid #e9ecef',
-                                        fontWeight: '600',
-                                        fontSize: '14px'
-                                    }}>
-                                        Path
-                                    </th>
-                                    {category === 'different' && (
+                        <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '500px' }}>
+                                <thead style={{ backgroundColor: '#f9fafb' }}>
+                                    <tr>
                                         <th style={{ 
                                             padding: '12px', 
                                             textAlign: 'left', 
-                                            borderBottom: '1px solid #e9ecef',
-                                            fontWeight: '600',
-                                            fontSize: '14px'
+                                            fontSize: '12px', 
+                                            fontWeight: '400',
+                                            color: '#6b7280'
                                         }}>
-                                            Description
+                                            Path
                                         </th>
-                                    )}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {paginated.data.map((item, index) => (
-                                    <tr key={index} style={{ 
-                                        borderBottom: index < paginated.data.length - 1 ? '1px solid #f1f3f4' : 'none'
-                                    }}>
-                                        <td style={{ 
-                                            padding: '12px', 
-                                            fontFamily: 'monospace',
-                                            fontSize: '13px',
-                                            wordBreak: 'break-all'
-                                        }}>
-                                            {typeof item === 'string' ? item : item.path}
-                                        </td>
                                         {category === 'different' && (
-                                            <td style={{ 
+                                            <th style={{ 
                                                 padding: '12px', 
-                                                fontSize: '13px',
-                                                color: '#6c757d'
+                                                textAlign: 'left', 
+                                                fontSize: '12px', 
+                                                fontWeight: '400',
+                                                color: '#6b7280'
                                             }}>
-                                                {item.description}
-                                            </td>
+                                                Description
+                                            </th>
                                         )}
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    {paginated.data.map((item, index) => (
+                                        <tr key={index} style={{ 
+                                            borderTop: '1px solid #f3f4f6'
+                                        }}>
+                                            <td style={{ 
+                                                padding: '12px',
+                                                fontSize: '12px',
+                                                color: '#111827',
+                                                fontFamily: 'monospace',
+                                                wordBreak: 'break-all'
+                                            }}>
+                                                {typeof item === 'string' ? item : item.path}
+                                            </td>
+                                            {category === 'different' && (
+                                                <td style={{ 
+                                                    padding: '12px',
+                                                    fontSize: '12px',
+                                                    color: '#6b7280'
+                                                }}>
+                                                    {item.description}
+                                                </td>
+                                            )}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                         
                         {renderPaginationControls(category, paginated.totalItems, paginated.totalPages, paginated.currentPage, paginated.pageSize)}
                     </div>
@@ -386,96 +378,255 @@ const CompareOperations = ({ sites }) => {
         const different = compareResults.different || [];
         
         return (
-            <div style={{ marginTop: '20px', padding: '16px', border: '1px solid #e9ecef', borderRadius: '8px', backgroundColor: '#fafafa' }}>
-                <h5 style={{ margin: '0 0 16px 0', color: '#495057', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <BarChart3 size={20} />
-                    <span>Comparison Results</span>
-                    {compareFormData.compareVersion && (
-                        <span style={{ 
-                            fontSize: '12px', 
-                            marginLeft: '12px', 
-                            backgroundColor: '#e3f2fd', 
-                            color: '#1976d2',
-                            padding: '4px 8px',
-                            borderRadius: '12px',
-                            fontWeight: 'normal'
-                        }}>
-                            Version comparison enabled
-                        </span>
-                    )}
-                </h5>
-                
-                {/* Summary Section First */}
-                <div style={{ 
-                    marginBottom: '24px', 
-                    padding: '16px',
-                    backgroundColor: 'white',
-                    borderRadius: '6px',
-                    border: '1px solid #e9ecef'
-                }}>
-                    <h6 style={{ margin: '0 0 12px 0', fontWeight: '600' }}>Summary</h6>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '12px' }}>
-                        <div style={{ textAlign: 'center', padding: '8px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                            <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#28a745' }}>{summary.identical || 0}</div>
-                            <div style={{ fontSize: '12px', color: '#6c757d' }}>Identical</div>
-                        </div>
-                        <div style={{ textAlign: 'center', padding: '8px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                            <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#ffc107' }}>{summary.different || 0}</div>
-                            <div style={{ fontSize: '12px', color: '#6c757d' }}>Different</div>
-                        </div>
-                        <div style={{ textAlign: 'center', padding: '8px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                            <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#dc3545' }}>{summary.missingInSource || 0}</div>
-                            <div style={{ fontSize: '12px', color: '#6c757d' }}>Missing in Source</div>
-                        </div>
-                        <div style={{ textAlign: 'center', padding: '8px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                            <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#007bff' }}>{summary.missingInTarget || 0}</div>
-                            <div style={{ fontSize: '12px', color: '#6c757d' }}>Missing in Target</div>
-                        </div>
-                        <div style={{ textAlign: 'center', padding: '8px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                            <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#6c757d' }}>{summary.total || 0}</div>
-                            <div style={{ fontSize: '12px', color: '#6c757d' }}>Total Compared</div>
-                        </div>
-                    </div>
+            <div className="card" style={{ marginTop: '24px' }}>
+                <div className="card-header">
+                    <h3 className="card-title" style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '8px' 
+                    }}>
+                        <BarChart3 size={18} />
+                        Comparison Results
+                    </h3>
+                    <p style={{ 
+                        margin: '8px 0 0 0', 
+                        fontSize: '13px', 
+                        color: '#6b7280' 
+                    }}>
+                        Comparing {compareFormData.sourceAlias} and {compareFormData.destAlias} 
+                        {compareFormData.bucket && ` in bucket "${compareFormData.bucket}"`}
+                        {compareFormData.path && ` at path "${compareFormData.path}"`}
+                    </p>
                 </div>
 
-                {/* Detailed Tables */}
-                <div style={{ backgroundColor: 'white', padding: '16px', borderRadius: '6px', border: '1px solid #e9ecef' }}>
-                    {renderTable(
-                        onlyInSource,
-                        'onlyInSource',
-                        '📤 Only in Source (' + compareResults.sourceAlias + ')',
-                        'No files found only in source'
-                    )}
-                    
-                    {renderTable(
-                        onlyInDest,
-                        'onlyInDest',
-                        '📥 Only in Destination (' + compareResults.destAlias + ')',
-                        'No files found only in destination'
-                    )}
-                    
-                    {renderTable(
-                        different,
-                        'different',
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><AlertTriangle size={16} /> Different Content</span>,
-                        'No differences found'
-                    )}
-                    
+                <div style={{ padding: '20px' }}>
+                    {/* Badges */}
+                    <div style={{ 
+                        display: 'flex', 
+                        flexWrap: 'wrap', 
+                        gap: '8px', 
+                        marginBottom: '16px' 
+                    }}>
+                        {compareFormData.compareVersion && (
+                            <span className="badge badge-success">Version comparison enabled</span>
+                        )}
+                        <span className="badge badge-neutral">
+                            Source: {compareFormData.sourceAlias}
+                        </span>
+                        <span className="badge badge-neutral">
+                            Destination: {compareFormData.destAlias}
+                        </span>
+                    </div>
+
+                    {/* Summary Stats Grid */}
+                    <div style={{ 
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+                        gap: '16px',
+                        marginBottom: '20px'
+                    }}>
+                        <div style={{ 
+                            border: '1px solid #e5e7eb',
+                            borderRadius: '8px',
+                            padding: '16px',
+                            backgroundColor: 'white'
+                        }}>
+                            <div style={{ 
+                                fontSize: '26px',
+                                fontWeight: '600',
+                                color: '#059669'
+                            }}>
+                                {summary.identical || 0}
+                            </div>
+                            <div style={{ 
+                                marginTop: '4px',
+                                fontSize: '13px',
+                                color: '#6b7280'
+                            }}>
+                                Identical
+                            </div>
+                        </div>
+                        <div style={{ 
+                            border: '1px solid #e5e7eb',
+                            borderRadius: '8px',
+                            padding: '16px',
+                            backgroundColor: 'white'
+                        }}>
+                            <div style={{ 
+                                fontSize: '26px',
+                                fontWeight: '600',
+                                color: '#f59e0b'
+                            }}>
+                                {summary.different || 0}
+                            </div>
+                            <div style={{ 
+                                marginTop: '4px',
+                                fontSize: '13px',
+                                color: '#6b7280'
+                            }}>
+                                Different
+                            </div>
+                        </div>
+                        <div style={{ 
+                            border: '1px solid #e5e7eb',
+                            borderRadius: '8px',
+                            padding: '16px',
+                            backgroundColor: 'white'
+                        }}>
+                            <div style={{ 
+                                fontSize: '26px',
+                                fontWeight: '600',
+                                color: '#dc2626'
+                            }}>
+                                {summary.missingInSource || 0}
+                            </div>
+                            <div style={{ 
+                                marginTop: '4px',
+                                fontSize: '13px',
+                                color: '#6b7280'
+                            }}>
+                                Missing in Source
+                            </div>
+                        </div>
+                        <div style={{ 
+                            border: '1px solid #e5e7eb',
+                            borderRadius: '8px',
+                            padding: '16px',
+                            backgroundColor: 'white'
+                        }}>
+                            <div style={{ 
+                                fontSize: '26px',
+                                fontWeight: '600',
+                                color: '#2563eb'
+                            }}>
+                                {summary.missingInTarget || 0}
+                            </div>
+                            <div style={{ 
+                                marginTop: '4px',
+                                fontSize: '13px',
+                                color: '#6b7280'
+                            }}>
+                                Missing in Target
+                            </div>
+                        </div>
+                        <div style={{ 
+                            border: '1px solid #e5e7eb',
+                            borderRadius: '8px',
+                            padding: '16px',
+                            backgroundColor: 'white'
+                        }}>
+                            <div style={{ 
+                                fontSize: '26px',
+                                fontWeight: '600',
+                                color: '#6b7280'
+                            }}>
+                                {summary.total || 0}
+                            </div>
+                            <div style={{ 
+                                marginTop: '4px',
+                                fontSize: '13px',
+                                color: '#6b7280'
+                            }}>
+                                Total Compared
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Perfect Match Message */}
                     {onlyInSource.length === 0 && onlyInDest.length === 0 && different.length === 0 && (
                         <div style={{ 
-                            padding: '40px', 
-                            textAlign: 'center', 
-                            color: '#28a745',
-                            backgroundColor: '#d4edda',
-                            borderRadius: '6px',
-                            border: '1px solid #c3e6cb'
+                            padding: '40px',
+                            textAlign: 'center',
+                            color: '#059669',
+                            backgroundColor: '#f0fdf4',
+                            borderRadius: '8px',
+                            border: '1px solid #bbf7d0',
+                            marginTop: '24px'
                         }}>
-                            <div style={{ fontSize: '48px', marginBottom: '16px', display: 'flex', justifyContent: 'center' }}>
-                                <CheckCircle size={48} color="#28a745" />
+                            <div style={{ 
+                                fontSize: '48px',
+                                marginBottom: '16px',
+                                display: 'flex',
+                                justifyContent: 'center'
+                            }}>
+                                <CheckCircle size={48} color="#059669" />
                             </div>
-                            <div style={{ fontSize: '18px', fontWeight: '600', marginBottom: '8px' }}>Perfect Match!</div>
-                            <div style={{ fontSize: '14px' }}>All files are identical between the two locations.</div>
+                            <div style={{ 
+                                fontSize: '18px',
+                                fontWeight: '600',
+                                marginBottom: '8px'
+                            }}>
+                                Perfect Match!
+                            </div>
+                            <div style={{ fontSize: '13px', color: '#047857' }}>
+                                All files are identical between the two locations.
+                            </div>
                         </div>
+                    )}
+
+                    {/* Detailed Tables */}
+                    {(onlyInSource.length > 0 || onlyInDest.length > 0 || different.length > 0) && (
+                        <>
+                            {onlyInSource.length > 0 && (
+                                <div style={{ marginTop: '24px' }}>
+                                    <h4 style={{ 
+                                        fontSize: '16px', 
+                                        fontWeight: '600', 
+                                        color: '#1f2937', 
+                                        marginBottom: '12px' 
+                                    }}>
+                                        📤 Only in Source ({compareResults.sourceAlias})
+                                    </h4>
+                                    {renderTable(
+                                        onlyInSource,
+                                        'onlyInSource',
+                                        '',
+                                        'No files found only in source'
+                                    )}
+                                </div>
+                            )}
+                            
+                            {onlyInDest.length > 0 && (
+                                <div style={{ marginTop: '24px' }}>
+                                    <h4 style={{ 
+                                        fontSize: '16px', 
+                                        fontWeight: '600', 
+                                        color: '#1f2937', 
+                                        marginBottom: '12px' 
+                                    }}>
+                                        📥 Only in Destination ({compareResults.destAlias})
+                                    </h4>
+                                    {renderTable(
+                                        onlyInDest,
+                                        'onlyInDest',
+                                        '',
+                                        'No files found only in destination'
+                                    )}
+                                </div>
+                            )}
+                            
+                            {different.length > 0 && (
+                                <div style={{ marginTop: '24px' }}>
+                                    <h4 style={{ 
+                                        fontSize: '16px', 
+                                        fontWeight: '600', 
+                                        color: '#1f2937', 
+                                        marginBottom: '12px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px'
+                                    }}>
+                                        <AlertTriangle size={16} /> Different Content
+                                    </h4>
+                                    {renderTable(
+                                        different,
+                                        'different',
+                                        '',
+                                        'No differences found'
+                                    )}
+                                </div>
+                            )}
+                        </>
                     )}
                 </div>
             </div>
@@ -488,198 +639,234 @@ const CompareOperations = ({ sites }) => {
     return (
         <div>
             {error && <ErrorAlert message={error} onClose={() => setError(null)} />}
+            
             <div className="card">
                 <div className="card-header">
-                    <h3 className="card-title">
-                        <GitCompare size={20} style={{ marginRight: '8px' }} />
-                        Compare Buckets/Paths
-                    </h3>
-                    <p style={{ margin: '8px 0 0 0', fontSize: '14px', color: '#6c757d' }}>
+                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                        <GitCompare style={{ width: '20px', height: '20px', marginRight: '8px', color: '#2563eb' }} />
+                        <h3 className="card-title">Compare Buckets/Paths</h3>
+                    </div>
+                    <p style={{ margin: '8px 0 0 0', fontSize: '13px', color: 'var(--text-secondary)' }}>
                         Compare content between two MinIO aliases to identify differences
                     </p>
                 </div>
 
                 <div style={{ padding: '20px' }}>
                     {/* Compare Configuration Form */}
-                    <div style={{ padding: '16px', border: '1px solid var(--border-color)', borderRadius: '8px', backgroundColor: '#f8f9fa' }}>
-                        <h5 style={{ margin: '0 0 16px 0' }}>Compare Configuration</h5>
-                        
-                        {/* Alias Selection Row */}
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
-                            <div>
-                                <label style={{ display: 'block', marginBottom: '4px', fontSize: '14px', fontWeight: '500' }}>
-                                    Source Alias:
-                                </label>
-                                <select 
-                                    value={compareFormData.sourceAlias}
-                                    onChange={(e) => handleSourceAliasChange(e.target.value)}
-                                    style={{ 
-                                        width: '100%', 
-                                        padding: '8px', 
-                                        border: '1px solid var(--border-color)', 
-                                        borderRadius: '4px' 
-                                    }}
-                                >
-                                    <option value="">Select source alias...</option>
-                                    {sites.map(site => (
-                                        <option key={site.name} value={site.name}>{site.name}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div>
-                                <label style={{ display: 'block', marginBottom: '4px', fontSize: '14px', fontWeight: '500' }}>
-                                    Destination Alias:
-                                </label>
-                                <select 
-                                    value={compareFormData.destAlias}
-                                    onChange={(e) => handleDestAliasChange(e.target.value)}
-                                    style={{ 
-                                        width: '100%', 
-                                        padding: '8px', 
-                                        border: '1px solid var(--border-color)', 
-                                        borderRadius: '4px' 
-                                    }}
-                                >
-                                    <option value="">Select destination alias...</option>
-                                    {sites.map(site => (
-                                        <option key={site.name} value={site.name}>{site.name}</option>
-                                    ))}
-                                </select>
-                            </div>
-                        </div>
-
-                        {/* Bucket and Path Selection Row */}
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
-                            <div>
-                                <label style={{ display: 'block', marginBottom: '4px', fontSize: '14px', fontWeight: '500' }}>
-                                    Bucket:
-                                </label>
-                                <select 
-                                    value={compareFormData.bucket}
-                                    onChange={(e) => handleBucketChange(e.target.value)}
-                                    disabled={!compareFormData.sourceAlias}
-                                    style={{ 
-                                        width: '100%', 
-                                        padding: '8px', 
-                                        border: '1px solid var(--border-color)', 
-                                        borderRadius: '4px',
-                                        backgroundColor: !compareFormData.sourceAlias ? '#f5f5f5' : 'white'
-                                    }}
-                                >
-                                    <option value="">
-                                        {!compareFormData.sourceAlias ? 'Select source alias first' : 'Select bucket...'}
-                                    </option>
-                                    {sourceBuckets.map(bucket => (
-                                        <option key={bucket} value={bucket}>{bucket}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div>
-                                <label style={{ display: 'block', marginBottom: '4px', fontSize: '14px', fontWeight: '500' }}>
-                                    Path (Optional):
-                                </label>
-                                <input 
-                                    type="text"
-                                    value={compareFormData.path}
-                                    onChange={(e) => setCompareFormData(prev => ({ ...prev, path: e.target.value }))}
-                                    placeholder={compareFormData.bucket ? "Enter path or leave empty for entire bucket" : "Select bucket first"}
-                                    disabled={!compareFormData.bucket}
-                                    style={{ 
-                                        width: '100%', 
-                                        padding: '8px', 
-                                        border: '1px solid var(--border-color)', 
-                                        borderRadius: '4px',
-                                        backgroundColor: !compareFormData.bucket ? '#f5f5f5' : 'white'
-                                    }}
-                                    list="path-suggestions"
-                                />
-                                <datalist id="path-suggestions">
-                                    {pathSuggestions.map(path => (
-                                        <option key={path} value={path} />
-                                    ))}
-                                </datalist>
-                            </div>
-                        </div>
-
-                        {/* Version Comparison Option */}
-                        <div style={{ marginBottom: '16px' }}>
+                    <div style={{ 
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+                        gap: '16px',
+                        marginBottom: '16px'
+                    }}>
+                        {/* Source Alias */}
+                        <div>
                             <label style={{ 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                gap: '8px', 
-                                fontSize: '14px', 
-                                fontWeight: '500',
-                                cursor: versioningStatus.bothVersioned ? 'pointer' : 'not-allowed',
-                                opacity: versioningStatus.bothVersioned ? 1 : 0.6
+                                display: 'block',
+                                fontSize: '13px',
+                                color: '#4b5563',
+                                marginBottom: '6px',
+                                fontWeight: '500'
                             }}>
-                                <input 
-                                    type="checkbox"
-                                    checked={compareFormData.compareVersion}
-                                    onChange={(e) => setCompareFormData(prev => ({ ...prev, compareVersion: e.target.checked }))}
-                                    disabled={!versioningStatus.bothVersioned}
-                                    style={{ 
-                                        width: '16px', 
-                                        height: '16px',
-                                        cursor: versioningStatus.bothVersioned ? 'pointer' : 'not-allowed'
-                                    }}
-                                />
-                                <span>Compare all versions</span>
-                                <span style={{ 
-                                    fontSize: '12px', 
-                                    color: '#6c757d',
-                                    fontWeight: 'normal'
-                                }}>
-                                    {versioningStatus.checked ? (
-                                        versioningStatus.bothVersioned ? 
-                                            '(Both buckets have versioning enabled)' :
-                                            versioningStatus.sourceVersioning || versioningStatus.destVersioning ?
-                                                '(Versioning only enabled on one side)' :
-                                                '(Versioning not enabled on either bucket)'
-                                    ) : '(Checking versioning status...)'}
-                                </span>
+                                Source Alias
+                                <span style={{ color: '#dc2626', marginLeft: '4px' }}>*</span>
                             </label>
-
-                            <label style={{ 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                gap: '8px', 
-                                fontSize: '14px', 
-                                fontWeight: '500',
-                                cursor: 'pointer'
-                            }}>
-                                <input 
-                                    type="checkbox"
-                                    checked={compareFormData.insecure}
-                                    onChange={(e) => setCompareFormData(prev => ({ ...prev, insecure: e.target.checked }))}
-                                    style={{ 
-                                        width: '16px', 
-                                        height: '16px',
-                                        cursor: 'pointer'
-                                    }}
-                                />
-                                <span>Insecure</span>
-                                <span style={{ 
-                                    fontSize: '12px', 
-                                    color: '#6c757d',
-                                    fontWeight: 'normal'
-                                }}>
-                                    Skip TLS certificate verification (--insecure)
-                                </span>
-                            </label>
+                            <select 
+                                value={compareFormData.sourceAlias}
+                                onChange={(e) => handleSourceAliasChange(e.target.value)}
+                                style={{ 
+                                    width: '100%',
+                                    padding: '10px',
+                                    borderRadius: '6px',
+                                    border: '1px solid #d1d5db',
+                                    fontSize: '14px',
+                                    backgroundColor: '#ffffff'
+                                }}
+                            >
+                                <option value="">Select source alias...</option>
+                                {sites.map(site => (
+                                    <option key={site.name} value={site.name}>{site.name}</option>
+                                ))}
+                            </select>
                         </div>
 
-                        <button 
-                            className="btn btn-primary"
-                            onClick={executeCompare}
-                            disabled={isDisabled}
-                            style={{ width: '100%' }}
-                        >
-                            <Play size={16} />
-                            {isRunning ? 'Comparing...' : 'Execute Compare'}
-                        </button>
+                        {/* Destination Alias */}
+                        <div>
+                            <label style={{ 
+                                display: 'block',
+                                fontSize: '13px',
+                                color: '#4b5563',
+                                marginBottom: '6px',
+                                fontWeight: '500'
+                            }}>
+                                Destination Alias
+                                <span style={{ color: '#dc2626', marginLeft: '4px' }}>*</span>
+                            </label>
+                            <select 
+                                value={compareFormData.destAlias}
+                                onChange={(e) => handleDestAliasChange(e.target.value)}
+                                style={{ 
+                                    width: '100%',
+                                    padding: '10px',
+                                    borderRadius: '6px',
+                                    border: '1px solid #d1d5db',
+                                    fontSize: '14px',
+                                    backgroundColor: '#ffffff'
+                                }}
+                            >
+                                <option value="">Select destination alias...</option>
+                                {sites.map(site => (
+                                    <option key={site.name} value={site.name}>{site.name}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* Bucket */}
+                        <div>
+                            <label style={{ 
+                                display: 'block',
+                                fontSize: '13px',
+                                color: '#4b5563',
+                                marginBottom: '6px',
+                                fontWeight: '500'
+                            }}>
+                                Bucket
+                                <span style={{ color: '#dc2626', marginLeft: '4px' }}>*</span>
+                            </label>
+                            <select 
+                                value={compareFormData.bucket}
+                                onChange={(e) => handleBucketChange(e.target.value)}
+                                disabled={!compareFormData.sourceAlias}
+                                style={{ 
+                                    width: '100%',
+                                    padding: '10px',
+                                    borderRadius: '6px',
+                                    border: '1px solid #d1d5db',
+                                    fontSize: '14px',
+                                    backgroundColor: !compareFormData.sourceAlias ? '#f3f4f6' : '#ffffff',
+                                    cursor: !compareFormData.sourceAlias ? 'not-allowed' : 'pointer'
+                                }}
+                            >
+                                <option value="">
+                                    {!compareFormData.sourceAlias ? 'Select source alias first' : 'Select bucket...'}
+                                </option>
+                                {sourceBuckets.map(bucket => (
+                                    <option key={bucket} value={bucket}>{bucket}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* Path */}
+                        <div>
+                            <label style={{ 
+                                display: 'block',
+                                fontSize: '13px',
+                                color: '#4b5563',
+                                marginBottom: '6px',
+                                fontWeight: '500'
+                            }}>
+                                Path (Optional)
+                            </label>
+                            <input 
+                                type="text"
+                                value={compareFormData.path}
+                                onChange={(e) => setCompareFormData(prev => ({ ...prev, path: e.target.value }))}
+                                placeholder={compareFormData.bucket ? "Enter path or leave empty" : "Select bucket first"}
+                                disabled={!compareFormData.bucket}
+                                style={{ 
+                                    width: '100%',
+                                    padding: '10px',
+                                    borderRadius: '6px',
+                                    border: '1px solid #d1d5db',
+                                    fontSize: '14px',
+                                    backgroundColor: !compareFormData.bucket ? '#f3f4f6' : '#ffffff',
+                                    cursor: !compareFormData.bucket ? 'not-allowed' : 'text'
+                                }}
+                                list="path-suggestions"
+                            />
+                            <datalist id="path-suggestions">
+                                {pathSuggestions.map(path => (
+                                    <option key={path} value={path} />
+                                ))}
+                            </datalist>
+                        </div>
                     </div>
 
-                    {/* Render Compare Results inside the form */}
+                    {/* Options */}
+                    <div style={{ marginBottom: '20px' }}>
+                        <label style={{ 
+                            display: 'flex',
+                            alignItems: 'center',
+                            padding: '12px',
+                            border: compareFormData.insecure ? '1px solid #f59e0b' : '1px solid #d1d5db',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            backgroundColor: compareFormData.insecure ? '#fffbeb' : '#ffffff',
+                            fontSize: '13px',
+                            gap: '8px',
+                            marginBottom: '8px'
+                        }}>
+                            <input 
+                                type="checkbox"
+                                checked={compareFormData.insecure}
+                                onChange={(e) => setCompareFormData(prev => ({ ...prev, insecure: e.target.checked }))}
+                            />
+                            <span style={{ 
+                                fontWeight: compareFormData.insecure ? '600' : '400',
+                                color: compareFormData.insecure ? '#f59e0b' : '#374151'
+                            }}>
+                                Skip TLS certificate verification (--insecure)
+                            </span>
+                        </label>
+
+                        <label style={{ 
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            fontSize: '14px',
+                            color: '#374151',
+                            cursor: versioningStatus.bothVersioned ? 'pointer' : 'not-allowed',
+                            opacity: versioningStatus.bothVersioned ? 1 : 0.6
+                        }}>
+                            <input 
+                                type="checkbox"
+                                checked={compareFormData.compareVersion}
+                                onChange={(e) => setCompareFormData(prev => ({ ...prev, compareVersion: e.target.checked }))}
+                                disabled={!versioningStatus.bothVersioned}
+                                style={{ cursor: versioningStatus.bothVersioned ? 'pointer' : 'not-allowed' }}
+                            />
+                            Compare all versions (require bucket versioning enabled on both aliases)
+                        </label>
+                    </div>
+
+                    <button 
+                        className="btn btn-primary"
+                        onClick={executeCompare}
+                        disabled={isDisabled}
+                        style={{ 
+                            width: '100%',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '8px',
+                            padding: '12px 18px',
+                            fontSize: '15px'
+                        }}
+                    >
+                        {isRunning ? (
+                            <>
+                                <div className="spinner" style={{ width: '16px', height: '16px' }}></div>
+                                Comparing...
+                            </>
+                        ) : (
+                            <>
+                                <Play size={16} />
+                                Execute Compare
+                            </>
+                        )}
+                    </button>
+
+                    {/* Render Compare Results */}
                     {renderCompareResults()}
                 </div>
             </div>
