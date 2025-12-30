@@ -1,0 +1,225 @@
+package services
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"sync"
+	"time"
+
+	"github.com/liamdn8/mc-tool/pkg/config"
+	"github.com/liamdn8/mc-tool/pkg/logger"
+	"github.com/liamdn8/mc-tool/pkg/perftest"
+)
+
+// PerftestService manages performance testing operations
+type PerftestService struct {
+	mu          sync.RWMutex
+	activeTest  *perftest.Runner
+	lastResult  *perftest.TestResult
+	testRunning bool
+	cancelFunc  context.CancelFunc
+}
+
+// NewPerftestService creates a new perftest service
+func NewPerftestService() *PerftestService {
+	return &PerftestService{
+		testRunning: false,
+	}
+}
+
+// PerftestRequest represents a performance test request
+type PerftestRequest struct {
+	Sites         []string `json:"sites"`
+	Bucket        string   `json:"bucket"`
+	ObjectPath    string   `json:"object_path"`
+	ObjectSize    int64    `json:"object_size"`
+	ObjectCount   int      `json:"object_count"`
+	Parallelism   int      `json:"parallelism"`
+	Overwrite     bool     `json:"overwrite"`
+	PollInterval  string   `json:"poll_interval"`
+	PollTimeout   string   `json:"poll_timeout"`
+	PrometheusURL string   `json:"prometheus_url"`
+}
+
+// PerftestResponse represents the response to a test start request
+type PerftestResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	TestID  string `json:"test_id,omitempty"`
+}
+
+// StartTest initiates a new performance test
+func (s *PerftestService) StartTest(req PerftestRequest) (*PerftestResponse, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.testRunning {
+		return &PerftestResponse{
+			Success: false,
+			Message: "A test is already running",
+		}, fmt.Errorf("test already running")
+	}
+
+	// Load MC configuration
+	mcConfig, err := config.LoadMCConfig()
+	if err != nil {
+		return &PerftestResponse{
+			Success: false,
+			Message: fmt.Sprintf("Failed to load MC config: %v", err),
+		}, err
+	}
+
+	// Parse durations
+	pollInterval, err := time.ParseDuration(req.PollInterval)
+	if err != nil {
+		pollInterval = 1 * time.Second
+	}
+
+	pollTimeout, err := time.ParseDuration(req.PollTimeout)
+	if err != nil {
+		pollTimeout = 5 * time.Minute
+	}
+
+	// Create test configuration
+	testConfig := &perftest.TestConfig{
+		PrimarySite:    req.Sites[0], // Use first site as primary
+		Sites:          req.Sites,
+		Bucket:         req.Bucket,
+		ObjectPath:     req.ObjectPath,
+		ObjectSizeType: perftest.ObjectSizeSmall, // Default to small, will be enhanced in Web UI
+		ObjectCount:    req.ObjectCount,
+		Parallelism:    req.Parallelism,
+		Overwrite:      req.Overwrite,
+		OperationType:  perftest.OperationPUT,
+		PollInterval:   pollInterval,
+		PollTimeout:    pollTimeout,
+	}
+
+	// Create runner
+	runner, err := perftest.NewRunner(testConfig, mcConfig)
+	if err != nil {
+		return &PerftestResponse{
+			Success: false,
+			Message: fmt.Sprintf("Failed to create test runner: %v", err),
+		}, err
+	}
+
+	s.activeTest = runner
+	s.testRunning = true
+
+	// Create context with cancellation
+	ctx, cancel := context.WithCancel(context.Background())
+	s.cancelFunc = cancel
+
+	// Run test in background
+	go func() {
+		log := logger.GetLogger()
+		log.Info("Starting performance test", map[string]interface{}{
+			"sites":  req.Sites,
+			"bucket": req.Bucket,
+			"count":  req.ObjectCount,
+		})
+
+		result, err := runner.Run(ctx)
+
+		s.mu.Lock()
+		s.testRunning = false
+		s.lastResult = result
+		s.cancelFunc = nil
+		s.mu.Unlock()
+
+		if err != nil {
+			log.Error("Performance test failed", map[string]interface{}{
+				"error": err.Error(),
+			})
+		} else {
+			log.Info("Performance test completed", map[string]interface{}{
+				"duration": result.TotalDuration,
+				"success":  result.Summary.SuccessfulObjects,
+				"failed":   result.Summary.FailedObjects,
+			})
+		}
+
+		// Cleanup
+		runner.Cleanup()
+	}()
+
+	return &PerftestResponse{
+		Success: true,
+		Message: "Test started successfully",
+		TestID:  fmt.Sprintf("perftest-%d", time.Now().Unix()),
+	}, nil
+}
+
+// GetStatus returns the current test status
+func (s *PerftestService) GetStatus() map[string]interface{} {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	response := map[string]interface{}{
+		"running": s.testRunning,
+	}
+
+	if s.activeTest != nil && s.testRunning {
+		status := s.activeTest.GetStatus()
+		response["status"] = status
+	}
+
+	if s.lastResult != nil {
+		// Include last result summary
+		response["last_result"] = map[string]interface{}{
+			"completed_at":    s.lastResult.EndTime,
+			"duration":        s.lastResult.TotalDuration.String(),
+			"total_objects":   s.lastResult.Summary.TotalObjects,
+			"successful":      s.lastResult.Summary.SuccessfulObjects,
+			"failed":          s.lastResult.Summary.FailedObjects,
+			"avg_put_latency": s.lastResult.Summary.AveragePutLatency.String(),
+			"avg_repl_lag":    s.lastResult.Summary.AverageReplicationLag.String(),
+			"throughput":      s.lastResult.Summary.Throughput,
+			"inconsistencies": s.lastResult.Summary.InconsistencyCount,
+		}
+	}
+
+	return response
+}
+
+// GetLastResult returns the complete last test result
+func (s *PerftestService) GetLastResult() (*perftest.TestResult, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if s.lastResult == nil {
+		return nil, fmt.Errorf("no test results available")
+	}
+
+	return s.lastResult, nil
+}
+
+// StopTest cancels the currently running test
+func (s *PerftestService) StopTest() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if !s.testRunning {
+		return fmt.Errorf("no test is currently running")
+	}
+
+	if s.cancelFunc != nil {
+		s.cancelFunc()
+	}
+
+	return nil
+}
+
+// ExportResults exports test results as JSON
+func (s *PerftestService) ExportResults() ([]byte, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if s.lastResult == nil {
+		return nil, fmt.Errorf("no test results available")
+	}
+
+	return json.MarshalIndent(s.lastResult, "", "  ")
+}

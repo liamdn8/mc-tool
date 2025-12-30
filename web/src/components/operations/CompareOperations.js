@@ -543,13 +543,13 @@ const CompareOperations = ({ sites }) => {
                             <div className="stat-value" style={{ color: 'var(--danger-color)' }}>
                                 {summary.missingInSource || 0}
                             </div>
-                            <div className="stat-label">Missing in Source</div>
+                            <div className="stat-label">Only in Destination</div>
                         </div>
                         <div className="stat-card">
                             <div className="stat-value" style={{ color: 'var(--primary-color)' }}>
                                 {summary.missingInTarget || 0}
                             </div>
-                            <div className="stat-label">Missing in Target</div>
+                            <div className="stat-label">Only in Source</div>
                         </div>
                         <div className="stat-card">
                             <div className="stat-value" style={{ color: 'var(--text-muted)' }}>

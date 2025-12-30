@@ -169,6 +169,11 @@ func (s *Server) Start() error {
 	mux.HandleFunc(basePath+"/api/operations/trace", s.handlers.Operations.HandleTrace)
 	mux.HandleFunc(basePath+"/api/operations/profile", s.handlers.Operations.HandleProfile)
 
+	// Perftest APIs
+	mux.HandleFunc(basePath+"/api/perftest/start", s.handlers.Perftest.HandleStartTest)
+	mux.HandleFunc(basePath+"/api/perftest/status", s.handlers.Perftest.HandleGetStatus)
+	mux.HandleFunc(basePath+"/api/perftest/result", s.handlers.Perftest.HandleGetResult)
+
 	// Terminal APIs
 	mux.HandleFunc(basePath+"/api/terminal/ws", s.handlers.Terminal.HandleWebsocket)
 

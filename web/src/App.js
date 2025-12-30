@@ -12,8 +12,10 @@ const SitesPage = lazy(() => import('./pages/SitesPage'));
 const ReplicationOperatorPage = lazy(() => import('./pages/ReplicationOperatorPage'));
 const TracingPage = lazy(() => import('./pages/TracingPage'));
 const ValidatePage = lazy(() => import('./pages/ValidatePage'));
+const TestingPage = lazy(() => import('./pages/TestingPage'));
 const CompareOperations = lazy(() => import('./components/operations/CompareOperations'));
 const ValidateOperations = lazy(() => import('./components/operations/ValidateOperations'));
+const PerformanceTest = lazy(() => import('./components/operations/PerformanceTest'));
 const SiteOperations = lazy(() => import('./components/operations/SiteOperations'));
 const TraceOperations = lazy(() => import('./components/operations/TraceOperations'));
 const ProfileOperations = lazy(() => import('./components/operations/ProfileOperations'));
@@ -205,6 +207,10 @@ function App() {
                                             {/* Validate Routes */}
                                             <Route path="/validate" element={<ValidatePage sites={sites} />} />
                                             <Route path="/validate/configuration" element={<ValidateOperations />} />
+                                            
+                                            {/* Testing Routes */}
+                                            <Route path="/testing" element={<TestingPage sites={sites} />} />
+                                            <Route path="/testing/performance" element={<PerformanceTest />} />
                                             
                                             {/* Terminal */}
                                             <Route path="/terminal" element={<TerminalPage />} />

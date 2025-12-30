@@ -17,6 +17,7 @@ import (
 	"github.com/liamdn8/mc-tool/pkg/compare"
 	"github.com/liamdn8/mc-tool/pkg/config"
 	"github.com/liamdn8/mc-tool/pkg/logger"
+	"github.com/liamdn8/mc-tool/pkg/perftest"
 	"github.com/liamdn8/mc-tool/pkg/profile"
 	"github.com/liamdn8/mc-tool/pkg/trace"
 	"github.com/liamdn8/mc-tool/pkg/validation"
@@ -53,6 +54,17 @@ var (
 	// Validate config command flags
 	validateLifecycleOnly bool
 	validateEventsOnly    bool
+
+	// Perftest command flags
+	perftestSize       string
+	perftestBucket     string
+	perftestPath       string
+	perftestCount      int
+	perftestOverride   int
+	perftestMode       string
+	perftestInterval   string
+	perftestIterations int
+	perftestParallel   int
 )
 
 func main() {
@@ -265,6 +277,62 @@ Examples:
 
 	webCmd.Flags().IntVar(&webPort, "port", 8080, "Web server port")
 
+	// Perftest command
+	perftestCmd := &cobra.Command{
+		Use:   "perftest <site-alias> [flags]",
+		Short: "Run performance test for MinIO PUT operations",
+		Long: `Execute automated performance tests for MinIO PUT operations.
+
+This tool measures upload performance with different patterns and configurations.
+
+Upload Modes:
+  all      - Upload all files at once with parallelism (fastest)
+  interval - Upload in rounds with time intervals (rate-limited testing)
+
+Interval Mode:
+  --count: number of objects per round
+  --iterations: number of rounds to upload
+  --interval: time to wait between rounds
+  Example: --count 10 --iterations 5 --interval 5s
+    => Upload 5 rounds, each with 10 objects, wait 5s between rounds
+    => Total: 50 objects
+
+Override Feature:
+  Use --override N to upload each object N times (tests versioning/overwrite scenarios)
+  Example: --count 10 --override 3 will upload 10 objects, each 3 times = 30 total uploads
+
+Examples:
+  # Upload 100 small objects at once with 10 parallel workers
+  mc-tool perftest site1 --bucket test-bucket --count 100 --size small --mode all --parallel 10
+
+  # Upload in intervals: 10 objects per round, 5 rounds, wait 5s between rounds
+  mc-tool perftest site1 --bucket test-bucket --count 10 --iterations 5 --mode interval --interval 5s
+
+  # Test overwriting: upload 10 objects, override each 5 times
+  mc-tool perftest site1 --bucket test-bucket --count 10 --override 5 --size large
+
+  # Custom path
+  mc-tool perftest site1 --bucket test-bucket --path testdata/ --count 200
+
+Object Size Presets:
+  small  - Random 1-10 KiB
+  medium - Random 100-500 KiB
+  large  - Random 1-5 MiB`,
+		Args: cobra.ExactArgs(1),
+		Run:  runPerftest,
+	}
+
+	perftestCmd.Flags().StringVar(&perftestSize, "size", "small", "Object size preset: small, medium, large")
+	perftestCmd.Flags().StringVar(&perftestBucket, "bucket", "", "Bucket name for testing (required)")
+	perftestCmd.Flags().StringVar(&perftestPath, "path", "", "Object path prefix (auto-generated with timestamp if not specified)")
+	perftestCmd.Flags().IntVar(&perftestCount, "count", 10, "Number of objects per upload (per round for interval mode)")
+	perftestCmd.Flags().IntVar(&perftestOverride, "override", 0, "Number of times to override each object (0 = no override)")
+	perftestCmd.Flags().StringVar(&perftestMode, "mode", "all", "Upload mode: all or interval")
+	perftestCmd.Flags().StringVar(&perftestInterval, "interval", "5s", "Time between upload rounds (interval mode only)")
+	perftestCmd.Flags().IntVar(&perftestIterations, "iterations", 5, "Number of upload rounds (interval mode only)")
+	perftestCmd.Flags().IntVar(&perftestParallel, "parallel", 5, "Number of parallel workers for 'all' mode")
+	perftestCmd.MarkFlagRequired("bucket")
+
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(compareCmd)
 	rootCmd.AddCommand(analyzeCmd)
@@ -272,6 +340,7 @@ Examples:
 	rootCmd.AddCommand(validateCmd)
 	rootCmd.AddCommand(debugCmd)
 	rootCmd.AddCommand(traceCmd)
+	rootCmd.AddCommand(perftestCmd)
 	rootCmd.AddCommand(webCmd)
 
 	if err := rootCmd.Execute(); err != nil {
@@ -831,6 +900,177 @@ func runProfile(cmd *cobra.Command, args []string) {
 
 	// Display analysis commands
 	profile.PrintProfileCommands(result)
+}
+
+func runPerftest(cmd *cobra.Command, args []string) {
+	// Get site alias from args
+	siteAlias := args[0]
+
+	// Validate required flags
+	if perftestBucket == "" {
+		log.Fatal("Error: --bucket flag is required")
+	}
+
+	// Validate size preset
+	var sizeType perftest.ObjectSizeType
+	switch strings.ToLower(perftestSize) {
+	case "small":
+		sizeType = perftest.ObjectSizeSmall
+	case "medium":
+		sizeType = perftest.ObjectSizeMedium
+	case "large":
+		sizeType = perftest.ObjectSizeLarge
+	default:
+		log.Fatalf("Invalid size preset '%s'. Valid options: small, medium, large", perftestSize)
+	}
+
+	// Validate upload mode
+	var uploadMode perftest.UploadMode
+	switch strings.ToLower(perftestMode) {
+	case "all":
+		uploadMode = perftest.UploadModeAll
+	case "interval":
+		uploadMode = perftest.UploadModeInterval
+	default:
+		log.Fatalf("Invalid upload mode '%s'. Valid options: all, interval", perftestMode)
+	}
+
+	// Parse interval duration
+	uploadInterval, err := time.ParseDuration(perftestInterval)
+	if err != nil {
+		log.Fatalf("Invalid interval: %v", err)
+	}
+
+	// Auto-generate path with timestamp if not specified
+	if perftestPath == "" {
+		timestamp := time.Now().Format("20060102-150405")
+		perftestPath = fmt.Sprintf("mc-test/%s/", timestamp)
+	} else if !strings.HasSuffix(perftestPath, "/") {
+		// Ensure path ends with /
+		perftestPath += "/"
+	}
+
+	// Load MC configuration
+	cfg, err := config.LoadMCConfig()
+	if err != nil {
+		log.Fatalf("Error loading MC configuration: %v", err)
+	}
+
+	// Validate site exists
+	if _, exists := cfg.Aliases[siteAlias]; !exists {
+		log.Fatalf("Site alias '%s' not found in MC config", siteAlias)
+	}
+
+	fmt.Printf("🚀 Starting MinIO Performance Test\n\n")
+	fmt.Printf("Configuration:\n")
+	fmt.Printf("  Site:         %s\n", siteAlias)
+	fmt.Printf("  Bucket:       %s\n", perftestBucket)
+	fmt.Printf("  Path:         %s\n", perftestPath)
+	fmt.Printf("  Object Size:  %s\n", sizeType)
+	fmt.Printf("  Object Count: %d\n", perftestCount)
+	fmt.Printf("  Override:     %d times\n", perftestOverride)
+	fmt.Printf("  Upload Mode:  %s\n", uploadMode)
+	if uploadMode == perftest.UploadModeAll {
+		fmt.Printf("  Parallelism:  %d\n", perftestParallel)
+	} else {
+		fmt.Printf("  Iterations:   %d rounds\n", perftestIterations)
+		fmt.Printf("  Interval:     %v\n", uploadInterval)
+		fmt.Printf("  Total:        %d objects (%d per round)\n", perftestCount*perftestIterations, perftestCount)
+	}
+	fmt.Printf("\n")
+
+	// Create test configuration
+	testConfig := &perftest.TestConfig{
+		SiteAlias:      siteAlias,
+		Bucket:         perftestBucket,
+		ObjectPath:     perftestPath,
+		ObjectSizeType: sizeType,
+		ObjectCount:    perftestCount,
+		OverrideCount:  perftestOverride,
+		UploadMode:     uploadMode,
+		UploadInterval: uploadInterval,
+		Iterations:     perftestIterations,
+		Parallelism:    perftestParallel,
+	}
+
+	// Create test runner
+	runner, err := perftest.NewRunner(testConfig, cfg)
+	if err != nil {
+		log.Fatalf("Failed to create test runner: %v", err)
+	}
+	defer runner.Cleanup()
+
+	// Run test
+	ctx := context.Background()
+	result, err := runner.Run(ctx)
+	if err != nil {
+		log.Fatalf("Test failed: %v", err)
+	}
+
+	// Display results
+	displayPerftestResults(result)
+}
+
+func displayPerftestResults(result *perftest.TestResult) {
+	fmt.Printf("\n")
+	fmt.Printf("=" + strings.Repeat("=", 79) + "\n")
+	fmt.Printf("Test Results\n")
+	fmt.Printf("=" + strings.Repeat("=", 79) + "\n\n")
+
+	fmt.Printf("Site:         %s\n", result.Config.SiteAlias)
+	fmt.Printf("Bucket:       %s\n", result.Config.Bucket)
+	fmt.Printf("Duration:     %v\n", result.TotalDuration)
+	fmt.Printf("\n")
+
+	// Upload Summary
+	fmt.Printf("Upload Summary:\n")
+	fmt.Printf("  Total Uploads:       %d\n", result.Summary.TotalUploads)
+	fmt.Printf("  Successful:          %d\n", result.Summary.SuccessfulUploads)
+	fmt.Printf("  Failed:              %d\n", result.Summary.FailedUploads)
+	fmt.Printf("  Unique Objects:      %d\n", result.Summary.UniqueObjects)
+	fmt.Printf("  Overridden Objects:  %d\n", result.Summary.OverriddenObjects)
+	fmt.Printf("  Total Data Uploaded: %s\n", formatBytes(result.Summary.TotalDataUploaded))
+	fmt.Printf("\n")
+
+	// Performance Metrics
+	fmt.Printf("Performance Metrics:\n")
+	fmt.Printf("  Average Upload Time: %v\n", result.Summary.AverageUploadLatency)
+	fmt.Printf("  Throughput:          %.2f uploads/sec\n", result.Summary.Throughput)
+	fmt.Printf("  Data Throughput:     %.2f KB/sec\n", result.Summary.DataThroughput/1024)
+	fmt.Printf("\n")
+
+	// Override Details
+	if result.Summary.OverriddenObjects > 0 {
+		fmt.Printf("Override Details:\n")
+		for objKey, count := range result.Summary.OverrideDetails {
+			fmt.Printf("  %s: overridden %d times\n", objKey, count)
+		}
+		fmt.Printf("\n")
+	}
+
+	// Errors
+	if len(result.Errors) > 0 {
+		fmt.Printf("Errors:\n")
+		for _, err := range result.Errors {
+			fmt.Printf("  - %s\n", err)
+		}
+		fmt.Printf("\n")
+	}
+
+	fmt.Printf("Test completed successfully!\n")
+}
+
+func formatBytes(bytes int64) string {
+	const unit = 1024
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
+	}
+	div, exp := int64(unit), 0
+	for n := bytes / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.2f %ciB", float64(bytes)/float64(div), "KMGTPE"[exp])
 }
 
 func runWeb(cmd *cobra.Command, args []string) {

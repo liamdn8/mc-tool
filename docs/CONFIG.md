@@ -1,10 +1,21 @@
 # Example configuration for mc-tool
 
-This tool reads MinIO configuration from the standard mc client configuration file.
+This tool reads MinIO configuration from the standard mc client configuration file or from environment variables.
+
+## Configuration Methods
+
+mc-tool supports two methods for configuring MinIO aliases:
+
+1. **Configuration file** (traditional method): `~/.mc/config.json`
+2. **Environment variables** (new method): `MC_HOST_<alias>` variables
+
+Environment variables take precedence over file configuration, allowing you to override specific aliases without modifying the config file.
 
 ## Setting up MinIO aliases
 
-Before using mc-tool, you need to configure your MinIO aliases using the mc client:
+### Method 1: Using mc client (traditional)
+
+Before using mc-tool, you can configure your MinIO aliases using the mc client:
 
 ```bash
 # Add a MinIO alias
@@ -16,6 +27,32 @@ mc alias set minio2 https://minio2.example.com ACCESS_KEY SECRET_KEY
 # List configured aliases
 mc alias list
 ```
+
+### Method 2: Using environment variables (new)
+
+You can configure aliases using environment variables without needing the mc client or config file:
+
+```bash
+# Format: MC_HOST_<alias>=<scheme>://<accessKey>:<secretKey>@<hostname>:<port>
+
+# Add a MinIO alias via environment variable
+export MC_HOST_site1=https://accesskey:secretkey@minio1.example.com:9000
+
+# Add another alias
+export MC_HOST_site2=http://minioadmin:minioadmin@localhost:9000
+
+# For self-signed certificates, add ?insecure=true
+export MC_HOST_staging=https://key:secret@staging.minio.local:9000?insecure=true
+
+# Now you can use these aliases with mc-tool
+./mc-tool compare site1/bucket site2/bucket
+```
+
+**Benefits of using environment variables:**
+- No config file needed
+- Perfect for containers and CI/CD pipelines
+- Easy to override specific aliases temporarily
+- Secrets can be managed by orchestration tools (Kubernetes, Docker, etc.)
 
 ## Example mc config.json structure
 
@@ -50,6 +87,8 @@ The configuration file is typically located at `~/.mc/config.json`:
   }
 }
 ```
+
+**Note:** Environment variables defined with `MC_HOST_<alias>` will override aliases in this file.
 
 ## SSL/TLS Configuration
 

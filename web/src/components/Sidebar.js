@@ -10,7 +10,8 @@ import {
     Zap,
     Activity,
     CheckSquare,
-    RefreshCw
+    RefreshCw,
+    FlaskConical
 } from 'lucide-react';
 import { useI18n } from '../utils/i18n';
 import { useContentsPanel } from '../contexts/ContentsPanelContext';
@@ -79,6 +80,20 @@ const Sidebar = () => {
                     path: '/validate/configuration',
                     icon: List,
                     label: t('configuration_validate', 'Configuration Validation')
+                }
+            ]
+        },
+        {
+            id: 'testing',
+            path: '/testing',
+            icon: FlaskConical,
+            label: t('testing', 'Testing'),
+            subItems: [
+                {
+                    id: 'testing',
+                    path: '/testing/performance',
+                    icon: FlaskConical,
+                    label: t('performance_test', 'Performance Test')
                 }
             ]
         },

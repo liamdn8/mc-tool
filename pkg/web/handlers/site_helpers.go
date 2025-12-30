@@ -5,49 +5,30 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+
+	"github.com/liamdn8/mc-tool/pkg/config"
 )
 
 func (h *SiteHandler) getMCInternalAliases() ([]map[string]interface{}, error) {
-	cmd := exec.Command("mc", "alias", "list", "--json")
-	output, err := cmd.CombinedOutput()
+	// Load configuration from both file and environment variables
+	mcConfig, err := config.LoadMCConfig()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to load MC config: %v", err)
 	}
 
 	var aliases []map[string]interface{}
-	lines := strings.Split(string(output), "\n")
-	for _, line := range lines {
-		if line == "" {
-			continue
-		}
 
-		var aliasData map[string]interface{}
-		if err := json.Unmarshal([]byte(line), &aliasData); err != nil {
-			continue
-		}
-
-		aliasName, okName := aliasData["alias"].(string)
-		aliasURL, okURL := aliasData["URL"].(string)
-		if !okName || !okURL {
-			continue
-		}
-
-		// Return immediately with "checking" status - let frontend check health async
+	// Convert config aliases to the expected format
+	for aliasName, aliasConfig := range mcConfig.Aliases {
 		alias := map[string]interface{}{
-			"name":    aliasName,
-			"url":     aliasURL,
-			"healthy": false,
-			"status":  "checking",
-		}
-
-		if accessKey, ok := aliasData["accessKey"].(string); ok {
-			alias["accessKey"] = accessKey
-		}
-		if api, ok := aliasData["api"].(string); ok {
-			alias["api"] = api
-		}
-		if path, ok := aliasData["path"].(string); ok {
-			alias["path"] = path
+			"name":      aliasName,
+			"url":       aliasConfig.URL,
+			"accessKey": aliasConfig.AccessKey,
+			"api":       aliasConfig.API,
+			"path":      aliasConfig.Path,
+			"insecure":  aliasConfig.Insecure,
+			"healthy":   false,
+			"status":    "checking",
 		}
 
 		aliases = append(aliases, alias)
@@ -56,8 +37,21 @@ func (h *SiteHandler) getMCInternalAliases() ([]map[string]interface{}, error) {
 	return aliases, nil
 }
 
+// setupMCCommand creates an mc command with environment variables
+func (h *SiteHandler) setupMCCommand(args ...string) *exec.Cmd {
+	cmd := exec.Command("mc", args...)
+
+	// Load MC config and set environment variables
+	mcConfig, err := config.LoadMCConfig()
+	if err == nil {
+		cmd.Env = config.GetMCEnvironment(mcConfig)
+	}
+
+	return cmd
+}
+
 func (h *SiteHandler) getAliasHealthStatus(alias string) (bool, string) {
-	cmd := exec.Command("mc", "admin", "info", alias, "--json")
+	cmd := h.setupMCCommand("admin", "info", alias, "--json")
 	output, err := cmd.CombinedOutput()
 	if err == nil {
 		var result map[string]interface{}
@@ -68,7 +62,7 @@ func (h *SiteHandler) getAliasHealthStatus(alias string) (bool, string) {
 		}
 	}
 
-	cmd = exec.Command("mc", "ls", alias)
+	cmd = h.setupMCCommand("ls", alias)
 	if cmd.Run() == nil {
 		return true, "healthy"
 	}
@@ -77,7 +71,7 @@ func (h *SiteHandler) getAliasHealthStatus(alias string) (bool, string) {
 }
 
 func (h *SiteHandler) listBuckets(alias string) ([]string, error) {
-	cmd := exec.Command("mc", "ls", alias, "--json")
+	cmd := h.setupMCCommand("ls", alias, "--json")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, err
@@ -147,7 +141,7 @@ func (h *SiteHandler) getAliasStats(alias string) map[string]interface{} {
 }
 
 func (h *SiteHandler) getBucketStats(alias, bucket string) map[string]interface{} {
-	cmd := exec.Command("mc", "du", fmt.Sprintf("%s/%s", alias, bucket), "--json")
+	cmd := h.setupMCCommand("du", fmt.Sprintf("%s/%s", alias, bucket), "--json")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return map[string]interface{}{

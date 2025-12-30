@@ -11,6 +11,7 @@ A comprehensive MinIO client support tool for comparing buckets, analyzing objec
 - **Configuration Checklist**: Comprehensive bucket configuration validation including event settings and lifecycle policies
 - **Performance Profiling**: CPU, memory, and goroutine profiling for MinIO servers
 - **Memory Leak Detection**: Continuous monitoring and automatic leak detection with configurable thresholds
+- **⚡ Performance Testing**: Automated PUT replication testing with metrics and analytics
 
 ## Quick Start
 
@@ -146,11 +147,12 @@ mc-tool/
 
 ### Package Responsibilities
 
-- **`pkg/config`**: Handles loading MinIO client configuration from `~/.mc/config.json`
+- **`pkg/config`**: Handles loading MinIO client configuration from `~/.mc/config.json` or `MC_HOST_*` environment variables
 - **`pkg/client`**: Creates MinIO clients and parses URLs
 - **`pkg/compare`**: Implements object comparison logic and result display
 - **`pkg/analyze`**: Provides bucket analysis including object distribution and incomplete uploads
 - **`pkg/profile`**: Performance profiling and memory leak detection using mc admin/support profile commands
+- **`pkg/perftest`**: Automated performance testing for PUT operations with replication monitoring
 - **`pkg/validation`**: Validates bucket configurations (versioning, notifications, lifecycle, encryption, policies)
 - **`pkg/web`**: Web server with REST API and bilingual UI for easy operation
 
@@ -212,6 +214,37 @@ mc-tool checklist --verbose alias/bucket
 # Skip TLS certificate verification
 mc-tool checklist --insecure alias/bucket
 ```
+
+### Performance Testing (NEW)
+
+Automated performance testing for MinIO PUT operations with replication monitoring:
+
+```bash
+# Basic test: 100 objects across 3 sites
+mc-tool perftest --sites site1,site2,site3 --bucket test-bucket --count 100
+
+# Test with parallelism for higher throughput
+mc-tool perftest --sites site1,site2,site3 --bucket test-bucket --count 1000 --parallel 10
+
+# Overwrite test for versioning buckets
+mc-tool perftest --sites site1,site2,site3 --bucket test-bucket --count 100 --overwrite
+
+# Custom object size and path
+mc-tool perftest --sites site1,site2,site3 --bucket test-bucket --path testdata/ --size 10240 --count 500
+
+# With Prometheus monitoring
+mc-tool perftest --sites site1,site2,site3 --bucket test-bucket --count 100 --prometheus http://prometheus:9090
+```
+
+The perftest command provides:
+- 📊 PUT operation latency metrics
+- ⏱️ Replication lag measurement across sites
+- 🔍 Object consistency verification
+- 📈 Throughput analytics (objects/sec, bytes/sec)
+- 📉 Per-site statistics and performance breakdown
+- 🔗 Optional Prometheus integration for system metrics correlation
+
+See [Performance Testing Documentation](docs/PERFTEST_FEATURE.md) for details.
 
 ### Error Trace Capture and Analysis
 
@@ -346,10 +379,26 @@ After running `make build-all`, you'll have:
 ## Prerequisites
 
 - Go 1.21 or later
-- MinIO client (`mc`) configured with your MinIO/S3 endpoints
+- MinIO client (`mc`) configured with your MinIO/S3 endpoints (optional if using environment variables)
 - Access to MinIO/S3 instances you want to analyze
 
-The tool reads configuration from `~/.mc/config.json`, so ensure you have configured your MinIO aliases using the `mc` command.
+### Configuration Options
+
+The tool supports two methods for configuring MinIO aliases:
+
+1. **Configuration file**: `~/.mc/config.json` (traditional method using `mc alias set`)
+2. **Environment variables**: `MC_HOST_<alias>` (new method, perfect for containers and CI/CD)
+
+```bash
+# Example using environment variables
+export MC_HOST_site1=https://accesskey:secretkey@minio1.example.com:9000
+export MC_HOST_site2=http://minioadmin:minioadmin@localhost:9000
+
+# Now use the aliases
+mc-tool compare site1/bucket site2/bucket
+```
+
+For detailed configuration examples, see [docs/CONFIG.md](docs/CONFIG.md).
 
 ## Examples
 
@@ -365,7 +414,55 @@ mc-tool compare prod/my-bucket staging/my-bucket --verbose
 mc-tool analyze prod/my-bucket --verbose
 ```
 
+### Example 3: Using Environment Variables for Configuration
+
+```bash
+# Configure aliases via environment variables
+export MC_HOST_prod=https://prodkey:prodsecret@minio-prod.example.com:9000
+export MC_HOST_staging=https://stagingkey:stagingsecret@minio-staging.example.com:9000
+
+# Compare without needing config file
+mc-tool compare prod/my-bucket staging/my-bucket
+```
+
 ### Example 3: Validate Bucket Configuration
+
+```bash
+mc-tool checklist prod/my-bucket
+```
+
+### Example 4: Run Performance Test
+
+```bash
+mc-tool perftest --sites site1,site2,site3 --bucket perf-test --count 100 --parallel 5
+```
+
+This will output a performance report like:
+
+```
+🚀 Starting MinIO Performance Test
+
+Configuration:
+  Sites:       [site1 site2 site3]
+  Bucket:      perf-test
+  Object Count: 100
+  Parallelism: 5
+
+================================================================================
+Test Results
+================================================================================
+
+Duration: 2m15s
+Objects:  100 total, 98 successful, 2 failed
+
+Performance Metrics:
+  Average PUT Latency:      150ms
+  Average Replication Lag:  2.5s
+  Throughput:               0.74 objects/sec
+  Data Throughput:          758.05 bytes/sec
+```
+
+### Example 5: Bucket Configuration Checklist
 
 ```bash
 mc-tool checklist prod/my-bucket

@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/liamdn8/mc-tool/pkg/config"
 )
 
 // MC21ProfileOptions contains options for mc21 admin profile workflow
@@ -118,6 +120,16 @@ func startProfiling(opts MC21ProfileOptions) error {
 	}
 
 	startCmd := exec.Command(opts.MCPath, startArgs...)
+
+	// Load MC config and set environment variables
+	mcConfig, err := config.LoadMCConfig()
+	if err == nil {
+		startCmd.Env = config.GetMCEnvironment(mcConfig)
+	} else {
+		// If can't load config, use current environment
+		startCmd.Env = os.Environ()
+	}
+
 	startOutput, err := startCmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to start profiling: %v\nOutput: %s", err, string(startOutput))
@@ -156,6 +168,16 @@ func stopProfiling(opts MC21ProfileOptions, outputDir string) error {
 	}
 
 	stopCmd := exec.Command(opts.MCPath, stopArgs...)
+
+	// Load MC config and set environment variables
+	mcConfig, err := config.LoadMCConfig()
+	if err == nil {
+		stopCmd.Env = config.GetMCEnvironment(mcConfig)
+	} else {
+		// If can't load config, use current environment
+		stopCmd.Env = os.Environ()
+	}
+
 	stopOutput, err := stopCmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to stop profiling: %v\nOutput: %s", err, string(stopOutput))

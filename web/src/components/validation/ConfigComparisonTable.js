@@ -208,7 +208,7 @@ const ConfigComparisonTable = ({ configType, configTable, validationResults, cal
                                 <th style={{ position: 'sticky', left: 0, backgroundColor: 'var(--bg-secondary)', zIndex: 1 }}>
                                     Bucket
                                 </th>
-                                {aliases.map(alias => (
+                                {[...aliases].sort().map(alias => (
                                     <th key={alias} style={{ textAlign: 'center', minWidth: '150px' }}>
                                         {alias}
                                     </th>
@@ -238,7 +238,7 @@ const ConfigComparisonTable = ({ configType, configTable, validationResults, cal
                                         }}>
                                             {row.bucket}
                                         </td>
-                                        {aliases.map(alias => {
+                                        {[...aliases].sort().map(alias => {
                                             const cell = row[alias];
                                             if (!cell) return <td key={alias} style={{ textAlign: 'center' }}>-</td>;
                                             

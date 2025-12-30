@@ -40,7 +40,7 @@ const BucketExistenceTable = ({ validationResults }) => {
                                 <th style={{ position: 'sticky', left: 0, backgroundColor: 'var(--bg-secondary)', zIndex: 1 }}>
                                     Bucket
                                 </th>
-                                {aliases.map(alias => (
+                                {[...aliases].sort().map(alias => (
                                     <th key={alias} style={{ textAlign: 'center', minWidth: '120px' }}>
                                         {alias}
                                     </th>
@@ -60,7 +60,7 @@ const BucketExistenceTable = ({ validationResults }) => {
                                     }}>
                                         {bucket}
                                     </td>
-                                    {aliases.map(alias => {
+                                    {[...aliases].sort().map(alias => {
                                         const exists = existence[bucket] && existence[bucket][alias];
                                         return (
                                             <td key={alias} style={{ textAlign: 'center' }}>

@@ -278,12 +278,15 @@ const TraceOperations = ({ sites = [] }) => {
     const [errorMessage, setErrorMessage] = useState('');
     const [copyStatus, setCopyStatus] = useState('idle');
 
+    // Update insecure when alias changes
     useEffect(() => {
-        if (!form.alias && sites.length > 0) {
-            const preferred = sites[0].name || sites[0].alias || '';
-            setForm(prev => ({ ...prev, alias: preferred }));
+        if (form.alias && sites.length > 0) {
+            const site = sites.find(s => (s.name || s.alias) === form.alias);
+            if (site && site.insecure !== undefined) {
+                setForm(prev => ({ ...prev, insecure: site.insecure }));
+            }
         }
-    }, [sites]);
+    }, [form.alias, sites]);
 
     const numberFormatter = useMemo(() => new Intl.NumberFormat(), []);
 

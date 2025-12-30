@@ -1,0 +1,136 @@
+package handlers
+
+import (
+	"encoding/json"
+	"net/http"
+
+	"github.com/liamdn8/mc-tool/pkg/web/services"
+)
+
+// PerftestHandler handles performance testing requests
+type PerftestHandler struct {
+	BaseHandler
+	perftestService *services.PerftestService
+}
+
+// NewPerftestHandler creates a new perftest handler
+func NewPerftestHandler(perftestService *services.PerftestService) *PerftestHandler {
+	return &PerftestHandler{
+		perftestService: perftestService,
+	}
+}
+
+// HandleStartTest handles POST /api/perftest/start
+func (h *PerftestHandler) HandleStartTest(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		h.RespondError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	var req services.PerftestRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.RespondError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	// Validate required fields
+	if len(req.Sites) == 0 {
+		h.RespondError(w, http.StatusBadRequest, "sites field is required")
+		return
+	}
+	if req.Bucket == "" {
+		h.RespondError(w, http.StatusBadRequest, "bucket field is required")
+		return
+	}
+
+	// Set defaults
+	if req.ObjectPath == "" {
+		req.ObjectPath = "perftest/"
+	}
+	if req.ObjectSize == 0 {
+		req.ObjectSize = 1024 // 1KB default
+	}
+	if req.ObjectCount == 0 {
+		req.ObjectCount = 10
+	}
+	if req.Parallelism == 0 {
+		req.Parallelism = 1
+	}
+	if req.PollInterval == "" {
+		req.PollInterval = "1s"
+	}
+	if req.PollTimeout == "" {
+		req.PollTimeout = "5m"
+	}
+
+	response, err := h.perftestService.StartTest(req)
+	if err != nil {
+		h.RespondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	h.RespondJSON(w, response)
+}
+
+// HandleGetStatus handles GET /api/perftest/status
+func (h *PerftestHandler) HandleGetStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		h.RespondError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	status := h.perftestService.GetStatus()
+	h.RespondJSON(w, status)
+}
+
+// HandleGetResult handles GET /api/perftest/result
+func (h *PerftestHandler) HandleGetResult(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		h.RespondError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	result, err := h.perftestService.GetLastResult()
+	if err != nil {
+		h.RespondError(w, http.StatusNotFound, err.Error())
+		return
+	}
+
+	h.RespondJSON(w, result)
+}
+
+// HandleStopTest handles POST /api/perftest/stop
+func (h *PerftestHandler) HandleStopTest(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		h.RespondError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	if err := h.perftestService.StopTest(); err != nil {
+		h.RespondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	h.RespondJSON(w, map[string]interface{}{
+		"success": true,
+		"message": "Test stopped successfully",
+	})
+}
+
+// HandleExportResults handles GET /api/perftest/export
+func (h *PerftestHandler) HandleExportResults(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		h.RespondError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	data, err := h.perftestService.ExportResults()
+	if err != nil {
+		h.RespondError(w, http.StatusNotFound, err.Error())
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Disposition", "attachment; filename=perftest-results.json")
+	w.Write(data)
+}

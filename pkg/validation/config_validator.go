@@ -3,8 +3,11 @@ package validation
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/liamdn8/mc-tool/pkg/config"
 )
 
 // ValidationResult represents the result of a configuration validation
@@ -26,17 +29,35 @@ type BucketValidator struct {
 	ReferenceAlias string
 	Verbose        bool
 	Insecure       bool
+	mcEnv          []string // Cached MC environment variables
 }
 
 // NewBucketValidator creates a new bucket validator
 func NewBucketValidator(bucket string, aliases []string, verbose bool, insecure bool) *BucketValidator {
+	// Load MC config and prepare environment variables
+	var mcEnv []string
+	mcConfig, err := config.LoadMCConfig()
+	if err == nil {
+		mcEnv = config.GetMCEnvironment(mcConfig)
+	} else {
+		mcEnv = os.Environ()
+	}
+
 	return &BucketValidator{
 		Bucket:         bucket,
 		Aliases:        aliases,
 		ReferenceAlias: aliases[0], // First alias is reference
 		Verbose:        verbose,
 		Insecure:       insecure,
+		mcEnv:          mcEnv,
 	}
+}
+
+// setupMCCommand sets up an mc command with proper environment variables
+func (v *BucketValidator) setupMCCommand(args ...string) *exec.Cmd {
+	cmd := exec.Command("mc", args...)
+	cmd.Env = v.mcEnv
+	return cmd
 }
 
 // CheckBucketExists verifies if a bucket exists on an alias
@@ -46,7 +67,7 @@ func (v *BucketValidator) CheckBucketExists(alias string) bool {
 		args = append(args, "--insecure")
 	}
 	args = append(args, fmt.Sprintf("%s/%s", alias, v.Bucket))
-	cmd := exec.Command("mc", args...)
+	cmd := v.setupMCCommand(args...)
 	err := cmd.Run()
 	return err == nil
 }
@@ -61,7 +82,7 @@ func (v *BucketValidator) ValidateLifecycle() ([]ValidationResult, error) {
 		refArgs = append(refArgs, "--insecure")
 	}
 	refArgs = append(refArgs, fmt.Sprintf("%s/%s", v.ReferenceAlias, v.Bucket), "--json")
-	refCmd := exec.Command("mc", refArgs...)
+	refCmd := v.setupMCCommand(refArgs...)
 	refOutput, refErr := refCmd.CombinedOutput()
 
 	var refRulesData []interface{}
@@ -108,7 +129,7 @@ func (v *BucketValidator) ValidateLifecycle() ([]ValidationResult, error) {
 			args = append(args, "--insecure")
 		}
 		args = append(args, fmt.Sprintf("%s/%s", alias, v.Bucket), "--json")
-		cmd := exec.Command("mc", args...)
+		cmd := v.setupMCCommand(args...)
 		output, err := cmd.CombinedOutput()
 
 		if err != nil {
@@ -165,7 +186,7 @@ func (v *BucketValidator) ValidateEvents() ([]ValidationResult, error) {
 		refArgs = append(refArgs, "--insecure")
 	}
 	refArgs = append(refArgs, fmt.Sprintf("%s/%s", v.ReferenceAlias, v.Bucket), "--json")
-	refCmd := exec.Command("mc", refArgs...)
+	refCmd := v.setupMCCommand(refArgs...)
 	refOutput, refErr := refCmd.CombinedOutput()
 
 	refResult := ValidationResult{
@@ -201,7 +222,7 @@ func (v *BucketValidator) ValidateEvents() ([]ValidationResult, error) {
 			args = append(args, "--insecure")
 		}
 		args = append(args, fmt.Sprintf("%s/%s", alias, v.Bucket), "--json")
-		cmd := exec.Command("mc", args...)
+		cmd := v.setupMCCommand(args...)
 		output, err := cmd.CombinedOutput()
 
 		if err != nil {

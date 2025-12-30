@@ -1,0 +1,537 @@
+package perftest
+
+import (
+	"context"
+	"crypto/rand"
+	"fmt"
+	"math/rand"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"sync"
+	"time"
+
+	"github.com/liamdn8/mc-tool/pkg/config"
+	"github.com/liamdn8/mc-tool/pkg/logger"
+)
+
+// Runner manages performance test execution
+type Runner struct {
+	config     *TestConfig
+	mcConfig   *config.MCConfig
+	tempDir    string
+	log        *logger.Logger
+	statusLock sync.RWMutex
+	status     TestStatus
+}
+
+// NewRunner creates a new performance test runner
+func NewRunner(cfg *TestConfig, mcConfig *config.MCConfig) (*Runner, error) {
+	// Validate site alias exists
+	if _, exists := mcConfig.Aliases[cfg.SiteAlias]; !exists {
+		return nil, fmt.Errorf("site alias '%s' not found in MC config", cfg.SiteAlias)
+	}
+
+	// Create temporary directory for test files
+	tempDir, err := os.MkdirTemp("", "perftest-*")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create temp directory: %w", err)
+	}
+
+	return &Runner{
+		config:   cfg,
+		mcConfig: mcConfig,
+		tempDir:  tempDir,
+		log:      logger.GetLogger(),
+		status: TestStatus{
+			Running:      false,
+			Progress:     0,
+			TotalUploads: cfg.ObjectCount * (cfg.OverrideCount + 1),
+		},
+	}, nil
+}
+
+// Run executes the performance test
+func (r *Runner) Run(ctx context.Context) (*TestResult, error) {
+	totalUploads := r.config.ObjectCount * (r.config.OverrideCount + 1)
+	r.updateStatus(true, 0, "uploading", 0)
+	defer r.updateStatus(false, 100, "complete", totalUploads)
+
+	result := &TestResult{
+		Config:        *r.config,
+		StartTime:     time.Now(),
+		ObjectResults: make([]ObjectResult, 0, totalUploads),
+		Errors:        make([]string, 0),
+	}
+
+	r.log.Info("Starting performance test", map[string]interface{}{
+		"site":           r.config.SiteAlias,
+		"bucket":         r.config.Bucket,
+		"objects":        r.config.ObjectCount,
+		"override_count": r.config.OverrideCount,
+		"upload_mode":    r.config.UploadMode,
+		"size_type":      r.config.ObjectSizeType,
+	})
+
+	// Step 1: Calculate actual object size from preset
+	if err := r.calculateObjectSize(); err != nil {
+		return nil, fmt.Errorf("failed to calculate object size: %w", err)
+	}
+
+	// Step 2: Generate object keys
+	objectKeys := r.generateObjectKeys()
+
+	// Step 3: Create test data file
+	testDataFile, err := r.createTestDataFile()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create test data: %w", err)
+	}
+	defer os.Remove(testDataFile)
+
+	// Step 4: Execute uploads based on mode
+	var objectResults []ObjectResult
+	var err error
+
+	switch r.config.UploadMode {
+	case UploadModeAll:
+		objectResults, err = r.executeUploadAll(ctx, objectKeys, testDataFile)
+	case UploadModeInterval:
+		objectResults, err = r.executeUploadInterval(ctx, objectKeys, testDataFile)
+	default:
+		return nil, fmt.Errorf("unknown upload mode: %s", r.config.UploadMode)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("upload execution failed: %w", err)
+	}
+
+	result.ObjectResults = objectResults
+
+	// Step 5: Calculate summary
+	result.EndTime = time.Now()
+	result.TotalDuration = result.EndTime.Sub(result.StartTime)
+	result.Summary = r.calculateSummary(objectResults, result.TotalDuration)
+
+	return result, nil
+}
+		return nil, fmt.Errorf("failed to detect bucket versioning: %w", err)
+	}
+
+	// Step 4: Create test objects
+	objectKeys, err := r.generateObjectKeys()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate object keys: %w", err)
+	}
+
+	// Step 5: Generate test data file
+	testDataFile, err := r.createTestDataFile()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create test data: %w", err)
+	}
+	defer os.Remove(testDataFile)
+
+	// Step 6: Execute PUT operations in parallel
+	objectResults, err := r.executePutOperations(ctx, objectKeys, testDataFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute PUT operations: %w", err)
+	}
+	result.ObjectResults = objectResults
+
+	// Step 7: Poll replication status
+	r.updateStatus(true, 50, "polling", len(objectResults), 0)
+	if err := r.pollReplicationStatus(ctx, objectResults); err != nil {
+		result.Errors = append(result.Errors, fmt.Sprintf("Polling error: %v", err))
+	}
+
+	// Step 8: Query MinIO Prometheus metrics (optional)
+	if !r.config.SkipMetrics {
+		prometheusData := r.queryPrometheus(ctx)
+		result.PrometheusData = prometheusData
+	}
+
+	// Step 9: Calculate summary statistics
+	result.EndTime = time.Now()
+	result.TotalDuration = result.EndTime.Sub(result.StartTime)
+	result.Summary = r.calculateSummary(objectResults, result.TotalDuration)
+
+	return result, nil
+}
+
+// GetStatus returns current test status
+func (r *Runner) GetStatus() TestStatus {
+	r.statusLock.RLock()
+	defer r.statusLock.RUnlock()
+	return r.status
+}
+
+// Cleanup removes temporary files
+func (r *Runner) Cleanup() error {
+	if r.tempDir != "" {
+		return os.RemoveAll(r.tempDir)
+	}
+	return nil
+}
+
+// updateStatus updates the current test status
+func (r *Runner) updateStatus(running bool, progress int, phase string, completed int) {
+	r.statusLock.Lock()
+	defer r.statusLock.Unlock()
+
+	r.status.Running = running
+	r.status.Progress = progress
+	r.status.CurrentPhase = phase
+	r.status.CompletedUploads = completed
+}
+
+// calculateObjectSize calculates actual size from preset
+func (r *Runner) calculateObjectSize() error {
+	var minSize, maxSize int64
+
+	switch r.config.ObjectSizeType {
+	case ObjectSizeSmall:
+		minSize = 1 * 1024      // 1 KiB
+		maxSize = 10 * 1024     // 10 KiB
+	case ObjectSizeMedium:
+		minSize = 100 * 1024    // 100 KiB
+		maxSize = 500 * 1024    // 500 KiB
+	case ObjectSizeLarge:
+		minSize = 1 * 1024 * 1024   // 1 MiB
+		maxSize = 5 * 1024 * 1024   // 5 MiB
+	default:
+		return fmt.Errorf("unknown size type: %s", r.config.ObjectSizeType)
+	}
+
+	// Random size within range
+	if maxSize > minSize {
+		r.config.ObjectSize = minSize + rand.Int63n(maxSize-minSize)
+	} else {
+		r.config.ObjectSize = minSize
+	}
+
+	r.log.Info("Object size calculated", map[string]interface{}{
+		"type":  r.config.ObjectSizeType,
+		"bytes": r.config.ObjectSize,
+		"human": formatBytes(r.config.ObjectSize),
+	})
+
+	return nil
+}
+
+// generateObjectKeys generates unique object keys
+func (r *Runner) generateObjectKeys() []string {
+	keys := make([]string, r.config.ObjectCount)
+	timestamp := time.Now().Format("20060102-150405")
+
+	for i := 0; i < r.config.ObjectCount; i++ {
+		keys[i] = fmt.Sprintf("%s/obj-%s-%04d.bin", r.config.ObjectPath, timestamp, i+1)
+	}
+
+	return keys
+}
+
+// createTestDataFile creates a temporary file with random data
+func (r *Runner) createTestDataFile() (string, error) {
+	filePath := filepath.Join(r.tempDir, "testdata.bin")
+
+	// Generate random data
+	data := make([]byte, r.config.ObjectSize)
+	if _, err := rand.Read(data); err != nil {
+		return "", fmt.Errorf("failed to generate random data: %w", err)
+	}
+
+	// Write to file
+	if err := os.WriteFile(filePath, data, 0644); err != nil {
+		return "", fmt.Errorf("failed to write test data: %w", err)
+	}
+
+	r.log.Info("Test data file created", map[string]interface{}{
+		"path": filePath,
+		"size": r.config.ObjectSize,
+	})
+
+	return filePath, nil
+}
+func (r *Runner) detectBucketVersioning() error {
+	primarySite := r.config.PrimarySite
+
+	cmd := exec.Command("mc", "version", "info", fmt.Sprintf("%s/%s", primarySite, r.config.Bucket))
+	output, err := cmd.CombinedOutput()
+
+	if err != nil {
+		r.log.Error("Failed to detect versioning, assuming disabled", map[string]interface{}{
+			"error": err.Error(),
+		})
+		r.config.Versioning = false
+		return nil
+	}
+
+	outputStr := string(output)
+	r.config.Versioning = strings.Contains(outputStr, "Enabled") || strings.Contains(outputStr, "enabled")
+
+	r.log.Info("Bucket versioning detected", map[string]interface{}{
+		"enabled": r.config.Versioning,
+	})
+
+	return nil
+}
+
+// detectSitesFromReplication auto-detects all sites from site replication info
+func (r *Runner) detectSitesFromReplication() error {
+	primarySite := r.config.PrimarySite
+
+	r.log.Info("Detecting sites from replication info", map[string]interface{}{
+		"primary_site": primarySite,
+	})
+
+	// Execute mc admin replicate info
+	cmd := exec.Command("mc", "admin", "replicate", "info", primarySite)
+	output, err := cmd.CombinedOutput()
+
+	if err != nil {
+		// Site replication might not be configured, use only primary site
+		r.log.Info("Site replication not detected, using primary site only", map[string]interface{}{
+			"error": err.Error(),
+		})
+		r.config.Sites = []string{primarySite}
+		return nil
+	}
+
+	outputStr := string(output)
+	sites := []string{}
+
+	// Parse output to extract site aliases
+	// mc admin replicate info output format:
+	// SiteName | Endpoint
+	lines := strings.Split(outputStr, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.Contains(line, "SiteName") || strings.Contains(line, "---") {
+			continue
+		}
+
+		// Extract site name (first column)
+		parts := strings.Fields(line)
+		if len(parts) > 0 {
+			siteName := parts[0]
+			// Check if this site exists in mc config
+			if _, exists := r.mcConfig.Aliases[siteName]; exists {
+				sites = append(sites, siteName)
+			}
+		}
+	}
+
+	if len(sites) == 0 {
+		// Fallback to primary site only
+		sites = []string{primarySite}
+	}
+
+	r.config.Sites = sites
+	r.log.Info("Detected sites", map[string]interface{}{
+		"sites": sites,
+		"count": len(sites),
+	})
+
+	return nil
+}
+
+// calculateObjectSize calculates actual object size from preset type
+func (r *Runner) calculateObjectSize() error {
+	switch r.config.ObjectSizeType {
+	case ObjectSizeSmall:
+		// Random between 1-10 KiB
+		r.config.ObjectSize = 1024 + int64(time.Now().UnixNano()%9216) // 1-10 KiB
+	case ObjectSizeMedium:
+		// Random between 100-500 KiB
+		r.config.ObjectSize = 102400 + int64(time.Now().UnixNano()%409600) // 100-500 KiB
+	case ObjectSizeLarge:
+		// Random between 1-5 MiB
+		r.config.ObjectSize = 1048576 + int64(time.Now().UnixNano()%4194304) // 1-5 MiB
+	default:
+		return fmt.Errorf("invalid object size type: %s", r.config.ObjectSizeType)
+	}
+
+	r.log.Info("Object size calculated", map[string]interface{}{
+		"type":  r.config.ObjectSizeType,
+		"bytes": r.config.ObjectSize,
+		"human": r.humanizeBytes(r.config.ObjectSize),
+	})
+
+	return nil
+}
+
+// humanizeBytes converts bytes to human-readable format
+func (r *Runner) humanizeBytes(bytes int64) string {
+	const unit = 1024
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
+	}
+	div, exp := int64(unit), 0
+	for n := bytes / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %ciB", float64(bytes)/float64(div), "KMGTPE"[exp])
+}
+
+// generateObjectKeys creates list of object keys for testing
+func (r *Runner) generateObjectKeys() ([]string, error) {
+	keys := make([]string, r.config.ObjectCount)
+
+	if r.config.Overwrite {
+		// All objects use the same key for overwrite testing
+		baseKey := filepath.Join(r.config.ObjectPath, "perftest-object")
+		for i := 0; i < r.config.ObjectCount; i++ {
+			keys[i] = baseKey
+		}
+	} else {
+		// Generate unique keys
+		timestamp := time.Now().Format("20060102-150405")
+		for i := 0; i < r.config.ObjectCount; i++ {
+			keys[i] = filepath.Join(r.config.ObjectPath, fmt.Sprintf("perftest-%s-%04d", timestamp, i))
+		}
+	}
+
+	return keys, nil
+}
+
+// createTestDataFile creates a file with random data for testing
+func (r *Runner) createTestDataFile() (string, error) {
+	filePath := filepath.Join(r.tempDir, "testdata.bin")
+
+	file, err := os.Create(filePath)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	// Generate random data
+	data := make([]byte, r.config.ObjectSize)
+	if _, err := rand.Read(data); err != nil {
+		return "", fmt.Errorf("failed to generate random data: %w", err)
+	}
+
+	if _, err := file.Write(data); err != nil {
+		return "", fmt.Errorf("failed to write test data: %w", err)
+	}
+
+	return filePath, nil
+}
+
+// executePutOperations performs parallel PUT operations
+func (r *Runner) executePutOperations(ctx context.Context, objectKeys []string, testDataFile string) ([]ObjectResult, error) {
+	results := make([]ObjectResult, len(objectKeys))
+	resultsChan := make(chan struct {
+		index  int
+		result ObjectResult
+	}, len(objectKeys))
+
+	// Create worker pool
+	workerPool := make(chan struct{}, r.config.Parallelism)
+	var wg sync.WaitGroup
+
+	primarySite := r.config.PrimarySite
+
+	for i, key := range objectKeys {
+		wg.Add(1)
+
+		go func(idx int, objKey string) {
+			defer wg.Done()
+
+			// Acquire worker slot
+			workerPool <- struct{}{}
+			defer func() { <-workerPool }()
+
+			// Check context cancellation
+			select {
+			case <-ctx.Done():
+				resultsChan <- struct {
+					index  int
+					result ObjectResult
+				}{
+					index: idx,
+					result: ObjectResult{
+						ObjectKey:  objKey,
+						ObjectSize: r.config.ObjectSize,
+						Success:    false,
+						Error:      "cancelled",
+					},
+				}
+				return
+			default:
+			}
+
+			// Execute PUT operation
+			result := r.putObject(ctx, primarySite, r.config.Bucket, objKey, testDataFile)
+			result.ObjectKey = objKey
+			result.ObjectSize = r.config.ObjectSize
+			result.PrimarySite = primarySite
+
+			resultsChan <- struct {
+				index  int
+				result ObjectResult
+			}{
+				index:  idx,
+				result: result,
+			}
+
+			// Update status
+			r.updateStatus(true, (idx+1)*50/len(objectKeys), "put", idx+1, 0)
+		}(i, key)
+	}
+
+	// Wait for all workers to complete
+	go func() {
+		wg.Wait()
+		close(resultsChan)
+	}()
+
+	// Collect results
+	for res := range resultsChan {
+		results[res.index] = res.result
+	}
+
+	return results, nil
+}
+
+// putObject uploads a single object using mc cp
+func (r *Runner) putObject(ctx context.Context, siteAlias, bucket, objectKey, sourceFile string) ObjectResult {
+	result := ObjectResult{
+		PutStartTime:      time.Now(),
+		ReplicationStatus: make(map[string]SiteStatus),
+	}
+
+	target := fmt.Sprintf("%s/%s/%s", siteAlias, bucket, objectKey)
+	cmd := exec.CommandContext(ctx, "mc", "cp", sourceFile, target)
+
+	output, err := cmd.CombinedOutput()
+	result.PutEndTime = time.Now()
+	result.PutDuration = result.PutEndTime.Sub(result.PutStartTime)
+
+	if err != nil {
+		result.Success = false
+		result.Error = fmt.Sprintf("PUT failed: %v, output: %s", err, string(output))
+		r.log.Error("PUT operation failed", map[string]interface{}{
+			"object": objectKey,
+			"error":  result.Error,
+		})
+		return result
+	}
+
+	result.Success = true
+	return result
+}
+
+// updateStatus updates the current test status
+func (r *Runner) updateStatus(running bool, progress int, phase string, objectsPut, objectsChecked int) {
+	r.statusLock.Lock()
+	defer r.statusLock.Unlock()
+
+	r.status.Running = running
+	r.status.Progress = progress
+	r.status.CurrentPhase = phase
+	r.status.ObjectsPut = objectsPut
+	r.status.ObjectsChecked = objectsChecked
+	if running {
+		r.status.ElapsedTime = time.Since(time.Now().Add(-r.status.ElapsedTime))
+	}
+}

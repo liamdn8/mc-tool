@@ -331,7 +331,7 @@ const ValidateOperations = () => {
                             </button>
                         </div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '8px' }}>
-                            {aliases.map(alias => {
+                            {[...aliases].sort((a, b) => a.name.localeCompare(b.name)).map(alias => {
                                 const isSelected = selectedAliases.includes(alias.name);
                                 return (
                                     <label
