@@ -6,6 +6,7 @@ import ConfigModal from '../validation/ConfigModal';
 import OverviewCards from '../validation/OverviewCards';
 import BucketExistenceTable from '../validation/BucketExistenceTable';
 import ConfigComparisonTable from '../validation/ConfigComparisonTable';
+import EnvVarsComparisonTable from '../validation/EnvVarsComparisonTable';
 import ValidationNavigation from '../validation/ValidationNavigation';
 
 const ValidateOperations = () => {
@@ -17,6 +18,7 @@ const ValidateOperations = () => {
     const [bucketSearch, setBucketSearch] = useState('');
     const [checkLifecycle, setCheckLifecycle] = useState(true);
     const [checkEvents, setCheckEvents] = useState(true);
+    const [checkEnvVars, setCheckEnvVars] = useState(true);
     const [validationResults, setValidationResults] = useState(null);
     const [isRunning, setIsRunning] = useState(false);
     const [isLoadingBuckets, setIsLoadingBuckets] = useState(false);
@@ -135,13 +137,15 @@ const ValidateOperations = () => {
             return;
         }
 
-        if (selectedBuckets.length === 0) {
-            alert('Please select at least one bucket');
+        // Check if at least one validation type is selected
+        if (!checkLifecycle && !checkEvents && !checkEnvVars) {
+            alert('Please select at least one validation type (Lifecycle, Events, or Environment Variables)');
             return;
         }
 
-        if (!checkLifecycle && !checkEvents) {
-            alert('Please select at least one configuration type to validate');
+        // If checking lifecycle or events, need buckets
+        if ((checkLifecycle || checkEvents) && selectedBuckets.length === 0) {
+            alert('Please select at least one bucket for lifecycle/events validation');
             return;
         }
 
@@ -155,7 +159,8 @@ const ValidateOperations = () => {
                     aliases: selectedAliases,
                     buckets: selectedBuckets,
                     check_lifecycle: checkLifecycle,
-                    check_events: checkEvents
+                    check_events: checkEvents,
+                    check_env_vars: checkEnvVars
                 })
             });
             if (response.ok) {
@@ -249,10 +254,18 @@ const ValidateOperations = () => {
                     validationResults={validationResults}
                     checkLifecycle={checkLifecycle}
                     checkEvents={checkEvents}
+                    checkEnvVars={checkEnvVars}
                     calculateTableSeverity={calculateTableSeverity}
                 />
                 
                 <BucketExistenceTable validationResults={validationResults} />
+                
+                {validationResults.env_vars && validationResults.env_vars.length > 0 && (
+                    <EnvVarsComparisonTable 
+                        envVars={validationResults.env_vars}
+                        aliases={validationResults.aliases}
+                    />
+                )}
                 
                 {validationResults.lifecycle_table && (
                     <ConfigComparisonTable 
@@ -486,6 +499,28 @@ const ValidateOperations = () => {
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 padding: '8px 16px',
+                                border: checkEnvVars ? '1px solid #2563eb' : '1px solid #d1d5db',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                backgroundColor: checkEnvVars ? '#eff6ff' : '#ffffff',
+                                transition: '0.2s',
+                                fontSize: '13px'
+                            }}>
+                                <input
+                                    type="checkbox"
+                                    checked={checkEnvVars}
+                                    onChange={(e) => setCheckEnvVars(e.target.checked)}
+                                    style={{ marginRight: '8px' }}
+                                />
+                                <AlertCircle size={16} style={{ marginRight: '6px', color: checkEnvVars ? '#2563eb' : '#6b7280' }} />
+                                <span style={{ fontWeight: checkEnvVars ? 600 : 400, color: checkEnvVars ? '#2563eb' : '#374151' }}>
+                                    Environment Variables
+                                </span>
+                            </label>
+                            <label style={{ 
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                padding: '8px 16px',
                                 border: checkLifecycle ? '1px solid #2563eb' : '1px solid #d1d5db',
                                 borderRadius: '6px',
                                 cursor: 'pointer',
@@ -533,7 +568,7 @@ const ValidateOperations = () => {
                     <button 
                         type="submit"
                         onClick={executeValidation}
-                        disabled={isRunning || selectedAliases.length === 0 || selectedBuckets.length === 0}
+                        disabled={isRunning || selectedAliases.length === 0}
                         className="btn btn-primary"
                         style={{ 
                             display: 'inline-flex',

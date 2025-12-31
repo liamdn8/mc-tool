@@ -105,7 +105,8 @@ type TraceRequest struct {
 	GroupByAPI      bool     `json:"groupByApi"`
 	GroupByClient   bool     `json:"groupByClient"`
 	GroupByVersions bool     `json:"groupByVersions"`
-	Insecure        bool     `json:"insecure"` // Skip TLS certificate verification
+	Insecure        bool     `json:"insecure"`   // Skip TLS certificate verification
+	ErrorsOnly      bool     `json:"errorsOnly"` // If true, only trace errors; otherwise trace all requests
 }
 
 // ProfileRequest represents the request payload for profile capture
@@ -171,6 +172,7 @@ func (h *OperationsHandler) HandleValidateBucketConfig(w http.ResponseWriter, r 
 		Buckets        []string `json:"buckets"`
 		CheckLifecycle bool     `json:"check_lifecycle"`
 		CheckEvents    bool     `json:"check_events"`
+		CheckEnvVars   bool     `json:"check_env_vars"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -183,12 +185,13 @@ func (h *OperationsHandler) HandleValidateBucketConfig(w http.ResponseWriter, r 
 		return
 	}
 
-	if len(req.Buckets) == 0 {
-		h.RespondError(w, http.StatusBadRequest, "At least one bucket is required")
-		return
-	}
+	// Allow empty buckets for environment variables validation
+	// if len(req.Buckets) == 0 {
+	// 	h.RespondError(w, http.StatusBadRequest, "At least one bucket is required")
+	// 	return
+	// }
 
-	result, err := h.operationsService.ValidateBucketConfiguration(req.Aliases, req.Buckets, req.CheckLifecycle, req.CheckEvents)
+	result, err := h.operationsService.ValidateBucketConfiguration(req.Aliases, req.Buckets, req.CheckLifecycle, req.CheckEvents, req.CheckEnvVars)
 	if err != nil {
 		h.RespondError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -347,6 +350,7 @@ func (h *OperationsHandler) HandleTrace(w http.ResponseWriter, r *http.Request) 
 		GroupByClient:   req.GroupByClient,
 		GroupByVersions: req.GroupByVersions,
 		Insecure:        req.Insecure,
+		ErrorsOnly:      req.ErrorsOnly,
 	}
 
 	result, err := h.operationsService.RunTraceCapture(options)

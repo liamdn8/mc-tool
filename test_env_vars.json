@@ -1,0 +1,6 @@
+{
+  "aliases": ["site1", "site2"],
+  "buckets": [],
+  "check_lifecycle": false,
+  "check_events": false
+}

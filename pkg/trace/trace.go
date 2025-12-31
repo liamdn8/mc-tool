@@ -26,6 +26,7 @@ type Options struct {
 	GroupByAPI          bool
 	GroupByClient       bool
 	GroupByVersions     bool
+	TraceErrorsOnly     bool // If true, only trace errors; otherwise trace all requests
 }
 
 // ObjectStat represents aggregated error occurrences for a given object.
@@ -108,7 +109,11 @@ func Run(opts Options) (Result, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), opts.Duration)
 	defer cancel()
 
-	args := []string{"admin", "trace", "--errors", "--json"}
+	args := []string{"admin", "trace"}
+	if opts.TraceErrorsOnly {
+		args = append(args, "--errors")
+	}
+	args = append(args, "--json")
 	if opts.Insecure {
 		args = append(args, "--insecure")
 	}

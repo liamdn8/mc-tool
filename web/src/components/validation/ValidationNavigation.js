@@ -6,7 +6,7 @@ const ValidationNavigation = ({ validationResults, checkLifecycle, checkEvents, 
 
     useEffect(() => {
         const handleScroll = () => {
-            const sections = ['bucket_existence', 'lifecycle_table', 'events_table'];
+            const sections = ['bucket_existence', 'env_vars', 'lifecycle_table', 'events_table'];
             const scrollPosition = window.scrollY + 100;
 
             for (const sectionId of sections) {
@@ -98,12 +98,72 @@ const ValidationNavigation = ({ validationResults, checkLifecycle, checkEvents, 
             : { icon: XCircle, color: 'var(--danger-color)' };
     };
 
+    const envVarsStatus = () => {
+        if (!validationResults.env_vars || validationResults.env_vars.length === 0) {
+            return { icon: AlertCircle, color: '#6b7280' };
+        }
+        
+        // Collect all unique environment variables
+        const allVars = new Set();
+        const varsByName = {};
+        
+        validationResults.env_vars.forEach(env => {
+            if (env.filteredVars) {
+                Object.keys(env.filteredVars).forEach(varName => {
+                    allVars.add(varName);
+                    if (!varsByName[varName]) varsByName[varName] = [];
+                    varsByName[varName].push(env.filteredVars[varName]);
+                });
+            }
+        });
+        
+        // Check if any variable has mismatched values (excluding REDACTED)
+        let hasInvalid = false;
+        let hasNotConfig = false;
+        
+        for (const varName of allVars) {
+            const values = varsByName[varName];
+            const uniqueValues = new Set(values);
+            
+            // Check if all values are REDACTED
+            const allRedacted = values.every(v => v === '*** EXISTS, REDACTED ***');
+            if (allRedacted) continue; // Skip comparison for redacted vars
+            
+            // Filter out REDACTED values for comparison
+            const nonRedactedValues = values.filter(v => v !== '*** EXISTS, REDACTED ***');
+            const uniqueNonRedacted = new Set(nonRedactedValues);
+            
+            if (values.length < validationResults.env_vars.length) {
+                hasNotConfig = true;
+            }
+            if (uniqueNonRedacted.size > 1) {
+                hasInvalid = true;
+                break;
+            }
+        }
+        
+        const hasError = validationResults.env_vars.some(env => env.status === 'error');
+        
+        if (hasError || hasInvalid) {
+            return { icon: XCircle, color: 'var(--danger-color)' };
+        } else if (hasNotConfig || allVars.size === 0) {
+            return { icon: AlertCircle, color: 'var(--text-secondary)' };
+        }
+        return { icon: CheckCircle, color: 'var(--success-color)' };
+    };
+
     const navItems = [
         {
             id: 'bucket_existence',
             label: 'Bucket Existence',
             status: bucketExistenceStatus(),
-            show: true
+            show: validationResults.buckets && validationResults.buckets.length > 0
+        },
+        {
+            id: 'env_vars',
+            label: 'Environment Variables',
+            status: envVarsStatus(),
+            show: validationResults.env_vars && validationResults.env_vars.length > 0
         },
         {
             id: 'lifecycle_table',

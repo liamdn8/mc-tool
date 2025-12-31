@@ -261,7 +261,8 @@ const TraceOperations = ({ sites = [] }) => {
         groupByAPI: true,
         groupByClient: false,
         groupByVersions: false,
-        insecure: false
+        insecure: true,
+        errorsOnly: true
     });
     const [results, setResults] = useState(null);
     const [rawViewMode, setRawViewMode] = useState('table');
@@ -502,7 +503,8 @@ const TraceOperations = ({ sites = [] }) => {
             groupByApi: form.groupByAPI,
             groupByClient: form.groupByClient,
             groupByVersions: form.groupByVersions,
-            insecure: form.insecure
+            insecure: form.insecure,
+            errorsOnly: form.errorsOnly
         };
 
         try {
@@ -521,17 +523,23 @@ const TraceOperations = ({ sites = [] }) => {
 
         const cards = [
             {
-                label: t('trace_summary_events', 'Events Captured'),
+                label: form.errorsOnly 
+                    ? t('trace_summary_events_errors', 'Error Events')
+                    : t('trace_summary_events_all', 'Total Requests'),
                 value: numberFormatter.format(summary.totalEvents || 0),
                 tone: '#2563eb'
             },
             {
-                label: t('trace_summary_errors', 'Distinct Errors'),
+                label: form.errorsOnly
+                    ? t('trace_summary_errors', 'Distinct Errors')
+                    : t('trace_summary_apis', 'Distinct APIs'),
                 value: numberFormatter.format(summary.distinctErrors || 0),
                 tone: '#9333ea'
             },
             {
-                label: t('trace_summary_objects', 'Objects With Errors'),
+                label: form.errorsOnly
+                    ? t('trace_summary_objects_errors', 'Objects With Errors')
+                    : t('trace_summary_objects_all', 'Objects Accessed'),
                 value: numberFormatter.format(summary.objectsWithErrors || 0),
                 tone: '#dc2626'
             },
@@ -1281,10 +1289,16 @@ const TraceOperations = ({ sites = [] }) => {
                 <div className="card-header">
                     <h3 className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <Activity size={20} />
-                        {t('trace_operations_title', 'Trace Error Analyzer')}
+                        {form.errorsOnly 
+                            ? t('trace_operations_title_errors', 'API Error Analyzer')
+                            : t('trace_operations_title_all', 'API Request Analyzer')
+                        }
                     </h3>
                     <p style={{ margin: '8px 0 0 0', fontSize: '14px', color: '#6b7280' }}>
-                        {t('trace_operations_description', 'Capture mc admin trace output directly from the browser to pinpoint recurring failures, filter by status or message, and highlight the APIs or clients causing the most issues.')}
+                        {form.errorsOnly
+                            ? t('trace_operations_description_errors', 'Capture error traces to pinpoint recurring failures, filter by status or message, and highlight the APIs or clients causing the most issues.')
+                            : t('trace_operations_description_all', 'Capture all MinIO requests to analyze traffic patterns, monitor API usage, filter by status code, and identify performance hotspots.')
+                        }
                     </p>
                 </div>
 
@@ -1458,6 +1472,14 @@ const TraceOperations = ({ sites = [] }) => {
                                 onChange={(e) => handleChange('groupByVersions', e.target.checked)}
                             />
                             {t('trace_form_group_versions', 'Group by object versions')}
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: '#374151' }}>
+                            <input
+                                type="checkbox"
+                                checked={form.errorsOnly}
+                                onChange={(e) => handleChange('errorsOnly', e.target.checked)}
+                            />
+                            {t('trace_form_errors_only', 'Trace errors only')}
                         </label>
                         <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#6b7280' }}>
                             <Filter size={14} />

@@ -10,6 +10,7 @@ import (
 	"github.com/liamdn8/mc-tool/pkg/logger"
 	"github.com/liamdn8/mc-tool/pkg/profile"
 	"github.com/liamdn8/mc-tool/pkg/trace"
+	"github.com/liamdn8/mc-tool/pkg/validation"
 )
 
 // OperationsService handles automated operations
@@ -42,6 +43,7 @@ type TraceCaptureOptions struct {
 	GroupByClient   bool
 	GroupByVersions bool
 	Insecure        bool // Skip TLS certificate verification
+	ErrorsOnly      bool // If true, only trace errors; otherwise trace all requests
 }
 
 // ProfileCaptureOptions encapsulates configuration for profile captures
@@ -563,6 +565,7 @@ func (os *OperationsService) RunTraceCapture(opts TraceCaptureOptions) (map[stri
 		GroupByAPI:          opts.GroupByAPI,
 		GroupByClient:       opts.GroupByClient,
 		GroupByVersions:     opts.GroupByVersions,
+		TraceErrorsOnly:     opts.ErrorsOnly,
 	})
 	if err != nil {
 		return nil, err
@@ -1187,11 +1190,26 @@ func (os *OperationsService) ConfigurationValidation() (map[string]interface{}, 
 }
 
 // ValidateBucketConfiguration validates bucket lifecycle and event configuration across multiple aliases and buckets
-func (os *OperationsService) ValidateBucketConfiguration(aliases []string, buckets []string, checkLifecycle, checkEvents bool) (map[string]interface{}, error) {
+func (os *OperationsService) ValidateBucketConfiguration(aliases []string, buckets []string, checkLifecycle, checkEvents, checkEnvVars bool) (map[string]interface{}, error) {
 	logger.GetLogger().Info("Starting bucket configuration validation", map[string]interface{}{
-		"aliases": aliases,
-		"buckets": buckets,
+		"aliases":        aliases,
+		"buckets":        buckets,
+		"checkEnvVars":   checkEnvVars,
+		"checkLifecycle": checkLifecycle,
+		"checkEvents":    checkEvents,
 	})
+
+	// Validate environment variables if requested
+	var envVarsResults []interface{}
+	if checkEnvVars {
+		// Import validation package
+		envResults, err := validation.ValidateEnvironmentVariables(aliases, false)
+		if err == nil {
+			for _, r := range envResults {
+				envVarsResults = append(envVarsResults, r)
+			}
+		}
+	}
 
 	// Build bucket existence matrix: buckets x aliases
 	bucketExistence := make(map[string]map[string]bool)
@@ -1323,6 +1341,7 @@ func (os *OperationsService) ValidateBucketConfiguration(aliases []string, bucke
 		"bucket_existence": bucketExistence,
 		"lifecycle_table":  lifecycleTable,
 		"events_table":     eventsTable,
+		"env_vars":         envVarsResults,
 	}
 
 	logger.GetLogger().Info("Bucket configuration validation completed")

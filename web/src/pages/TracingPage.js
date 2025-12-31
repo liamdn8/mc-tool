@@ -10,7 +10,7 @@ const TracingPage = ({ sites }) => {
         {
             id: 'trace-analyzer',
             titleKey: 'operations_trace_title',
-            titleFallback: 'Trace Error Analyzer',
+            titleFallback: 'API Analyzer',
             descriptionKey: 'operations_trace_description',
             descriptionFallback: 'Capture mc admin trace output to identify repeated object failures, filter by status code or message, and group by API or client for faster debugging',
             featureKeys: [

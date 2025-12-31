@@ -59,7 +59,7 @@ const Sidebar = () => {
                     id: 'trace-analyzer',
                     path: '/tracing/analyzer',
                     icon: Activity,
-                    label: t('trace_error_analyzer', 'Trace Error Analyzer')
+                    label: t('trace_error_analyzer', 'API Analyzer')
                 },
                 {
                     id: 'profiler',
