@@ -500,64 +500,127 @@ Checking bucket: my-bucket
 
 ### Example 6: Kubernetes Infrastructure Validation (NEW)
 
+#### CLI Usage
+
 ```bash
 # Setup test environment with KinD
 ./scripts/kind-setup-infravalidation.sh
 
 # Run validation
-mc-tool infravalidate --config test-data/infravalidation-sample-config.yaml
+mc-tool validate-infra site1/app-staging site2/app-staging site3/app-dev
 
-# Save JSON report
-mc-tool infravalidate --config infra-config.yaml --output report.json
+# With JSON output
+mc-tool validate-infra site1/production site2/production --output report.json
 
 # Cleanup
 ./scripts/kind-cleanup-infravalidation.sh
 ```
 
-This will output a detailed comparison report:
+**CLI Output Example:**
 
 ```
-🔍 Starting infrastructure validation...
-Baseline: kind-test-baseline/app-prod
-Targets: 2 cluster(s)
-Mode: mode-a
+[*] Starting infrastructure validation...
+Baseline: site1/app-staging
+Targets: 2 namespace(s)
+  - site2/app-staging
+  - site3/app-dev
 
-===============================================================================
-Infrastructure Validation Summary
-===============================================================================
+[*] Infrastructure Validation Report
+====================================================================================================
 
-Baseline: kind-test-baseline/app-prod
-Timestamp: 2026-01-08T10:30:45Z
-Mode: mode-a
+[i] Baseline: site1/app-staging
+[i] Timestamp: 2026-01-09T00:15:12+07:00
+[i] Mode: mode-a
 
-Overall Results:
-  Total Comparisons: 10
-  ✓ Matches:         5 (50.0%)
-  ✗ Mismatches:      3 (30.0%)
-  ⚠ Not Found:       2 (20.0%)
-
-Target: kind-test-target1/app-prod
-───────────────────────────────────────────────────────────────────────────────
+[>] Target: site2/app-staging
+----------------------------------------------------------------------------------------------------
   Deployment:
-    ✓ 1 match(es)
+    [OK] 1 match(es):
+        - app-deployment
+  StatefulSet:
+    [OK] 1 match(es):
+        - app-stateful
   ConfigMap:
-    ✓ 1 match(es)
+    [OK] 2 match(es):
+        - app-config
+        - kube-root-ca.crt
+  Secret:
+    [OK] 2 match(es):
+        - app-secret
+        - infravalidation-sa-token
 
-Target: kind-test-target2/app-prod-replica
-───────────────────────────────────────────────────────────────────────────────
+[>] Target: site3/app-dev
+----------------------------------------------------------------------------------------------------
+  Secret:
+    [OK] 1 match(es):
+        - app-secret
+    [X] 1 mismatch(es):
+        - infravalidation-sa-token
+    [+] 1 extra (not in baseline):
+        - extra-test-secret
   Deployment:
-    ✗ 1 mismatch(es):
-      - app-deployment
-  ConfigMap:
-    ✗ 1 mismatch(es):
-      - app-config
+    [X] 1 mismatch(es):
+        - app-deployment
+  StatefulSet:
+    [!] 1 not found:
+        - app-stateful
 
-===============================================================================
+====================================================================================================
+[#] Overall Results
+====================================================================================================
 
-⚠️  Configuration drift detected!
+  Total Comparisons: 15
+  [OK] Matches:      8 (53.3%)
+  [X]  Mismatches:   4 (26.7%)
+  [!]  Not Found:    1 (6.7%)
+  [+]  Extra:        2 (13.3%)
+
+====================================================================================================
+
+[!] Configuration drift detected!
 ```
 
-See [Infrastructure Validation Documentation](docs/INFRAVALIDATION.md) for more details.
+#### Web UI Usage
+
+**Features:**
+- 🎯 **All Resources Displayed**: Shows matched, mismatched, not found, AND extra resources
+- 🔍 **Interactive Diff Viewer**: ArgoCD-style side-by-side comparison with Myers algorithm
+- 📊 **Visual Dashboard**: Overview cards, resource tables, status badges
+- 🎨 **Enhanced UX**: Clickable badges, collapsible hunks, full/diff toggle
+- 🔎 **Search & Filter**: Find specific resources quickly
+
+**Access:**
+```bash
+mc-tool web --port 8080
+# Navigate to: http://localhost:8080/minio-webtool/validate/infrastructure
+```
+
+**Workflow:**
+1. Select baseline VIM and namespace
+2. Add target VIM/namespace pairs
+3. Click "Validate Infrastructure"
+4. Review results with visual indicators:
+   - 🟢 **Match** (green): Identical configs - click to verify
+   - 🟢 **Configured** (green): Baseline reference
+   - 🟡 **Mismatch** (warning): Different configs - click to view diff
+   - 🟡 **Extra** (warning): Only in target - click to inspect
+   - 🟡 **Not Found** (warning): Missing in target
+5. Click badges to open ArgoCD-style diff viewer
+6. Toggle "Show full" ↔ "Show only differences"
+7. Copy baseline or target YAML
+
+**Diff Viewer Features:**
+- Myers algorithm (same as Git) for accurate diffs
+- Side-by-side comparison with syntax highlighting
+- Collapsible change hunks with context lines
+- VIM/namespace labels in header
+- Separate copy buttons for each side
+- Works for Match, Mismatch, and Extra resources
+
+See documentation:
+- [Infrastructure Validation Overview](docs/INFRAVALIDATION.md)
+- [Quick Start Guide](docs/INFRAVALIDATION_QUICKSTART.md)
+- [Web UI Detailed Guide](docs/INFRAVALIDATION_WEB_UI.md)
 
 ## Contributing
 
@@ -569,6 +632,10 @@ See [Infrastructure Validation Documentation](docs/INFRAVALIDATION.md) for more 
 
 ## Documentation
 
+- [Web UI Guide](docs/WEB_UI.md) - Complete web interface documentation
+- [Infrastructure Validation](docs/INFRAVALIDATION.md) - Multi-cluster Kubernetes validation
+- [Infrastructure Validation Quick Start](docs/INFRAVALIDATION_QUICKSTART.md) - Step-by-step setup guide
+- [Infrastructure Validation Web UI](docs/INFRAVALIDATION_WEB_UI.md) - Detailed Web UI usage guide
 - [Profile Command Guide](docs/PROFILE_COMMAND.md) - Comprehensive profiling and memory leak detection
 - [Debug 403 Resolution](docs/DEBUG_403_RESOLUTION.md) - Understanding authentication differences
 

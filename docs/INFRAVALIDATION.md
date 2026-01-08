@@ -8,9 +8,12 @@ The **Infrastructure Validation** feature enables comparison of Kubernetes names
 
 - ✅ **Multi-cluster namespace comparison** - Compare baseline vs multiple target namespaces
 - ✅ **Resource-level configuration diff** - Supports Deployments, StatefulSets, DaemonSets, ConfigMaps, Secrets, Services
+- ✅ **Comprehensive resource tracking** - Shows ALL resources (matched, mismatched, not found, and extra)
+- ✅ **Extra resource detection** - Identifies resources present in target but missing in baseline
 - ✅ **Normalized comparison** - Automatically ignores runtime metadata and ephemeral fields
 - ✅ **Flexible Secret handling** - Compare keys-only or hashed values (never plain text)
-- ✅ **YAML diff visualization** - Human-readable diffs for mismatched resources
+- ✅ **Advanced diff visualization** - ArgoCD-style diff viewer with Myers algorithm, collapsible hunks, and full/differences toggle
+- ✅ **Interactive Web UI** - Modern React-based interface with clickable badges and inline diff viewer
 - ✅ **JSON report output** - Machine-readable reports for automation
 - ✅ **Mode A implemented** - Structural configuration diff
 
@@ -243,15 +246,17 @@ Target: kind-test-target2/app-prod-replica
     }
   ],
   "summary": {
-    "totalComparisons": 10,
+    "totalComparisons": 12,
     "matchCount": 5,
     "mismatchCount": 3,
     "notFoundCount": 2,
+    "extraCount": 2,
     "errorCount": 0,
     "statusBreakdown": {
       "match": 5,
       "mismatch": 3,
-      "not-found": 2
+      "not-found": 2,
+      "extra": 2
     }
   }
 }
@@ -299,10 +304,77 @@ data:
   api-key: "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"
 ```
 
+## Web UI
+
+### Features
+
+**Enhanced Resource Display:**
+- ✅ Shows ALL resources including matched ones (not just drift)
+- ✅ Clear baseline status badges ("Configured" instead of "-")
+- ✅ Extra resources highlighted with warning badges
+- ✅ Interactive table with filtering and pagination
+- ✅ Status counts displayed in header badges
+
+**Advanced Diff Viewer:**
+- ✅ ArgoCD-style side-by-side comparison
+- ✅ Myers diff algorithm for accurate content-based diffs
+- ✅ Collapsible hunks with context lines
+- ✅ "Show full" vs "Show only differences" toggle
+- ✅ VIM/namespace labels in diff header
+- ✅ Separate copy buttons for baseline and target
+- ✅ Clickable badges to view diff for Match, Mismatch, and Extra resources
+
+**Navigation & UX:**
+- ✅ Sidebar navigation with auto-scroll to sections
+- ✅ Contents panel below Navigation
+- ✅ Resource type grouping with visual status indicators
+- ✅ Search and filter capabilities
+- ✅ Mobile-responsive design
+
+### Resource Status Badges
+
+| Status | Baseline | Target | Description | Clickable |
+|--------|----------|--------|-------------|----------|
+| **Match** | "Match" (green) | "Match" (green) | Configuration identical | ✅ Yes - View diff |
+| **Mismatch** | "Configured" (green) | "Mismatch" (warning) | Configuration differs | ✅ Yes - View diff |
+| **Not Found** | N/A | "Not Found" (warning) | In baseline but missing in target | ❌ No |
+| **Extra** | "Not Found" (warning) | "Extra" (warning) | In target but not in baseline | ✅ Yes - View diff |
+
+### Starting Web UI
+
+```bash
+# Start on default port 8080
+mc-tool web --port 8080
+
+# Access at http://localhost:8080/minio-webtool/validate/infrastructure
+```
+
+### Using Web UI
+
+1. **Select Configuration:**
+   - Choose baseline VIM and namespace
+   - Add one or more target VIM/namespace pairs
+   
+2. **Run Validation:**
+   - Click "Validate Infrastructure"
+   - Watch real-time progress
+   
+3. **Review Results:**
+   - Overview cards show summary statistics
+   - Navigate using sidebar Contents panel
+   - Filter by resource type
+   - Search for specific resources
+   
+4. **Inspect Differences:**
+   - Click any badge (Match/Mismatch/Extra) to view diff
+   - Toggle between "Show only differences" and "Show full"
+   - Copy baseline or target YAML
+   - Close diff viewer to return to table
+
 ## Exit Codes
 
 - `0` - All configurations match
-- `1` - Configuration drift detected (mismatches or not-found resources)
+- `1` - Configuration drift detected (mismatches, not-found, or extra resources)
 
 ## Requirements
 

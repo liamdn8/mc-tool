@@ -47,6 +47,21 @@ A modern, bilingual web interface for MC-Tool that makes MinIO operations access
 - Lifecycle policy review
 - Security settings check
 
+### 🏗️ Infrastructure Validation
+- **Multi-cluster Kubernetes validation**
+- Compare namespace configurations across clusters
+- Detect configuration drift
+- **Comprehensive resource tracking**: All resources displayed (matched, mismatched, not found, extra)
+- **Extra resource detection**: Identifies unauthorized or missing resources
+- **Advanced diff viewer**: ArgoCD-style side-by-side comparison
+- **Myers algorithm**: Accurate content-based diffs (same as Git)
+- **Interactive badges**: Click to view diffs for Match, Mismatch, or Extra resources
+- **Full/Differences toggle**: Focus on changes or view complete files
+- **Collapsible hunks**: Expandable change sections with context
+- **Resource status indicators**: Color-coded badges for quick assessment
+- **Search and filter**: Find specific resources quickly
+- **Navigation panel**: Jump to resource types instantly
+
 ## Getting Started
 
 ### Start Web UI
@@ -110,11 +125,71 @@ http://localhost:8080
 3. Run comprehensive configuration check
 4. Review results
 
+### 6. Infrastructure Validation
+1. Go to "Infrastructure Validation" page
+2. **Select Baseline:**
+   - Choose VIM (Kubernetes cluster)
+   - Choose Namespace
+3. **Add Targets:**
+   - Click "Add Target"
+   - Select VIM and Namespace for comparison
+   - Can add multiple targets
+4. **Run Validation:**
+   - Click "Validate Infrastructure"
+   - Monitor real-time progress
+5. **Review Results:**
+   - **Overview Cards**: Statistics (Total, Match, Mismatch, Not Found, Extra)
+   - **Navigation Panel**: Click resource types to jump to sections
+   - **Resource Tables**: Grouped by type with status badges
+   - **Status Indicators**:
+     - 🟢 **Match** (green): Configurations identical
+     - 🟢 **Configured** (green): Baseline reference
+     - 🟡 **Mismatch** (warning): Configuration differs
+     - 🟡 **Extra** (warning): Resource only in target
+     - 🟡 **Not Found** (warning): Resource only in baseline
+6. **View Diffs:**
+   - Click any **Match**, **Mismatch**, or **Extra** badge
+   - ArgoCD-style diff viewer opens:
+     - Side-by-side comparison
+     - VIM/namespace labels
+     - Toggle "Show only differences" ↔ "Show full"
+     - Collapsible change hunks
+     - Copy buttons for baseline and target
+   - Close diff viewer to return
+
+### Infrastructure Validation Features
+
+**Enhanced Resource Display:**
+- ✅ Shows ALL resources including perfectly matched ones
+- ✅ Extra resource detection (resources in target not in baseline)
+- ✅ Clear baseline status ("Configured" instead of "-")
+- ✅ Interactive table with search, filter, and pagination
+- ✅ Status count badges in table headers
+
+**Advanced Diff Viewer:**
+- ✅ Myers diff algorithm for accurate comparison
+- ✅ ArgoCD-style side-by-side view
+- ✅ Collapsible hunks with context lines
+- ✅ Full file view vs differences-only mode
+- ✅ Syntax highlighting for YAML
+- ✅ Separate copy buttons for each side
+- ✅ VIM/namespace labels in header
+
+**Navigation & UX:**
+- ✅ Sidebar navigation with auto-scroll
+- ✅ Contents panel integration
+- ✅ Mobile-responsive design
+- ✅ Real-time validation progress
+
 ## API Endpoints
 
 The web UI exposes the following REST API endpoints:
 
+**General:**
 - `GET /api/health` - Health check
+- `GET /api/mc-config` - Check MC configuration
+
+**MinIO Operations:**
 - `GET /api/aliases` - List configured aliases
 - `GET /api/buckets?alias=<name>` - List buckets for alias
 - `POST /api/compare` - Start comparison job
@@ -122,7 +197,18 @@ The web UI exposes the following REST API endpoints:
 - `POST /api/profile` - Start profiling job
 - `POST /api/checklist` - Start checklist job
 - `GET /api/jobs/<id>` - Get job status
-- `GET /api/mc-config` - Check MC configuration
+
+**Infrastructure Validation:**
+- `GET /api/validate/infrastructure/vims` - List available Kubernetes clusters (VIMs)
+- `GET /api/validate/infrastructure/namespaces?vim=<name>` - List namespaces in VIM
+- `POST /api/validate/infrastructure` - Start validation job
+  ```json
+  {
+    "baseline": "site1/app-staging",
+    "targets": ["site2/app-staging", "site3/app-dev"]
+  }
+  ```
+- `GET /api/validate/infrastructure/diff?baseline=<site/ns>&target=<site/ns>&resource_type=<type>&resource_name=<name>` - Get resource diff
 
 ## Language Support
 

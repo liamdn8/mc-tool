@@ -225,7 +225,61 @@ Then run:
 ./mc-tool infravalidate --config my-infra-config.yaml
 ```
 
-## Step 7: Cleanup
+## Step 7: Using Web UI
+
+For a more user-friendly experience, use the Web UI:
+
+```bash
+# Start web server
+./mc-tool web --port 8080
+```
+
+Open browser to: **http://localhost:8080/minio-webtool/validate/infrastructure**
+
+### Web UI Workflow
+
+1. **Select Baseline:**
+   - Choose VIM: `site1`
+   - Choose Namespace: `app-staging`
+
+2. **Add Targets:**
+   - Click "Add Target"
+   - VIM: `site3`, Namespace: `app-dev`
+   - Can add multiple targets
+
+3. **Run Validation:**
+   - Click "Validate Infrastructure"
+   - Watch real-time progress
+
+4. **Review Results:**
+   - **Overview Cards**: Summary statistics at top
+   - **Navigation Panel**: Jump to resource types in sidebar
+   - **Resource Tables**: Grouped by type (Deployment, Secret, etc.)
+   - **Status Badges**: 
+     - Green "Match" - identical
+     - Green "Configured" - baseline reference
+     - Warning "Mismatch" - configuration differs
+     - Warning "Extra" - only in target
+     - Warning "Not Found" - only in baseline
+
+5. **View Diffs:**
+   - Click any **Match**, **Mismatch**, or **Extra** badge
+   - ArgoCD-style side-by-side diff viewer opens
+   - Toggle "Show only differences" ↔ "Show full"
+   - Copy baseline or target YAML
+   - Close to return to table
+
+### Web UI Features
+
+✅ **All Resources Displayed** - Shows matched resources, not just drift  
+✅ **Extra Resource Detection** - Highlights resources only in target  
+✅ **Interactive Diffs** - Click any badge to view comparison  
+✅ **Myers Algorithm** - Accurate content-based diffs (same as Git)  
+✅ **Collapsible Hunks** - Focus on changes or view full files  
+✅ **Search & Filter** - Find specific resources quickly  
+✅ **Mobile Responsive** - Works on tablets and phones  
+
+## Step 8: Cleanup
 
 When done testing, cleanup the KinD clusters:
 
@@ -239,14 +293,24 @@ When done testing, cleanup the KinD clusters:
 
 **Match** ✓
 - Configuration is identical between baseline and target
+- Resource names are now listed (not just count)
+- Can view diff in Web UI to verify exact match
 
 **Mismatch** ✗
 - Configuration differs
 - Review the diff to understand changes
+- Baseline shows "Configured", target shows "Mismatch"
 
 **Not Found** ⚠
 - Resource exists in baseline but not in target
 - May indicate missing deployment
+- Target shows "Not Found" badge
+
+**Extra** +
+- Resource exists in target but NOT in baseline
+- May indicate unauthorized deployment or drift
+- Baseline shows "Not Found", target shows "Extra"
+- Can view diff in Web UI to inspect extra resource
 
 **Error** ⚠
 - Failed to fetch or compare resource

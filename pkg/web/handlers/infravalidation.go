@@ -290,6 +290,32 @@ func (h *InfraValidationHandler) runInfraValidateJob(job *models.Job, baseline s
 	}, "Validation completed")
 }
 
+// findOrCreateResourceRow finds existing resource in table or creates new one
+func findOrCreateResourceRow(resourceTable []map[string]interface{}, resourceType, resourceName string, baseline string) (map[string]interface{}, []map[string]interface{}) {
+	// Look for existing row with same resource type and name
+	for _, row := range resourceTable {
+		if row["resource_type"] == resourceType && row["resource_name"] == resourceName {
+			return row, resourceTable
+		}
+	}
+
+	// Not found - create new row
+	newRow := map[string]interface{}{
+		"resource_type": resourceType,
+		"resource_name": resourceName,
+		"baseline":      baseline,
+	}
+
+	// Add baseline column with default status
+	baselineKey := fmt.Sprintf("%v", baseline)
+	newRow[baselineKey] = map[string]interface{}{
+		"status": "-",
+	}
+
+	resourceTable = append(resourceTable, newRow)
+	return newRow, resourceTable
+}
+
 func (h *InfraValidationHandler) parseInfraValidationOutput(lines []string) map[string]interface{} {
 	result := map[string]interface{}{
 		"baseline":         "",
@@ -409,30 +435,23 @@ func (h *InfraValidationHandler) parseInfraValidationOutput(lines []string) map[
 					// Resource name (6 or 8 space indent + dash)
 					resourceName := strings.TrimPrefix(nextLine, "- ")
 
-					// Create resource table entry for matched resource
-					resourceRow := map[string]interface{}{
-						"resource_type": currentResourceType,
-						"resource_name": resourceName,
-						"baseline":      result["baseline"],
-					}
+					// Find or create resource row
+					resourceTable := result["resource_table"].([]map[string]interface{})
+					resourceRow, updatedTable := findOrCreateResourceRow(resourceTable, currentResourceType, resourceName, fmt.Sprintf("%v", result["baseline"]))
+					result["resource_table"] = updatedTable
 
-					// Add status for baseline (always exists)
+					// Update baseline status to match
 					baselineKey := fmt.Sprintf("%v", result["baseline"])
 					resourceRow[baselineKey] = map[string]interface{}{
 						"status": "match",
 					}
 
-					// Add status for target (match)
+					// Add/update status for target (match)
 					if currentTarget != "" {
 						resourceRow[currentTarget] = map[string]interface{}{
 							"status": "match",
 						}
 					}
-
-					if result["resource_table"] == nil {
-						result["resource_table"] = []map[string]interface{}{}
-					}
-					result["resource_table"] = append(result["resource_table"].([]map[string]interface{}), resourceRow)
 				} else if strings.TrimSpace(nextOrigLine) != "" && !strings.HasPrefix(nextOrigLine, "      ") && !strings.HasPrefix(nextOrigLine, "        ") {
 					// Not a resource name line, stop parsing this block
 					break
@@ -452,30 +471,23 @@ func (h *InfraValidationHandler) parseInfraValidationOutput(lines []string) map[
 					// Resource name (6 or 8 space indent + dash)
 					resourceName := strings.TrimPrefix(nextLine, "- ")
 
-					// Create resource table entry
-					resourceRow := map[string]interface{}{
-						"resource_type": currentResourceType,
-						"resource_name": resourceName,
-						"baseline":      result["baseline"],
-					}
+					// Find or create resource row
+					resourceTable := result["resource_table"].([]map[string]interface{})
+					resourceRow, updatedTable := findOrCreateResourceRow(resourceTable, currentResourceType, resourceName, fmt.Sprintf("%v", result["baseline"]))
+					result["resource_table"] = updatedTable
 
-					// Add status for baseline (always exists as "-")
+					// Baseline: keep configured marker
 					baselineKey := fmt.Sprintf("%v", result["baseline"])
 					resourceRow[baselineKey] = map[string]interface{}{
 						"status": "-",
 					}
 
-					// Add status for target (mismatch)
+					// Target mismatch
 					if currentTarget != "" {
 						resourceRow[currentTarget] = map[string]interface{}{
 							"status": "mismatch",
 						}
 					}
-
-					if result["resource_table"] == nil {
-						result["resource_table"] = []map[string]interface{}{}
-					}
-					result["resource_table"] = append(result["resource_table"].([]map[string]interface{}), resourceRow)
 				} else if strings.TrimSpace(nextOrigLine) != "" && !strings.HasPrefix(nextOrigLine, "      ") && !strings.HasPrefix(nextOrigLine, "        ") {
 					// Not a resource name line, stop parsing this block
 					break
@@ -493,13 +505,11 @@ func (h *InfraValidationHandler) parseInfraValidationOutput(lines []string) map[
 				if strings.HasPrefix(nextOrigLine, "      - ") || strings.HasPrefix(nextOrigLine, "        - ") {
 					resourceName := strings.TrimPrefix(nextLine, "- ")
 
-					resourceRow := map[string]interface{}{
-						"resource_type": currentResourceType,
-						"resource_name": resourceName,
-						"baseline":      result["baseline"],
-					}
+					// Find or create resource row
+					resourceTable := result["resource_table"].([]map[string]interface{})
+					resourceRow, updatedTable := findOrCreateResourceRow(resourceTable, currentResourceType, resourceName, fmt.Sprintf("%v", result["baseline"]))
+					result["resource_table"] = updatedTable
 
-					// Add status for baseline (always exists as "-")
 					baselineKey := fmt.Sprintf("%v", result["baseline"])
 					resourceRow[baselineKey] = map[string]interface{}{
 						"status": "-",
@@ -510,11 +520,6 @@ func (h *InfraValidationHandler) parseInfraValidationOutput(lines []string) map[
 							"status": "not_found",
 						}
 					}
-
-					if result["resource_table"] == nil {
-						result["resource_table"] = []map[string]interface{}{}
-					}
-					result["resource_table"] = append(result["resource_table"].([]map[string]interface{}), resourceRow)
 				} else if strings.TrimSpace(nextOrigLine) != "" && !strings.HasPrefix(nextOrigLine, "      ") && !strings.HasPrefix(nextOrigLine, "        ") {
 					break
 				}
@@ -531,29 +536,21 @@ func (h *InfraValidationHandler) parseInfraValidationOutput(lines []string) map[
 				if strings.HasPrefix(nextOrigLine, "      - ") || strings.HasPrefix(nextOrigLine, "        - ") {
 					resourceName := strings.TrimPrefix(nextLine, "- ")
 
-					resourceRow := map[string]interface{}{
-						"resource_type": currentResourceType,
-						"resource_name": resourceName,
-						"baseline":      result["baseline"],
-					}
+					// Find or create resource row
+					resourceTable := result["resource_table"].([]map[string]interface{})
+					resourceRow, updatedTable := findOrCreateResourceRow(resourceTable, currentResourceType, resourceName, fmt.Sprintf("%v", result["baseline"]))
+					result["resource_table"] = updatedTable
 
-					// Add status for baseline (doesn't exist)
 					baselineKey := fmt.Sprintf("%v", result["baseline"])
 					resourceRow[baselineKey] = map[string]interface{}{
 						"status": "not_found",
 					}
 
-					// Add status for target (extra - exists in target)
 					if currentTarget != "" {
 						resourceRow[currentTarget] = map[string]interface{}{
 							"status": "extra",
 						}
 					}
-
-					if result["resource_table"] == nil {
-						result["resource_table"] = []map[string]interface{}{}
-					}
-					result["resource_table"] = append(result["resource_table"].([]map[string]interface{}), resourceRow)
 				} else if strings.TrimSpace(nextOrigLine) != "" && !strings.HasPrefix(nextOrigLine, "      ") && !strings.HasPrefix(nextOrigLine, "        ") {
 					break
 				}
