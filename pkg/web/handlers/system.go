@@ -110,8 +110,11 @@ func (h *SystemHandler) HandleJobStatus(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	jobID := strings.TrimPrefix(r.URL.Path, "/api/jobs/")
-	if jobID == "" {
+	// Extract job ID from path (handles both /api/jobs/ID and /minio-webtool/api/jobs/ID)
+	pathParts := strings.Split(strings.TrimSuffix(r.URL.Path, "/"), "/")
+	jobID := pathParts[len(pathParts)-1]
+
+	if jobID == "" || jobID == "jobs" {
 		h.RespondError(w, http.StatusBadRequest, "Job ID is required")
 		return
 	}

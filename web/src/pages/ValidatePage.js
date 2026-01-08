@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { List, ArrowRight } from 'lucide-react';
+import { List, ArrowRight, Server } from 'lucide-react';
 import { useI18n } from '../utils/i18n';
 
 const ValidatePage = ({ sites }) => {
@@ -30,6 +30,30 @@ const ValidatePage = ({ sites }) => {
             icon: List,
             path: '/validate/configuration',
             color: '#059669'
+        },
+        {
+            id: 'infrastructure',
+            titleKey: 'operations_validate_infra_title',
+            titleFallback: 'Infrastructure Validation',
+            descriptionKey: 'operations_validate_infra_description',
+            descriptionFallback: 'Validate Kubernetes namespace configurations across multiple clusters and environments',
+            featureKeys: [
+                'operations_validate_infra_feature_1',
+                'operations_validate_infra_feature_2',
+                'operations_validate_infra_feature_3',
+                'operations_validate_infra_feature_4',
+                'operations_validate_infra_feature_5'
+            ],
+            featureFallbacks: [
+                'Compare Deployments, StatefulSets, Services across namespaces',
+                'Validate ConfigMaps and Secrets consistency',
+                'Multi-cluster and multi-namespace support',
+                'Detect configuration drift between environments',
+                'Useful for prod/staging/dev environment validation'
+            ],
+            icon: Server,
+            path: '/validate/infrastructure',
+            color: '#dc2626'
         }
     ];
 

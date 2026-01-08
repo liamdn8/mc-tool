@@ -1,6 +1,6 @@
 # mc-tool
 
-A comprehensive MinIO client support tool for comparing buckets, analyzing object distributions, validating bucket configurations, and profiling MinIO servers for performance analysis and memory leak detection.
+A comprehensive MinIO client support tool for comparing buckets, analyzing object distributions, validating bucket configurations, and profiling MinIO servers for performance analysis and memory leak detection. Now includes **Kubernetes Infrastructure Validation** for multi-cluster configuration consistency.
 
 ## Features
 
@@ -12,6 +12,7 @@ A comprehensive MinIO client support tool for comparing buckets, analyzing objec
 - **Performance Profiling**: CPU, memory, and goroutine profiling for MinIO servers
 - **Memory Leak Detection**: Continuous monitoring and automatic leak detection with configurable thresholds
 - **⚡ Performance Testing**: Automated PUT replication testing with metrics and analytics
+- **🏗️ Infrastructure Validation**: Compare Kubernetes namespace configurations across multi-cluster deployments (NEW)
 
 ## Quick Start
 
@@ -113,6 +114,9 @@ mc-tool profile heap minio-prod --detect-leaks --duration 5m
 
 # Run checklist
 mc-tool checklist alias/bucket
+
+# Validate Kubernetes infrastructure (NEW)
+mc-tool infravalidate --config infra-config.yaml
 ```
 
 ## Architecture
@@ -132,9 +136,12 @@ mc-tool/
 │   ├── analyze/              # Bucket analysis functionality
 │   │   └── analyze.go
 │   ├── profile/              # Performance profiling and memory leak detection
-│   │   └── profile.go
-│   ├── validation/           # Bucket configuration validation
-│   │   └── validation.go
+│   ├── infravalidation/      # Kubernetes infrastructure validation (NEW)
+│   │   ├── types.go
+│   │   ├── k8s_client.go
+│   │   ├── normalizer.go
+│   │   ├── comparator.go
+│   │   └── config.go
 │   └── web/                  # Web UI server and API
 │       ├── server.go
 │       └── static/
@@ -142,11 +149,16 @@ mc-tool/
 │           ├── styles.css
 │           └── app.js
 └── docs/
+    ├── WEB_UI.md            # Web UI documentation
+    └── INFRAVALIDATION.md   # Infrastructure validation docs (NEW)
+│           └── app.js
+└── docs/
     └── WEB_UI.md            # Web UI documentation
 ```
 
 ### Package Responsibilities
 
+- **`pkg/infravalidation`**: Validates Kubernetes infrastructure configurations across multi-cluster deployments (NEW)
 - **`pkg/config`**: Handles loading MinIO client configuration from `~/.mc/config.json` or `MC_HOST_*` environment variables
 - **`pkg/client`**: Creates MinIO clients and parses URLs
 - **`pkg/compare`**: Implements object comparison logic and result display
@@ -485,6 +497,67 @@ Checking bucket: my-bucket
 ✅ Server-side Encryption: AES256 configured
 ✅ Bucket Policy: Configured
 ```
+
+### Example 6: Kubernetes Infrastructure Validation (NEW)
+
+```bash
+# Setup test environment with KinD
+./scripts/kind-setup-infravalidation.sh
+
+# Run validation
+mc-tool infravalidate --config test-data/infravalidation-sample-config.yaml
+
+# Save JSON report
+mc-tool infravalidate --config infra-config.yaml --output report.json
+
+# Cleanup
+./scripts/kind-cleanup-infravalidation.sh
+```
+
+This will output a detailed comparison report:
+
+```
+🔍 Starting infrastructure validation...
+Baseline: kind-test-baseline/app-prod
+Targets: 2 cluster(s)
+Mode: mode-a
+
+===============================================================================
+Infrastructure Validation Summary
+===============================================================================
+
+Baseline: kind-test-baseline/app-prod
+Timestamp: 2026-01-08T10:30:45Z
+Mode: mode-a
+
+Overall Results:
+  Total Comparisons: 10
+  ✓ Matches:         5 (50.0%)
+  ✗ Mismatches:      3 (30.0%)
+  ⚠ Not Found:       2 (20.0%)
+
+Target: kind-test-target1/app-prod
+───────────────────────────────────────────────────────────────────────────────
+  Deployment:
+    ✓ 1 match(es)
+  ConfigMap:
+    ✓ 1 match(es)
+
+Target: kind-test-target2/app-prod-replica
+───────────────────────────────────────────────────────────────────────────────
+  Deployment:
+    ✗ 1 mismatch(es):
+      - app-deployment
+  ConfigMap:
+    ✗ 1 mismatch(es):
+      - app-config
+
+===============================================================================
+
+⚠️  Configuration drift detected!
+```
+
+See [Infrastructure Validation Documentation](docs/INFRAVALIDATION.md) for more details.
 
 ## Contributing
 

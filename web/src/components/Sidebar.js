@@ -80,6 +80,12 @@ const Sidebar = () => {
                     path: '/validate/configuration',
                     icon: List,
                     label: t('configuration_validate', 'Configuration Validation')
+                },
+                {
+                    id: 'infrastructure-validate',
+                    path: '/validate/infrastructure',
+                    icon: List,
+                    label: t('infrastructure_validate', 'Infrastructure Validation')
                 }
             ]
         },

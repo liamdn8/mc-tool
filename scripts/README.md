@@ -1,8 +1,8 @@
-# MinIO Performance Monitoring
+# MinIO Performance Monitoring & Infrastructure Validation
 
-This directory contains scripts for monitoring MinIO server performance, particularly focusing on goroutine analysis and server health.
+This directory contains scripts for monitoring MinIO server performance and setting up Kubernetes infrastructure validation testing.
 
-## Tools
+## MinIO Performance Tools
 
 ### 1. minio-perf.sh
 Comprehensive performance monitoring script that checks various MinIO endpoints.
@@ -52,6 +52,44 @@ minio-perf http://your-minio:9000 your-access-key your-secret-key
 # Or use the full script with options
 /usr/local/bin/scripts/minio-perf.sh --help
 ```
+
+## Kubernetes Infrastructure Validation Tools (NEW)
+
+### 3. kind-setup-infravalidation.sh
+Sets up KinD (Kubernetes in Docker) test clusters for infrastructure validation testing.
+
+**Features:**
+- Creates 3 KinD clusters (baseline, target1, target2)
+- Deploys sample resources across clusters
+- Configures matching and drifted configurations for testing
+- Sets up namespaces and test workloads
+
+**Usage:**
+```bash
+# Setup test environment
+./kind-setup-infravalidation.sh
+
+# This creates:
+#   - kind-test-baseline (namespace: app-prod) - baseline cluster
+#   - kind-test-target1 (namespace: app-prod) - matching cluster  
+#   - kind-test-target2 (namespace: app-prod-replica) - drifted cluster
+```
+
+**Requirements:**
+- KinD installed: https://kind.sigs.k8s.io/docs/user/quick-start/#installation
+- kubectl installed
+- Docker running
+
+### 4. kind-cleanup-infravalidation.sh
+Cleans up KinD test clusters created by setup script.
+
+**Usage:**
+```bash
+# Cleanup all test clusters
+./kind-cleanup-infravalidation.sh
+```
+
+See [Infrastructure Validation Documentation](../docs/INFRAVALIDATION.md) for more details.
 
 ## Monitored Endpoints
 

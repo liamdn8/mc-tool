@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -16,6 +17,7 @@ import (
 	"github.com/liamdn8/mc-tool/pkg/client"
 	"github.com/liamdn8/mc-tool/pkg/compare"
 	"github.com/liamdn8/mc-tool/pkg/config"
+	"github.com/liamdn8/mc-tool/pkg/infravalidation"
 	"github.com/liamdn8/mc-tool/pkg/logger"
 	"github.com/liamdn8/mc-tool/pkg/perftest"
 	"github.com/liamdn8/mc-tool/pkg/profile"
@@ -65,6 +67,10 @@ var (
 	perftestInterval   string
 	perftestIterations int
 	perftestParallel   int
+
+	// Infravalidate command flags
+	infravalidateConfig string
+	infravalidateOutput string
 )
 
 func main() {
@@ -333,6 +339,54 @@ Object Size Presets:
 	perftestCmd.Flags().IntVar(&perftestParallel, "parallel", 5, "Number of parallel workers for 'all' mode")
 	perftestCmd.MarkFlagRequired("bucket")
 
+	// Validate-infra command
+	validateInfraCmd := &cobra.Command{
+		Use:   "validate-infra <baseline-site/namespace> <target-site/namespace>...",
+		Short: "Validate Kubernetes infrastructure configuration across clusters",
+		Long: `Compare Kubernetes namespace configurations across multiple clusters.
+
+This command compares resources (Deployments, StatefulSets, ConfigMaps, Secrets, Services) 
+between a baseline namespace and one or more target namespaces.
+
+Site Configuration:
+  Sites must be configured in ~/.mc-tool/infra-config.yaml with:
+  - name: site identifier
+  - endpoint: Kubernetes API server endpoint
+  - token: Service account bearer token
+  - insecure: skip TLS verification (optional)
+
+Format:
+  mc-tool validate-infra <baseline-site/namespace> <target-site/namespace>...
+
+Examples:
+  # Compare prod namespace across 3 sites
+  mc-tool validate-infra site1/prod site2/prod site3/prod
+
+  # Compare different namespace names
+  mc-tool validate-infra k8s-us-east/app-prod k8s-eu-west/app-production
+
+  # Save JSON report
+  mc-tool validate-infra site1/prod site2/prod --output report.json
+
+Setup:
+  # Create config directory
+  mkdir -p ~/.mc-tool
+
+  # Create infra-config.yaml (see test-data/infra-config-sample.yaml)
+  cat > ~/.mc-tool/infra-config.yaml << EOF
+  sites:
+    site1:
+      name: site1
+      endpoint: https://10.0.1.100:6443
+      token: eyJhbGc...
+      insecure: true
+  EOF`,
+		Args: cobra.MinimumNArgs(2),
+		Run:  runValidateInfra,
+	}
+
+	validateInfraCmd.Flags().StringVar(&infravalidateOutput, "output", "", "Path to save JSON report (optional)")
+
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(compareCmd)
 	rootCmd.AddCommand(analyzeCmd)
@@ -342,6 +396,7 @@ Object Size Presets:
 	rootCmd.AddCommand(traceCmd)
 	rootCmd.AddCommand(perftestCmd)
 	rootCmd.AddCommand(webCmd)
+	rootCmd.AddCommand(validateInfraCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		log.Fatal(err)
@@ -1054,10 +1109,255 @@ func displayPerftestResults(result *perftest.TestResult) {
 		for _, err := range result.Errors {
 			fmt.Printf("  - %s\n", err)
 		}
+	}
+	fmt.Printf("=" + strings.Repeat("=", 79) + "\n")
+}
+
+func runValidateInfra(cmd *cobra.Command, args []string) {
+	// Load site configurations
+	infraConfig, err := infravalidation.LoadDefaultInfraConfig()
+	if err != nil {
+		log.Fatalf("Failed to load infra config: %v\n\nPlease create ~/.mc-tool/infra-config.yaml with site configurations.", err)
+	}
+
+	// Parse baseline (first argument)
+	baselineSite, baselineNS, err := infravalidation.ParseSiteNamespace(args[0])
+	if err != nil {
+		log.Fatalf("Invalid baseline format: %v", err)
+	}
+
+	// Parse targets (remaining arguments)
+	var targets []infravalidation.ClusterNamespace
+	for i := 1; i < len(args); i++ {
+		targetSite, targetNS, err := infravalidation.ParseSiteNamespace(args[i])
+		if err != nil {
+			log.Fatalf("Invalid target format at position %d: %v", i+1, err)
+		}
+		targets = append(targets, infravalidation.ClusterNamespace{
+			Site:      targetSite,
+			Namespace: targetNS,
+		})
+	}
+
+	// Verify all sites exist in config
+	allSites := []string{baselineSite}
+	for _, t := range targets {
+		allSites = append(allSites, t.Site)
+	}
+	for _, site := range allSites {
+		if _, ok := infraConfig.Sites[site]; !ok {
+			log.Fatalf("Site '%s' not found in config. Available sites: %v", site, getAvailableSites(infraConfig))
+		}
+	}
+
+	// Build config
+	cfg := &infravalidation.Config{
+		Baseline: infravalidation.ClusterNamespace{
+			Site:      baselineSite,
+			Namespace: baselineNS,
+		},
+		Targets: targets,
+		ResourceTypes: []infravalidation.ResourceType{
+			infravalidation.ResourceDeployment,
+			infravalidation.ResourceStatefulSet,
+			infravalidation.ResourceDaemonSet,
+			infravalidation.ResourceConfigMap,
+			infravalidation.ResourceSecret,
+			infravalidation.ResourceService,
+		},
+		Mode:             infravalidation.ModeA,
+		SecretComparison: infravalidation.SecretCompareKeys,
+		SiteConfigs:      infraConfig.Sites,
+	}
+
+	fmt.Printf("🔍 Starting infrastructure validation...\n")
+	fmt.Printf("Baseline: %s/%s\n", cfg.Baseline.Site, cfg.Baseline.Namespace)
+	fmt.Printf("Targets: %d namespace(s)\n", len(cfg.Targets))
+	for _, t := range cfg.Targets {
+		fmt.Printf("  - %s/%s\n", t.Site, t.Namespace)
+	}
+	fmt.Printf("\n")
+
+	// Create validator
+	validator := infravalidation.NewValidator(cfg)
+
+	// Run validation
+	ctx := context.Background()
+	report, err := validator.Validate(ctx)
+	if err != nil {
+		log.Fatalf("Validation failed: %v", err)
+	}
+
+	// Output report
+	if infravalidateOutput != "" {
+		// Save to file
+		data, err := json.MarshalIndent(report, "", "  ")
+		if err != nil {
+			log.Fatalf("Failed to marshal report: %v", err)
+		}
+
+		if err := os.WriteFile(infravalidateOutput, data, 0644); err != nil {
+			log.Fatalf("Failed to write report file: %v", err)
+		}
+
+		fmt.Printf("✅ Report saved to: %s\n\n", infravalidateOutput)
+	}
+
+	// Display summary
+	displayInfravalidationSummary(report)
+}
+
+func getAvailableSites(config *infravalidation.InfraConfig) []string {
+	sites := make([]string, 0, len(config.Sites))
+	for name := range config.Sites {
+		sites = append(sites, name)
+	}
+	return sites
+}
+
+func runInfravalidate(cmd *cobra.Command, args []string) {
+	// Load configuration
+	cfg, err := infravalidation.LoadConfig(infravalidateConfig)
+	if err != nil {
+		log.Fatalf("Failed to load configuration: %v", err)
+	}
+
+	fmt.Printf("🔍 Starting infrastructure validation...\n")
+	fmt.Printf("Baseline: %s/%s\n", cfg.Baseline.Site, cfg.Baseline.Namespace)
+	fmt.Printf("Targets: %d cluster(s)\n", len(cfg.Targets))
+	fmt.Printf("Mode: %s\n", cfg.Mode)
+	fmt.Printf("\n")
+
+	// Create validator
+	validator := infravalidation.NewValidator(cfg)
+
+	// Run validation
+	ctx := context.Background()
+	report, err := validator.Validate(ctx)
+	if err != nil {
+		log.Fatalf("Validation failed: %v", err)
+	}
+
+	// Output report
+	if infravalidateOutput != "" {
+		// Save to file
+		data, err := json.MarshalIndent(report, "", "  ")
+		if err != nil {
+			log.Fatalf("Failed to marshal report: %v", err)
+		}
+
+		if err := os.WriteFile(infravalidateOutput, data, 0644); err != nil {
+			log.Fatalf("Failed to write report file: %v", err)
+		}
+
+		fmt.Printf("✅ Report saved to: %s\n\n", infravalidateOutput)
+	}
+
+	// Display summary
+	displayInfravalidationSummary(report)
+}
+
+func displayInfravalidationSummary(report *infravalidation.ValidationReport) {
+	fmt.Printf("=" + strings.Repeat("=", 79) + "\n")
+	fmt.Printf("Infrastructure Validation Summary\n")
+	fmt.Printf("=" + strings.Repeat("=", 79) + "\n\n")
+
+	fmt.Printf("Baseline: %s/%s\n", report.Baseline.Site, report.Baseline.Namespace)
+	fmt.Printf("Timestamp: %s\n", report.Timestamp)
+	fmt.Printf("Mode: %s\n", report.Mode)
+	fmt.Printf("\n")
+
+	// Overall summary
+	fmt.Printf("Overall Results:\n")
+	fmt.Printf("  Total Comparisons: %d\n", report.Summary.TotalComparisons)
+	fmt.Printf("  ✓ Matches:         %d (%.1f%%)\n",
+		report.Summary.MatchCount,
+		float64(report.Summary.MatchCount)*100/float64(report.Summary.TotalComparisons))
+	fmt.Printf("  ✗ Mismatches:      %d (%.1f%%)\n",
+		report.Summary.MismatchCount,
+		float64(report.Summary.MismatchCount)*100/float64(report.Summary.TotalComparisons))
+	fmt.Printf("  ⚠ Not Found:       %d (%.1f%%)\n",
+		report.Summary.NotFoundCount,
+		float64(report.Summary.NotFoundCount)*100/float64(report.Summary.TotalComparisons))
+	if report.Summary.ErrorCount > 0 {
+		fmt.Printf("  ⚠ Errors:          %d (%.1f%%)\n",
+			report.Summary.ErrorCount,
+			float64(report.Summary.ErrorCount)*100/float64(report.Summary.TotalComparisons))
+	}
+	fmt.Printf("\n")
+
+	// Per-target results
+	for _, targetResult := range report.TargetResults {
+		fmt.Printf("Target: %s/%s\n", targetResult.Target.Site, targetResult.Target.Namespace)
+		fmt.Printf("─" + strings.Repeat("─", 79) + "\n")
+
+		// Group by resource type
+		resourceGroups := make(map[infravalidation.ResourceType][]infravalidation.ComparisonResult)
+		for _, result := range targetResult.Results {
+			resourceGroups[result.ResourceType] = append(resourceGroups[result.ResourceType], result)
+		}
+
+		// Display each resource type
+		for resourceType, results := range resourceGroups {
+			matches := 0
+			mismatches := 0
+			notFound := 0
+			errors := 0
+
+			for _, r := range results {
+				switch r.Status {
+				case infravalidation.StatusMatch:
+					matches++
+				case infravalidation.StatusMismatch:
+					mismatches++
+				case infravalidation.StatusNotFound:
+					notFound++
+				case infravalidation.StatusError:
+					errors++
+				}
+			}
+
+			fmt.Printf("  %s:\n", resourceType)
+			if matches > 0 {
+				fmt.Printf("    ✓ %d match(es)\n", matches)
+			}
+			if mismatches > 0 {
+				fmt.Printf("    ✗ %d mismatch(es):\n", mismatches)
+				for _, r := range results {
+					if r.Status == infravalidation.StatusMismatch {
+						fmt.Printf("      - %s\n", r.ResourceName)
+					}
+				}
+			}
+			if notFound > 0 {
+				fmt.Printf("    ⚠ %d not found:\n", notFound)
+				for _, r := range results {
+					if r.Status == infravalidation.StatusNotFound {
+						fmt.Printf("      - %s\n", r.ResourceName)
+					}
+				}
+			}
+			if errors > 0 {
+				fmt.Printf("    ⚠ %d error(s):\n", errors)
+				for _, r := range results {
+					if r.Status == infravalidation.StatusError {
+						fmt.Printf("      - %s: %s\n", r.ResourceName, r.Error)
+					}
+				}
+			}
+		}
 		fmt.Printf("\n")
 	}
 
-	fmt.Printf("Test completed successfully!\n")
+	fmt.Printf("=" + strings.Repeat("=", 79) + "\n")
+
+	// Exit with non-zero if there are mismatches
+	if report.Summary.MismatchCount > 0 || report.Summary.NotFoundCount > 0 {
+		fmt.Printf("\n⚠️  Configuration drift detected!\n")
+		os.Exit(1)
+	} else {
+		fmt.Printf("\n✅ All configurations match!\n")
+	}
 }
 
 func formatBytes(bytes int64) string {

@@ -169,6 +169,12 @@ func (s *Server) Start() error {
 	mux.HandleFunc(basePath+"/api/operations/trace", s.handlers.Operations.HandleTrace)
 	mux.HandleFunc(basePath+"/api/operations/profile", s.handlers.Operations.HandleProfile)
 
+	// Infrastructure Validation APIs
+	mux.HandleFunc(basePath+"/api/validate/infrastructure", s.handlers.InfraValidation.HandleInfraValidate)
+	mux.HandleFunc(basePath+"/api/validate/infrastructure/vims", s.handlers.InfraValidation.HandleGetInfraVIMs)
+	mux.HandleFunc(basePath+"/api/validate/infrastructure/namespaces", s.handlers.InfraValidation.HandleGetNamespaces)
+	mux.HandleFunc(basePath+"/api/validate/infrastructure/history", s.handlers.InfraValidation.HandleGetInfraHistory)
+
 	// Perftest APIs
 	mux.HandleFunc(basePath+"/api/perftest/start", s.handlers.Perftest.HandleStartTest)
 	mux.HandleFunc(basePath+"/api/perftest/status", s.handlers.Perftest.HandleGetStatus)
