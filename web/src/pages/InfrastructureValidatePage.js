@@ -2,9 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { Server, CheckCircle, XCircle, AlertCircle, Loader, Play } from 'lucide-react';
 import { apiCall } from '../utils/api';
 import { useI18n } from '../utils/i18n';
+import { useContentsPanel } from '../contexts/ContentsPanelContext';
+import YamlDiffViewer from '../components/YamlDiffViewer';
+import InfraOverviewCards from '../components/infrastructure/InfraOverviewCards';
+import ResourceComparisonTable from '../components/infrastructure/ResourceComparisonTable';
+import InfraValidationNavigation from '../components/infrastructure/InfraValidationNavigation';
 
 const InfrastructureValidatePage = () => {
     const { t } = useI18n();
+    const { setContentsComponent } = useContentsPanel();
     const [vims, setVims] = useState([]);
     const [loading, setLoading] = useState(false);
     const [baseline, setBaseline] = useState('');
@@ -16,11 +22,17 @@ const InfrastructureValidatePage = () => {
     const [jobId, setJobId] = useState(null);
     const [result, setResult] = useState(null);
     const [error, setError] = useState(null);
+    const [diffViewer, setDiffViewer] = useState(null);
 
     useEffect(() => {
         console.log('InfrastructureValidatePage mounted, loading VIMs...');
         loadVIMs();
-    }, []);
+        
+        // Cleanup contents panel when component unmounts
+        return () => {
+            setContentsComponent(null);
+        };
+    }, [setContentsComponent]);
 
     useEffect(() => {
         if (baseline) {
@@ -31,6 +43,20 @@ const InfrastructureValidatePage = () => {
             setBaselineNamespace('');
         }
     }, [baseline]);
+
+    // Update contents panel when validation results change
+    useEffect(() => {
+        if (result) {
+            setContentsComponent(
+                <InfraValidationNavigation 
+                    result={result}
+                    embedded={true}
+                />
+            );
+        } else {
+            setContentsComponent(null);
+        }
+    }, [result, setContentsComponent]);
 
     const loadVIMs = async () => {
         console.log('loadVIMs called');
@@ -171,203 +197,145 @@ const InfrastructureValidatePage = () => {
         if (!result || !result.summary) return null;
 
         const { summary } = result;
-        const matchPercent = summary.totalComparisons > 0 
-            ? ((summary.matchCount / summary.totalComparisons) * 100).toFixed(1)
-            : 0;
+        
+        // Build resource table data structure
+        const resourceTableData = buildResourceTableData(summary.resource_table || [], summary.baseline, summary.targets || []);
 
         return (
             <div className="card" style={{ marginTop: '20px' }}>
                 <div className="card-header">
                     <h3 className="card-title">Validation Results</h3>
-                </div>
-                <div style={{ padding: '20px' }}>
-                    <div style={{ marginBottom: '16px' }}>
+                    <div style={{ marginTop: '8px' }}>
                         <strong>Baseline:</strong> {summary.baseline}
                     </div>
+                </div>
+                <div style={{ padding: '20px' }}>
+                    {/* Overview Section */}
+                    <div id="overview">
+                        <InfraOverviewCards result={result} />
 
-                    <div style={{ 
-                        display: 'grid', 
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                        gap: '12px',
-                        marginBottom: '16px'
-                    }}>
-                        <div style={{
-                            padding: '12px',
-                            borderRadius: '8px',
-                            backgroundColor: 'var(--success-bg)',
-                            border: '1px solid var(--success-border)'
-                        }}>
-                            <div style={{ fontSize: '24px', fontWeight: 'bold', color: 'var(--success)' }}>
-                                {summary.matchCount}
+                        {/* Status Alert */}
+                        {summary.status === 'success' && (
+                            <div className="alert alert-success" style={{ marginBottom: '20px' }}>
+                                <CheckCircle size={20} />
+                                <span>All configurations match!</span>
                             </div>
-                            <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Matches ({matchPercent}%)</div>
-                        </div>
+                        )}
 
-                        <div style={{
-                            padding: '12px',
-                            borderRadius: '8px',
-                            backgroundColor: 'var(--error-bg)',
-                            border: '1px solid var(--error-border)'
-                        }}>
-                            <div style={{ fontSize: '24px', fontWeight: 'bold', color: 'var(--error)' }}>
-                                {summary.mismatchCount}
+                        {summary.status === 'drift' && (
+                            <div className="alert alert-warning" style={{ marginBottom: '20px' }}>
+                                <AlertCircle size={20} />
+                                <span>Configuration drift detected!</span>
                             </div>
-                            <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Mismatches</div>
-                        </div>
-
-                        <div style={{
-                            padding: '12px',
-                            borderRadius: '8px',
-                            backgroundColor: 'var(--warning-bg)',
-                            border: '1px solid var(--warning-border)'
-                        }}>
-                            <div style={{ fontSize: '24px', fontWeight: 'bold', color: 'var(--warning)' }}>
-                                {summary.notFoundCount}
-                            </div>
-                            <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Not Found</div>
-                        </div>
-
-                        <div style={{
-                            padding: '12px',
-                            borderRadius: '8px',
-                            backgroundColor: 'var(--card-bg)',
-                            border: '1px solid var(--border)'
-                        }}>
-                            <div style={{ fontSize: '24px', fontWeight: 'bold' }}>
-                                {summary.totalComparisons}
-                            </div>
-                            <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Total Comparisons</div>
-                        </div>
+                        )}
                     </div>
 
-                    {summary.status === 'success' && (
-                        <div className="alert alert-success">
-                            <CheckCircle size={20} />
-                            <span>✅ All configurations match!</span>
-                        </div>
-                    )}
+                        {/* Resource Comparison Tables by Type */}
+                        {Object.keys(resourceTableData).length > 0 && (
+                            <div style={{ marginTop: '20px' }}>
+                                <h4 style={{ marginBottom: '16px', fontSize: '16px', fontWeight: 'bold' }}>
+                                    Resource Comparison by Type
+                                </h4>
+                                {Object.entries(resourceTableData).sort().map(([resourceType, resources]) => (
+                                    <div key={resourceType} id={`resource-${resourceType}`}>
+                                        <ResourceComparisonTable
+                                            resourceType={resourceType}
+                                            resources={resources}
+                                            baseline={summary.baseline}
+                                            targets={summary.targets || []}
+                                            onViewDiff={handleViewDiff}
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                        )}
 
-                    {summary.status === 'drift' && (
-                        <div className="alert alert-warning">
-                            <AlertCircle size={20} />
-                            <span>⚠️  Configuration drift detected!</span>
-                        </div>
-                    )}
-
-                    {/* Resource Comparison Table */}
-                    {result.summary.resource_table && result.summary.resource_table.length > 0 && (
-                        <div style={{ marginTop: '20px' }}>
-                            <h4 style={{ marginBottom: '12px', fontSize: '16px', fontWeight: 'bold' }}>
-                                Resource Comparison Details
-                            </h4>
-                            {renderResourceTable(result.summary.resource_table, summary.baseline, summary.targets)}
-                        </div>
-                    )}
-
-                    <details style={{ marginTop: '16px' }}>
-                        <summary style={{ cursor: 'pointer', fontWeight: 'bold', marginBottom: '8px' }}>
-                            View Detailed Output
-                        </summary>
-                        <pre style={{
-                            backgroundColor: 'var(--card-bg)',
-                            padding: '12px',
-                            borderRadius: '4px',
-                            overflow: 'auto',
-                            fontSize: '12px',
-                            maxHeight: '400px'
-                        }}>
-                            {result.output}
-                        </pre>
-                    </details>
+                        {/* Raw Output */}
+                        {result.output && (
+                            <details style={{ marginTop: '20px' }}>
+                                <summary style={{ cursor: 'pointer', fontWeight: 'bold', marginBottom: '8px' }}>
+                                    View Raw Output
+                                </summary>
+                                <pre style={{
+                                    backgroundColor: 'var(--card-bg)',
+                                    padding: '12px',
+                                    borderRadius: '4px',
+                                    overflow: 'auto',
+                                    fontSize: '12px',
+                                    maxHeight: '400px',
+                                    border: '1px solid var(--border)'
+                                }}>
+                                    {result.output}
+                                </pre>
+                            </details>
+                        )}
                 </div>
             </div>
         );
     };
 
-    const renderResourceTable = (resourceTable, baseline, targets) => {
+    const handleViewDiff = async (resourceType, resourceName, baselineNs, targetNs) => {
+        try {
+            const { data } = await apiCall(
+                `/api/validate/infrastructure/diff?baseline=${baselineNs}&target=${targetNs}&resource_type=${resourceType}&resource_name=${resourceName}`
+            );
+
+            setDiffViewer({
+                baseline: data.baseline,
+                target: data.target,
+                resourceName: `${resourceType}/${resourceName}`,
+                baselineLabel: baselineNs,
+                targetLabel: targetNs
+            });
+        } catch (err) {
+            console.error('Failed to load diff:', err);
+            setError('Failed to load diff: ' + err.message);
+        }
+    };
+
+    const buildResourceTableData = (resourceTable, baseline, targets) => {
+        if (!resourceTable || resourceTable.length === 0) return {};
+
+        console.log('buildResourceTableData called with:', { resourceTable, baseline, targets });
+
         const allNamespaces = [baseline, ...(targets || [])];
         
         // Group by resource type
         const groupedByType = resourceTable.reduce((acc, row) => {
             const type = row.resource_type || 'Unknown';
+            const name = row.resource_name;
+            
             if (!acc[type]) {
                 acc[type] = [];
             }
-            acc[type].push(row);
+            
+            // Build row with namespace columns
+            const rowData = {
+                resource_name: name,
+                resource_type: type
+            };
+            
+            // Add status for each namespace - backend already provides this in row[ns]
+            allNamespaces.forEach(ns => {
+                if (row[ns]) {
+                    // Backend already has status in row[ns]
+                    rowData[ns] = row[ns];
+                } else if (ns === baseline) {
+                    // Baseline should always exist
+                    rowData[ns] = { status: 'configured' };
+                } else {
+                    // Default to not_found for missing namespaces
+                    rowData[ns] = { status: 'not_found' };
+                }
+            });
+            
+            console.log('Built row:', rowData);
+            acc[type].push(rowData);
             return acc;
         }, {});
 
-        return (
-            <div>
-                {Object.keys(groupedByType).sort().map(resourceType => (
-                    <div key={resourceType} style={{ marginBottom: '20px' }}>
-                        <h5 style={{ 
-                            fontSize: '14px', 
-                            fontWeight: 'bold',
-                            marginBottom: '8px',
-                            padding: '8px 12px',
-                            backgroundColor: 'var(--card-bg)',
-                            borderLeft: '3px solid var(--primary)',
-                            borderRadius: '4px'
-                        }}>
-                            {resourceType}
-                        </h5>
-                        <div className="table-container">
-                            <table className="comparison-table">
-                                <thead>
-                                    <tr>
-                                        <th>Resource Name</th>
-                                        {allNamespaces.map(ns => (
-                                            <th key={ns}>{ns}</th>
-                                        ))}
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {groupedByType[resourceType].map((row, idx) => (
-                                        <tr key={idx}>
-                                            <td style={{ fontWeight: 'bold' }}>{row.resource_name}</td>
-                                            {allNamespaces.map(ns => {
-                                                const cell = row[ns];
-                                                const status = cell?.status || 'not_found';
-                                                
-                                                let icon, color, text;
-                                                if (status === 'match') {
-                                                    icon = <CheckCircle size={16} />;
-                                                    color = 'var(--success)';
-                                                    text = 'Match';
-                                                } else if (status === 'mismatch') {
-                                                    icon = <XCircle size={16} />;
-                                                    color = 'var(--error)';
-                                                    text = 'Mismatch';
-                                                } else {
-                                                    icon = <AlertCircle size={16} />;
-                                                    color = 'var(--warning)';
-                                                    text = 'Not Found';
-                                                }
-                                                
-                                                return (
-                                                    <td key={ns}>
-                                                        <div style={{ 
-                                                            display: 'flex', 
-                                                            alignItems: 'center', 
-                                                            gap: '6px',
-                                                            color: color 
-                                                        }}>
-                                                            {icon}
-                                                            <span>{text}</span>
-                                                        </div>
-                                                    </td>
-                                                );
-                                            })}
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                ))}
-            </div>
-        );
+        console.log('Grouped by type:', groupedByType);
+        return groupedByType;
     };
 
     return (
@@ -544,6 +512,18 @@ const InfrastructureValidatePage = () => {
 
             {/* Results */}
             {renderResultSummary()}
+
+            {/* Diff Viewer Modal */}
+            {diffViewer && (
+                <YamlDiffViewer
+                    baseline={diffViewer.baseline}
+                    target={diffViewer.target}
+                    resourceName={diffViewer.resourceName}
+                    baselineLabel={diffViewer.baselineLabel}
+                    targetLabel={diffViewer.targetLabel}
+                    onClose={() => setDiffViewer(null)}
+                />
+            )}
         </div>
     );
 };

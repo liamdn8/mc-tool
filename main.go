@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -71,6 +70,7 @@ var (
 	// Infravalidate command flags
 	infravalidateConfig string
 	infravalidateOutput string
+	infravalidateFormat string
 )
 
 func main() {
@@ -386,6 +386,7 @@ Setup:
 	}
 
 	validateInfraCmd.Flags().StringVar(&infravalidateOutput, "output", "", "Path to save JSON report (optional)")
+	validateInfraCmd.Flags().StringVar(&infravalidateFormat, "format", "summary", "Output format: summary, table, json")
 
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(compareCmd)
@@ -550,7 +551,7 @@ func runValidate(cmd *cobra.Command, args []string) {
 	fmt.Printf("╚══════════════════════════════════════════════════════════════╝\n\n")
 	fmt.Printf("🪣 Bucket: %s\n", bucket)
 	fmt.Printf("📍 Reference: %s\n", validator.ReferenceAlias)
-	fmt.Printf("🔍 Comparing: %s\n\n", strings.Join(aliases, ", "))
+	fmt.Printf("[*] Comparing: %s\n\n", strings.Join(aliases, ", "))
 
 	// Check bucket existence on all aliases
 	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
@@ -559,7 +560,7 @@ func runValidate(cmd *cobra.Command, args []string) {
 
 	for _, alias := range aliases {
 		exists := validator.CheckBucketExists(alias)
-		status := "✅ Found"
+		status := "[OK] Found"
 		if !exists {
 			status = "❌ Missing"
 		}
@@ -598,7 +599,7 @@ func runValidate(cmd *cobra.Command, args []string) {
 	}
 
 	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-	fmt.Println("✅ Validation complete")
+	fmt.Println("[OK] Validation complete")
 	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 }
 
@@ -615,15 +616,15 @@ func printValidationResults(results []validation.ValidationResult) {
 					count = result.EventCount
 				}
 				if count > 0 {
-					fmt.Printf("  📍 %s (Reference): ✅ Configured (%d rule(s))\n", result.Alias, count)
+					fmt.Printf("  [i] %s (Reference): [OK] Configured (%d rule(s))\n", result.Alias, count)
 				} else {
-					fmt.Printf("  📍 %s (Reference): ✅ Configured\n", result.Alias)
+					fmt.Printf("  [i] %s (Reference): [OK] Configured\n", result.Alias)
 				}
 				if verbose {
 					fmt.Printf("     %s\n", strings.TrimSpace(result.ConfigRaw))
 				}
 			} else {
-				fmt.Printf("  📍 %s (Reference): ⚠️  Not configured\n", result.Alias)
+				fmt.Printf("  [i] %s (Reference): [!] Not configured\n", result.Alias)
 			}
 		} else {
 			// Print comparison results
@@ -634,9 +635,9 @@ func printValidationResults(results []validation.ValidationResult) {
 					count = result.EventCount
 				}
 				if count > 0 {
-					fmt.Printf("  %-20s ✅ Match (%d rule(s))\n", result.Alias+":", count)
+					fmt.Printf("  %-20s [OK] Match (%d rule(s))\n", result.Alias+":", count)
 				} else {
-					fmt.Printf("  %-20s ✅ Match (not configured)\n", result.Alias+":")
+					fmt.Printf("  %-20s [OK] Match (not configured)\n", result.Alias+":")
 				}
 				if verbose && result.Configured {
 					fmt.Printf("     %s\n", strings.TrimSpace(result.ConfigRaw))
@@ -648,9 +649,9 @@ func printValidationResults(results []validation.ValidationResult) {
 					count = result.EventCount
 				}
 				if result.Configured {
-					fmt.Printf("  %-20s ⚠️  Mismatch (%d rule(s), differs from reference)\n", result.Alias+":", count)
+					fmt.Printf("  %-20s [!] Mismatch (%d rule(s), differs from reference)\n", result.Alias+":", count)
 				} else {
-					fmt.Printf("  %-20s ⚠️  Mismatch (not configured)\n", result.Alias+":")
+					fmt.Printf("  %-20s [!] Mismatch (not configured)\n", result.Alias+":")
 				}
 				if verbose {
 					fmt.Printf("     %s\n", strings.TrimSpace(result.ConfigRaw))
@@ -666,9 +667,9 @@ func printValidationResults(results []validation.ValidationResult) {
 	// Summary
 	total := len(results) - 1 // Exclude reference
 	if matchCount == total {
-		fmt.Printf("\n  Summary: ✅ All %d aliases match reference\n", total)
+		fmt.Printf("\n  Summary: [OK] All %d aliases match reference\n", total)
 	} else if matchCount > 0 {
-		fmt.Printf("\n  Summary: ⚠️  %d/%d match, %d mismatch\n", matchCount, total, mismatchCount)
+		fmt.Printf("\n  Summary: [!] %d/%d match, %d mismatch\n", matchCount, total, mismatchCount)
 	} else {
 		fmt.Printf("\n  Summary: ❌ All %d aliases differ from reference\n", total)
 	}
@@ -702,7 +703,7 @@ func runTrace(cmd *cobra.Command, args []string) {
 		fmt.Printf("⏱️  Duration: %s\n", duration)
 		fmt.Printf("🔧 mc binary: %s\n", mcPath)
 		if insecure {
-			fmt.Println("⚠️  Passing --insecure to mc admin trace")
+			fmt.Println("[!] Passing --insecure to mc admin trace")
 		}
 	}
 
@@ -1170,7 +1171,7 @@ func runValidateInfra(cmd *cobra.Command, args []string) {
 		SiteConfigs:      infraConfig.Sites,
 	}
 
-	fmt.Printf("🔍 Starting infrastructure validation...\n")
+	fmt.Printf("[*] Starting infrastructure validation...\n")
 	fmt.Printf("Baseline: %s/%s\n", cfg.Baseline.Site, cfg.Baseline.Namespace)
 	fmt.Printf("Targets: %d namespace(s)\n", len(cfg.Targets))
 	for _, t := range cfg.Targets {
@@ -1188,23 +1189,19 @@ func runValidateInfra(cmd *cobra.Command, args []string) {
 		log.Fatalf("Validation failed: %v", err)
 	}
 
-	// Output report
-	if infravalidateOutput != "" {
-		// Save to file
-		data, err := json.MarshalIndent(report, "", "  ")
-		if err != nil {
-			log.Fatalf("Failed to marshal report: %v", err)
-		}
-
-		if err := os.WriteFile(infravalidateOutput, data, 0644); err != nil {
-			log.Fatalf("Failed to write report file: %v", err)
-		}
-
-		fmt.Printf("✅ Report saved to: %s\n\n", infravalidateOutput)
+	// Handle output format
+	displayOpts := infravalidation.DisplayOptions{
+		Format:     infravalidation.DisplayFormat(infravalidateFormat),
+		OutputFile: infravalidateOutput,
 	}
 
-	// Display summary
-	displayInfravalidationSummary(report)
+	if err := infravalidation.Display(report, displayOpts); err != nil {
+		// Error means drift detected or other issue
+		if strings.Contains(err.Error(), "drift detected") {
+			os.Exit(1)
+		}
+		log.Fatalf("Display error: %v", err)
+	}
 }
 
 func getAvailableSites(config *infravalidation.InfraConfig) []string {
@@ -1222,7 +1219,7 @@ func runInfravalidate(cmd *cobra.Command, args []string) {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
-	fmt.Printf("🔍 Starting infrastructure validation...\n")
+	fmt.Printf("[*] Starting infrastructure validation...\n")
 	fmt.Printf("Baseline: %s/%s\n", cfg.Baseline.Site, cfg.Baseline.Namespace)
 	fmt.Printf("Targets: %d cluster(s)\n", len(cfg.Targets))
 	fmt.Printf("Mode: %s\n", cfg.Mode)
@@ -1238,125 +1235,18 @@ func runInfravalidate(cmd *cobra.Command, args []string) {
 		log.Fatalf("Validation failed: %v", err)
 	}
 
-	// Output report
-	if infravalidateOutput != "" {
-		// Save to file
-		data, err := json.MarshalIndent(report, "", "  ")
-		if err != nil {
-			log.Fatalf("Failed to marshal report: %v", err)
-		}
-
-		if err := os.WriteFile(infravalidateOutput, data, 0644); err != nil {
-			log.Fatalf("Failed to write report file: %v", err)
-		}
-
-		fmt.Printf("✅ Report saved to: %s\n\n", infravalidateOutput)
+	// Handle output format
+	displayOpts := infravalidation.DisplayOptions{
+		Format:     infravalidation.DisplayFormat(infravalidateFormat),
+		OutputFile: infravalidateOutput,
 	}
 
-	// Display summary
-	displayInfravalidationSummary(report)
-}
-
-func displayInfravalidationSummary(report *infravalidation.ValidationReport) {
-	fmt.Printf("=" + strings.Repeat("=", 79) + "\n")
-	fmt.Printf("Infrastructure Validation Summary\n")
-	fmt.Printf("=" + strings.Repeat("=", 79) + "\n\n")
-
-	fmt.Printf("Baseline: %s/%s\n", report.Baseline.Site, report.Baseline.Namespace)
-	fmt.Printf("Timestamp: %s\n", report.Timestamp)
-	fmt.Printf("Mode: %s\n", report.Mode)
-	fmt.Printf("\n")
-
-	// Overall summary
-	fmt.Printf("Overall Results:\n")
-	fmt.Printf("  Total Comparisons: %d\n", report.Summary.TotalComparisons)
-	fmt.Printf("  ✓ Matches:         %d (%.1f%%)\n",
-		report.Summary.MatchCount,
-		float64(report.Summary.MatchCount)*100/float64(report.Summary.TotalComparisons))
-	fmt.Printf("  ✗ Mismatches:      %d (%.1f%%)\n",
-		report.Summary.MismatchCount,
-		float64(report.Summary.MismatchCount)*100/float64(report.Summary.TotalComparisons))
-	fmt.Printf("  ⚠ Not Found:       %d (%.1f%%)\n",
-		report.Summary.NotFoundCount,
-		float64(report.Summary.NotFoundCount)*100/float64(report.Summary.TotalComparisons))
-	if report.Summary.ErrorCount > 0 {
-		fmt.Printf("  ⚠ Errors:          %d (%.1f%%)\n",
-			report.Summary.ErrorCount,
-			float64(report.Summary.ErrorCount)*100/float64(report.Summary.TotalComparisons))
-	}
-	fmt.Printf("\n")
-
-	// Per-target results
-	for _, targetResult := range report.TargetResults {
-		fmt.Printf("Target: %s/%s\n", targetResult.Target.Site, targetResult.Target.Namespace)
-		fmt.Printf("─" + strings.Repeat("─", 79) + "\n")
-
-		// Group by resource type
-		resourceGroups := make(map[infravalidation.ResourceType][]infravalidation.ComparisonResult)
-		for _, result := range targetResult.Results {
-			resourceGroups[result.ResourceType] = append(resourceGroups[result.ResourceType], result)
+	if err := infravalidation.Display(report, displayOpts); err != nil {
+		// Error means drift detected or other issue
+		if strings.Contains(err.Error(), "drift detected") {
+			os.Exit(1)
 		}
-
-		// Display each resource type
-		for resourceType, results := range resourceGroups {
-			matches := 0
-			mismatches := 0
-			notFound := 0
-			errors := 0
-
-			for _, r := range results {
-				switch r.Status {
-				case infravalidation.StatusMatch:
-					matches++
-				case infravalidation.StatusMismatch:
-					mismatches++
-				case infravalidation.StatusNotFound:
-					notFound++
-				case infravalidation.StatusError:
-					errors++
-				}
-			}
-
-			fmt.Printf("  %s:\n", resourceType)
-			if matches > 0 {
-				fmt.Printf("    ✓ %d match(es)\n", matches)
-			}
-			if mismatches > 0 {
-				fmt.Printf("    ✗ %d mismatch(es):\n", mismatches)
-				for _, r := range results {
-					if r.Status == infravalidation.StatusMismatch {
-						fmt.Printf("      - %s\n", r.ResourceName)
-					}
-				}
-			}
-			if notFound > 0 {
-				fmt.Printf("    ⚠ %d not found:\n", notFound)
-				for _, r := range results {
-					if r.Status == infravalidation.StatusNotFound {
-						fmt.Printf("      - %s\n", r.ResourceName)
-					}
-				}
-			}
-			if errors > 0 {
-				fmt.Printf("    ⚠ %d error(s):\n", errors)
-				for _, r := range results {
-					if r.Status == infravalidation.StatusError {
-						fmt.Printf("      - %s: %s\n", r.ResourceName, r.Error)
-					}
-				}
-			}
-		}
-		fmt.Printf("\n")
-	}
-
-	fmt.Printf("=" + strings.Repeat("=", 79) + "\n")
-
-	// Exit with non-zero if there are mismatches
-	if report.Summary.MismatchCount > 0 || report.Summary.NotFoundCount > 0 {
-		fmt.Printf("\n⚠️  Configuration drift detected!\n")
-		os.Exit(1)
-	} else {
-		fmt.Printf("\n✅ All configurations match!\n")
+		log.Fatalf("Display error: %v", err)
 	}
 }
 

@@ -146,6 +146,8 @@ func (v *Validator) Validate(ctx context.Context) (*ValidationReport, error) {
 				report.Summary.MismatchCount++
 			case StatusNotFound:
 				report.Summary.NotFoundCount++
+			case StatusExtra:
+				report.Summary.ExtraCount++
 			case StatusError:
 				report.Summary.ErrorCount++
 			}
@@ -202,6 +204,7 @@ func (v *Validator) compareWithTarget(
 	for _, resourceType := range v.config.ResourceTypes {
 		baselineResourceMap := baselineResources[resourceType]
 
+		// Step 1: Compare baseline resources with target
 		for name, baselineResource := range baselineResourceMap {
 			// Fetch target resource
 			targetResource, err := targetClient.GetResource(ctx, target.Namespace, name, resourceType)
@@ -228,6 +231,25 @@ func (v *Validator) compareWithTarget(
 			// Compare
 			comparisonResult := v.comparator.Compare(baselineResource, targetResource)
 			result.Results = append(result.Results, comparisonResult)
+		}
+
+		// Step 2: Check for resources in target but not in baseline
+		targetResourceList, err := targetClient.GetResources(ctx, target.Namespace, resourceType)
+		if err != nil {
+			// Log error but continue - we already compared what we could
+			continue
+		}
+
+		for _, targetResource := range targetResourceList {
+			// Check if this resource exists in baseline
+			if _, existsInBaseline := baselineResourceMap[targetResource.Name]; !existsInBaseline {
+				// This resource exists in target but not in baseline
+				result.Results = append(result.Results, ComparisonResult{
+					ResourceType: resourceType,
+					ResourceName: targetResource.Name,
+					Status:       StatusExtra, // New status for resources only in target
+				})
+			}
 		}
 	}
 

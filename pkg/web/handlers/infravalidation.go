@@ -150,6 +150,115 @@ func (h *InfraValidationHandler) HandleGetInfraHistory(w http.ResponseWriter, r 
 	})
 }
 
+// HandleGetDiff handles GET /api/validate/infrastructure/diff?baseline=site1/ns1&target=site2/ns2&resource_type=Deployment&resource_name=app
+func (h *InfraValidationHandler) HandleGetDiff(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		h.RespondError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	baseline := r.URL.Query().Get("baseline")
+	target := r.URL.Query().Get("target")
+	resourceType := r.URL.Query().Get("resource_type")
+	resourceName := r.URL.Query().Get("resource_name")
+
+	if baseline == "" || target == "" || resourceType == "" || resourceName == "" {
+		h.RespondError(w, http.StatusBadRequest, "baseline, target, resource_type, and resource_name are required")
+		return
+	}
+
+	// Parse baseline and target
+	baselineSite, baselineNS, err := infravalidation.ParseSiteNamespace(baseline)
+	if err != nil {
+		h.RespondError(w, http.StatusBadRequest, fmt.Sprintf("Invalid baseline format: %v", err))
+		return
+	}
+
+	targetSite, targetNS, err := infravalidation.ParseSiteNamespace(target)
+	if err != nil {
+		h.RespondError(w, http.StatusBadRequest, fmt.Sprintf("Invalid target format: %v", err))
+		return
+	}
+
+	// Load infra config
+	infraConfig, err := infravalidation.LoadDefaultInfraConfig()
+	if err != nil {
+		h.RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to load infra config: %v", err))
+		return
+	}
+
+	// Get site configs
+	baselineSiteConfig, ok := infraConfig.Sites[baselineSite]
+	if !ok {
+		h.RespondError(w, http.StatusBadRequest, fmt.Sprintf("Site %s not found", baselineSite))
+		return
+	}
+
+	targetSiteConfig, ok := infraConfig.Sites[targetSite]
+	if !ok {
+		h.RespondError(w, http.StatusBadRequest, fmt.Sprintf("Site %s not found", targetSite))
+		return
+	}
+
+	// Create K8s clients
+	baselineClient, err := infravalidation.NewK8sClient(baselineSiteConfig)
+	if err != nil {
+		h.RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to create baseline client: %v", err))
+		return
+	}
+
+	targetClient, err := infravalidation.NewK8sClient(targetSiteConfig)
+	if err != nil {
+		h.RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to create target client: %v", err))
+		return
+	}
+
+	// Get resources
+	baselineResource, err := baselineClient.GetResource(r.Context(), baselineNS, resourceName, infravalidation.ResourceType(resourceType))
+	if err != nil {
+		h.RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to get baseline resource: %v", err))
+		return
+	}
+
+	targetResource, err := targetClient.GetResource(r.Context(), targetNS, resourceName, infravalidation.ResourceType(resourceType))
+	if err != nil {
+		h.RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to get target resource: %v", err))
+		return
+	}
+
+	// Normalize resources
+	normalizer := infravalidation.NewNormalizer(nil, infravalidation.SecretCompareKeys)
+	normalizedBaseline, err := normalizer.Normalize(baselineResource)
+	if err != nil {
+		h.RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to normalize baseline: %v", err))
+		return
+	}
+
+	normalizedTarget, err := normalizer.Normalize(targetResource)
+	if err != nil {
+		h.RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to normalize target: %v", err))
+		return
+	}
+
+	// Convert to YAML
+	baselineYAML, err := infravalidation.ToJSON(normalizedBaseline)
+	if err != nil {
+		h.RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to marshal baseline: %v", err))
+		return
+	}
+
+	targetYAML, err := infravalidation.ToJSON(normalizedTarget)
+	if err != nil {
+		h.RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to marshal target: %v", err))
+		return
+	}
+
+	h.RespondJSON(w, map[string]interface{}{
+		"baseline": baselineYAML,
+		"target":   targetYAML,
+	})
+}
+
 func (h *InfraValidationHandler) runInfraValidateJob(job *models.Job, baseline string, targets []string) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -204,54 +313,103 @@ func (h *InfraValidationHandler) parseInfraValidationOutput(lines []string) map[
 			continue
 		}
 
-		if strings.HasPrefix(line, "Baseline:") {
+		// Parse baseline - support both old format and new [i] format
+		if strings.HasPrefix(line, "[i] Baseline:") {
+			result["baseline"] = strings.TrimSpace(strings.TrimPrefix(line, "[i] Baseline:"))
+		} else if strings.HasPrefix(line, "Baseline:") {
 			result["baseline"] = strings.TrimSpace(strings.TrimPrefix(line, "Baseline:"))
-		} else if strings.HasPrefix(line, "Target:") {
+		}
+
+		// Parse target - support both old format and new [>] format
+		if strings.HasPrefix(line, "[>] Target:") {
+			currentTarget = strings.TrimSpace(strings.TrimPrefix(line, "[>] Target:"))
+			if result["targets"] == nil {
+				result["targets"] = []string{}
+			}
+			result["targets"] = append(result["targets"].([]string), currentTarget)
+		} else if strings.HasPrefix(line, "Target:") && !strings.Contains(line, "Targets:") {
 			currentTarget = strings.TrimSpace(strings.TrimPrefix(line, "Target:"))
 			if result["targets"] == nil {
 				result["targets"] = []string{}
 			}
 			result["targets"] = append(result["targets"].([]string), currentTarget)
-		} else if strings.Contains(line, "Total Comparisons:") {
+		}
+
+		// Parse statistics
+		if strings.Contains(line, "Total Comparisons:") {
 			var count int
 			fmt.Sscanf(line, "Total Comparisons: %d", &count)
 			result["totalComparisons"] = count
-		} else if strings.Contains(line, "Matches:") {
+		} else if strings.Contains(line, "[OK] Matches:") {
+			// New format: "[OK] Matches:      8 (57.1%)"
+			var count int
+			fmt.Sscanf(line, "[OK] Matches: %d", &count)
+			result["matchCount"] = count
+		} else if strings.Contains(line, "Matches:") && !strings.Contains(line, "[OK]") {
 			var count int
 			fmt.Sscanf(line, "Matches: %d", &count)
 			result["matchCount"] = count
-		} else if strings.Contains(line, "Mismatches:") {
+		} else if strings.Contains(line, "[X]  Mismatches:") {
+			// New format: "[X]  Mismatches:   5 (35.7%)"
+			var count int
+			fmt.Sscanf(line, "[X] Mismatches: %d", &count)
+			result["mismatchCount"] = count
+		} else if strings.Contains(line, "Mismatches:") && !strings.Contains(line, "[X]") {
 			var count int
 			fmt.Sscanf(line, "Mismatches: %d", &count)
 			result["mismatchCount"] = count
-		} else if strings.Contains(line, "Not Found:") {
+		} else if strings.Contains(line, "[!]  Not Found:") {
+			// New format: "[!]  Not Found:    1 (7.1%)"
+			var count int
+			fmt.Sscanf(line, "[!] Not Found: %d", &count)
+			result["notFoundCount"] = count
+		} else if strings.Contains(line, "Not Found:") && !strings.Contains(line, "[!]") {
 			var count int
 			fmt.Sscanf(line, "Not Found: %d", &count)
 			result["notFoundCount"] = count
-		} else if strings.Contains(line, "All configurations match!") {
+		}
+
+		// Parse status
+		if strings.Contains(line, "[OK] All configurations match!") || strings.Contains(line, "All configurations match!") {
 			result["status"] = "success"
-		} else if strings.Contains(line, "Configuration drift detected!") {
+		} else if strings.Contains(line, "[!] Configuration drift detected!") || strings.Contains(line, "Configuration drift detected!") {
 			result["status"] = "drift"
-		} else if strings.HasPrefix(originalLine, "  ") && strings.HasSuffix(line, ":") && !strings.Contains(line, "Baseline") && !strings.Contains(line, "Target") && !strings.Contains(line, "match(es)") {
-			// Resource type line (e.g., "  Deployment:", "  ConfigMap:")
-			// Has 2-space indent and ends with colon, but not a match/mismatch count line
+		}
+
+		// Parse resource types - detect both indentation styles
+		// Resource type lines have exactly 2 spaces of indent and end with ":"
+		// Examples: "  Deployment:", "  StatefulSet:", "  ConfigMap:"
+		if strings.HasPrefix(originalLine, "  ") && !strings.HasPrefix(originalLine, "   ") && strings.HasSuffix(line, ":") {
+			// Resource type line pattern: "  ResourceType:"
 			resourceType := strings.TrimSuffix(line, ":")
-			if len(resourceType) > 0 && resourceType != "Mode" && resourceType != "Overall Results" {
+			resourceType = strings.TrimSpace(resourceType)
+
+			// Filter out non-resource lines and status lines
+			if len(resourceType) > 0 &&
+				resourceType != "Mode" &&
+				resourceType != "Overall Results" &&
+				!strings.Contains(resourceType, "match") &&
+				!strings.Contains(resourceType, "mismatch") &&
+				!strings.Contains(resourceType, "not found") &&
+				!strings.Contains(resourceType, "Baseline") &&
+				!strings.Contains(resourceType, "Target") {
 				currentResourceType = resourceType
 			}
-		} else if strings.HasPrefix(originalLine, "    ") && strings.Contains(line, "match(es)") && !strings.Contains(line, "mismatch") {
-			// Skip match lines for now - we focus on mismatches
-		} else if strings.HasPrefix(originalLine, "    ") && strings.Contains(line, "mismatch(es)") {
-			// Mismatch line - extract resource names from following lines
+		}
+
+		// Parse match resources
+		// New format: "    [OK] 1 match(es):" followed by "        - resource-name"
+		if (strings.HasPrefix(originalLine, "    [OK]") || strings.HasPrefix(originalLine, "    ✅")) && strings.Contains(line, "match") {
+			// Extract matched resource names from following lines
 			for j := i + 1; j < len(lines) && j < i+50; j++ {
 				nextOrigLine := lines[j]
 				nextLine := strings.TrimSpace(nextOrigLine)
 
-				if strings.HasPrefix(nextOrigLine, "      - ") {
-					// Resource name with 6-space indent
+				if strings.HasPrefix(nextOrigLine, "      - ") || strings.HasPrefix(nextOrigLine, "        - ") {
+					// Resource name (6 or 8 space indent + dash)
 					resourceName := strings.TrimPrefix(nextLine, "- ")
 
-					// Create resource table entry
+					// Create resource table entry for matched resource
 					resourceRow := map[string]interface{}{
 						"resource_type": currentResourceType,
 						"resource_name": resourceName,
@@ -261,7 +419,50 @@ func (h *InfraValidationHandler) parseInfraValidationOutput(lines []string) map[
 					// Add status for baseline (always exists)
 					baselineKey := fmt.Sprintf("%v", result["baseline"])
 					resourceRow[baselineKey] = map[string]interface{}{
-						"status": "configured",
+						"status": "match",
+					}
+
+					// Add status for target (match)
+					if currentTarget != "" {
+						resourceRow[currentTarget] = map[string]interface{}{
+							"status": "match",
+						}
+					}
+
+					if result["resource_table"] == nil {
+						result["resource_table"] = []map[string]interface{}{}
+					}
+					result["resource_table"] = append(result["resource_table"].([]map[string]interface{}), resourceRow)
+				} else if strings.TrimSpace(nextOrigLine) != "" && !strings.HasPrefix(nextOrigLine, "      ") && !strings.HasPrefix(nextOrigLine, "        ") {
+					// Not a resource name line, stop parsing this block
+					break
+				}
+			}
+		}
+
+		// Parse mismatch resources
+		// Format: "    [X] 1 mismatch(es):" followed by "        - resource-name"
+		if (strings.HasPrefix(originalLine, "    [X]") || strings.HasPrefix(originalLine, "    ✗")) && strings.Contains(line, "mismatch") {
+			// Mismatch line - extract resource names from following lines
+			for j := i + 1; j < len(lines) && j < i+50; j++ {
+				nextOrigLine := lines[j]
+				nextLine := strings.TrimSpace(nextOrigLine)
+
+				if strings.HasPrefix(nextOrigLine, "      - ") || strings.HasPrefix(nextOrigLine, "        - ") {
+					// Resource name (6 or 8 space indent + dash)
+					resourceName := strings.TrimPrefix(nextLine, "- ")
+
+					// Create resource table entry
+					resourceRow := map[string]interface{}{
+						"resource_type": currentResourceType,
+						"resource_name": resourceName,
+						"baseline":      result["baseline"],
+					}
+
+					// Add status for baseline (always exists as "-")
+					baselineKey := fmt.Sprintf("%v", result["baseline"])
+					resourceRow[baselineKey] = map[string]interface{}{
+						"status": "-",
 					}
 
 					// Add status for target (mismatch)
@@ -275,8 +476,85 @@ func (h *InfraValidationHandler) parseInfraValidationOutput(lines []string) map[
 						result["resource_table"] = []map[string]interface{}{}
 					}
 					result["resource_table"] = append(result["resource_table"].([]map[string]interface{}), resourceRow)
-				} else if strings.TrimSpace(nextOrigLine) != "" && !strings.HasPrefix(nextOrigLine, "      ") {
+				} else if strings.TrimSpace(nextOrigLine) != "" && !strings.HasPrefix(nextOrigLine, "      ") && !strings.HasPrefix(nextOrigLine, "        ") {
 					// Not a resource name line, stop parsing this block
+					break
+				}
+			}
+		}
+
+		// Parse "not found" resources
+		// Format: "    [!] 1 not found:" followed by "        - resource-name"
+		if (strings.HasPrefix(originalLine, "    [!]") || strings.HasPrefix(originalLine, "    ⚠")) && strings.Contains(line, "not found") {
+			for j := i + 1; j < len(lines) && j < i+50; j++ {
+				nextOrigLine := lines[j]
+				nextLine := strings.TrimSpace(nextOrigLine)
+
+				if strings.HasPrefix(nextOrigLine, "      - ") || strings.HasPrefix(nextOrigLine, "        - ") {
+					resourceName := strings.TrimPrefix(nextLine, "- ")
+
+					resourceRow := map[string]interface{}{
+						"resource_type": currentResourceType,
+						"resource_name": resourceName,
+						"baseline":      result["baseline"],
+					}
+
+					// Add status for baseline (always exists as "-")
+					baselineKey := fmt.Sprintf("%v", result["baseline"])
+					resourceRow[baselineKey] = map[string]interface{}{
+						"status": "-",
+					}
+
+					if currentTarget != "" {
+						resourceRow[currentTarget] = map[string]interface{}{
+							"status": "not_found",
+						}
+					}
+
+					if result["resource_table"] == nil {
+						result["resource_table"] = []map[string]interface{}{}
+					}
+					result["resource_table"] = append(result["resource_table"].([]map[string]interface{}), resourceRow)
+				} else if strings.TrimSpace(nextOrigLine) != "" && !strings.HasPrefix(nextOrigLine, "      ") && !strings.HasPrefix(nextOrigLine, "        ") {
+					break
+				}
+			}
+		}
+
+		// Parse "extra" resources (in target but not in baseline)
+		// Format: "    [+] 1 extra (not in baseline):" followed by "        - resource-name"
+		if (strings.HasPrefix(originalLine, "    [+]") || strings.HasPrefix(originalLine, "    ➕")) && strings.Contains(line, "extra") {
+			for j := i + 1; j < len(lines) && j < i+50; j++ {
+				nextOrigLine := lines[j]
+				nextLine := strings.TrimSpace(nextOrigLine)
+
+				if strings.HasPrefix(nextOrigLine, "      - ") || strings.HasPrefix(nextOrigLine, "        - ") {
+					resourceName := strings.TrimPrefix(nextLine, "- ")
+
+					resourceRow := map[string]interface{}{
+						"resource_type": currentResourceType,
+						"resource_name": resourceName,
+						"baseline":      result["baseline"],
+					}
+
+					// Add status for baseline (doesn't exist)
+					baselineKey := fmt.Sprintf("%v", result["baseline"])
+					resourceRow[baselineKey] = map[string]interface{}{
+						"status": "not_found",
+					}
+
+					// Add status for target (extra - exists in target)
+					if currentTarget != "" {
+						resourceRow[currentTarget] = map[string]interface{}{
+							"status": "extra",
+						}
+					}
+
+					if result["resource_table"] == nil {
+						result["resource_table"] = []map[string]interface{}{}
+					}
+					result["resource_table"] = append(result["resource_table"].([]map[string]interface{}), resourceRow)
+				} else if strings.TrimSpace(nextOrigLine) != "" && !strings.HasPrefix(nextOrigLine, "      ") && !strings.HasPrefix(nextOrigLine, "        ") {
 					break
 				}
 			}

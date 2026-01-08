@@ -20,7 +20,8 @@ type ComparisonStatus string
 const (
 	StatusMatch     ComparisonStatus = "match"
 	StatusMismatch  ComparisonStatus = "mismatch"
-	StatusNotFound  ComparisonStatus = "not-found"
+	StatusNotFound  ComparisonStatus = "not-found" // In baseline but not in target
+	StatusExtra     ComparisonStatus = "extra"     // In target but not in baseline
 	StatusNotConfig ComparisonStatus = "not-config"
 	StatusError     ComparisonStatus = "error"
 )
@@ -119,6 +120,7 @@ type ValidationSummary struct {
 	MatchCount       int            `json:"matchCount"`
 	MismatchCount    int            `json:"mismatchCount"`
 	NotFoundCount    int            `json:"notFoundCount"`
+	ExtraCount       int            `json:"extraCount"` // Resources in target but not baseline
 	ErrorCount       int            `json:"errorCount"`
 	StatusBreakdown  map[string]int `json:"statusBreakdown"`
 }

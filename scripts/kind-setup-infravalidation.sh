@@ -62,15 +62,15 @@ create_sa_and_get_token() {
     local sa_name="infravalidation-sa"
     
     # Create service account
-    kubectl create serviceaccount "${sa_name}" -n "${namespace}"
+    kubectl create serviceaccount "${sa_name}" -n "${namespace}" >/dev/null 2>&1
     
     # Create ClusterRoleBinding for admin access
     kubectl create clusterrolebinding "${sa_name}-${namespace}-admin" \
         --clusterrole=cluster-admin \
-        --serviceaccount="${namespace}:${sa_name}"
+        --serviceaccount="${namespace}:${sa_name}" >/dev/null 2>&1
     
     # Create token secret
-    kubectl apply -f - <<EOF
+    kubectl apply -f - >/dev/null 2>&1 <<EOF
 apiVersion: v1
 kind: Secret
 metadata:
@@ -82,7 +82,6 @@ type: kubernetes.io/service-account-token
 EOF
     
     # Wait for token to be populated
-    echo "   Waiting for token in ${namespace}..."
     for i in {1..30}; do
         TOKEN=$(kubectl get secret "${sa_name}-token" -n "${namespace}" -o jsonpath='{.data.token}' 2>/dev/null | base64 -d)
         if [ -n "$TOKEN" ]; then
@@ -92,7 +91,7 @@ EOF
         sleep 1
     done
     
-    echo -e "${RED}Failed to get token for ${namespace}${NC}" >&2
+    echo "" >&2
     return 1
 }
 
