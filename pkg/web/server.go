@@ -48,7 +48,7 @@ func NewServer(cfg *config.WebConfig) *Server {
 	terminalService := services.NewTerminalService()
 
 	// Initialize handlers
-	handlersInstance := handlers.NewHandlers(execPath, staticFiles, minioService, replicationService, jobManager, terminalService)
+	handlersInstance := handlers.NewHandlers(execPath, staticFiles, minioService, replicationService, jobManager, terminalService, cfg.KubeconfigPath)
 
 	return &Server{
 		config:             cfg,
@@ -82,9 +82,6 @@ func (s *Server) Start() error {
 		}
 		http.NotFound(w, r)
 	})
-
-	// Serve new site replication UI by default
-	mux.HandleFunc(basePath+"/", s.handlers.System.HandleIndex)
 
 	// Custom static file handler with proper MIME types
 	staticHandler := http.StripPrefix(basePath+"/static/", http.FileServer(http.FS(staticFS)))
@@ -173,8 +170,11 @@ func (s *Server) Start() error {
 	mux.HandleFunc(basePath+"/api/validate/infrastructure", s.handlers.InfraValidation.HandleInfraValidate)
 	mux.HandleFunc(basePath+"/api/validate/infrastructure/vims", s.handlers.InfraValidation.HandleGetInfraVIMs)
 	mux.HandleFunc(basePath+"/api/validate/infrastructure/namespaces", s.handlers.InfraValidation.HandleGetNamespaces)
+	mux.HandleFunc(basePath+"/api/validate/infrastructure/search-namespaces", s.handlers.InfraValidation.HandleSearchNamespaces)
+	mux.HandleFunc(basePath+"/api/validate/infrastructure/discover-resources", s.handlers.InfraValidation.HandleDiscoverResources)
 	mux.HandleFunc(basePath+"/api/validate/infrastructure/history", s.handlers.InfraValidation.HandleGetInfraHistory)
 	mux.HandleFunc(basePath+"/api/validate/infrastructure/diff", s.handlers.InfraValidation.HandleGetDiff)
+	mux.HandleFunc(basePath+"/api/validate/infrastructure/export", s.handlers.InfraValidation.HandleExportInfraValidation)
 
 	// Perftest APIs
 	mux.HandleFunc(basePath+"/api/perftest/start", s.handlers.Perftest.HandleStartTest)
@@ -183,6 +183,9 @@ func (s *Server) Start() error {
 
 	// Terminal APIs
 	mux.HandleFunc(basePath+"/api/terminal/ws", s.handlers.Terminal.HandleWebsocket)
+
+	// Serve new site replication UI by default (MUST BE LAST - catch-all route)
+	mux.HandleFunc(basePath+"/", s.handlers.System.HandleIndex)
 
 	s.httpServer = &http.Server{
 		Addr:         fmt.Sprintf(":%d", s.config.Port),

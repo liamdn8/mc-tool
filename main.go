@@ -32,10 +32,11 @@ var (
 	BuildTime = "unknown"
 
 	// Runtime flags
-	versionsMode bool
-	verbose      bool
-	insecure     bool
-	webPort      int
+	versionsMode      bool
+	verbose           bool
+	insecure          bool
+	webPort           int
+	webKubeconfigPath string
 
 	// Profile command flags
 	profileType     string
@@ -282,6 +283,7 @@ Examples:
 	}
 
 	webCmd.Flags().IntVar(&webPort, "port", 8080, "Web server port")
+	webCmd.Flags().StringVar(&webKubeconfigPath, "config-dir", "", "Custom kubeconfig file path (default: ~/.kube/config)")
 
 	// Perftest command
 	perftestCmd := &cobra.Command{
@@ -1115,10 +1117,10 @@ func displayPerftestResults(result *perftest.TestResult) {
 }
 
 func runValidateInfra(cmd *cobra.Command, args []string) {
-	// Load site configurations
-	infraConfig, err := infravalidation.LoadDefaultInfraConfig()
+	// Load kubeconfig contexts
+	contexts, err := infravalidation.LoadKubeconfigContexts("")
 	if err != nil {
-		log.Fatalf("Failed to load infra config: %v\n\nPlease create ~/.mc-tool/infra-config.yaml with site configurations.", err)
+		log.Fatalf("Failed to load kubeconfig contexts: %v\n\nPlease ensure ~/.kube/config exists or set KUBECONFIG environment variable.", err)
 	}
 
 	// Parse baseline (first argument)
@@ -1140,14 +1142,29 @@ func runValidateInfra(cmd *cobra.Command, args []string) {
 		})
 	}
 
-	// Verify all sites exist in config
+	// Verify all context names exist in kubeconfig
 	allSites := []string{baselineSite}
 	for _, t := range targets {
 		allSites = append(allSites, t.Site)
 	}
+
+	contextMap := make(map[string]bool)
+	for _, ctx := range contexts {
+		contextMap[ctx] = true
+	}
+
 	for _, site := range allSites {
-		if _, ok := infraConfig.Sites[site]; !ok {
-			log.Fatalf("Site '%s' not found in config. Available sites: %v", site, getAvailableSites(infraConfig))
+		if !contextMap[site] {
+			log.Fatalf("Context '%s' not found in kubeconfig. Available contexts: %v", site, contexts)
+		}
+	}
+
+	// Build site configs from contexts
+	siteConfigs := make(map[string]infravalidation.SiteConfig)
+	for _, ctx := range contexts {
+		siteConfigs[ctx] = infravalidation.SiteConfig{
+			Context:        ctx,
+			KubeconfigPath: "",
 		}
 	}
 
@@ -1168,7 +1185,7 @@ func runValidateInfra(cmd *cobra.Command, args []string) {
 		},
 		Mode:             infravalidation.ModeA,
 		SecretComparison: infravalidation.SecretCompareKeys,
-		SiteConfigs:      infraConfig.Sites,
+		SiteConfigs:      siteConfigs,
 	}
 
 	fmt.Printf("[*] Starting infrastructure validation...\n")
@@ -1270,6 +1287,11 @@ func runWeb(cmd *cobra.Command, args []string) {
 	// Override port from CLI flag if provided
 	if webPort != 8080 {
 		cfg.Port = webPort
+	}
+
+	// Override kubeconfig path from CLI flag if provided
+	if webKubeconfigPath != "" {
+		cfg.KubeconfigPath = webKubeconfigPath
 	}
 
 	// Initialize logger

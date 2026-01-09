@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Server, CheckCircle, XCircle, AlertCircle, Loader, Play } from 'lucide-react';
+import { Server, CheckCircle, XCircle, AlertCircle, Loader, Play, Search } from 'lucide-react';
 import { apiCall } from '../utils/api';
+import { API_BASE_PATH } from '../config';
 import { useI18n } from '../utils/i18n';
 import { useContentsPanel } from '../contexts/ContentsPanelContext';
 import YamlDiffViewer from '../components/YamlDiffViewer';
@@ -13,11 +14,25 @@ const InfrastructureValidatePage = () => {
     const { setContentsComponent } = useContentsPanel();
     const [vims, setVims] = useState([]);
     const [loading, setLoading] = useState(false);
+    
+    // Mode selection: 'manual' or 'quick'
+    const [validationMode, setValidationMode] = useState('quick');
+    
+    // Manual mode states
     const [baseline, setBaseline] = useState('');
     const [baselineNamespace, setBaselineNamespace] = useState('');
     const [baselineNamespaces, setBaselineNamespaces] = useState([]);
     const [loadingBaselineNs, setLoadingBaselineNs] = useState(false);
     const [targets, setTargets] = useState([{ vim: '', namespace: '', namespaces: [] }]);
+    
+    // Quick validation mode states
+    const [quickKeyword, setQuickKeyword] = useState('');
+    const [quickExactMatch, setQuickExactMatch] = useState(false);
+    const [quickSearching, setQuickSearching] = useState(false);
+    const [quickMatches, setQuickMatches] = useState([]);
+    const [quickBaseline, setQuickBaseline] = useState(null);
+    const [quickTargets, setQuickTargets] = useState([]);
+    
     const [validating, setValidating] = useState(false);
     const [jobId, setJobId] = useState(null);
     const [result, setResult] = useState(null);
@@ -126,17 +141,101 @@ const InfrastructureValidatePage = () => {
         }
     };
 
-    const handleValidate = async () => {
-        // Validation
-        if (!baseline || !baselineNamespace) {
-            setError('Please select baseline VIM and namespace');
+    // Quick Validation handlers
+    const handleQuickSearch = async () => {
+        if (!quickKeyword.trim()) {
+            setError('Please enter a namespace keyword');
             return;
         }
 
-        const validTargets = targets.filter(t => t.vim && t.namespace);
-        if (validTargets.length === 0) {
-            setError('Please add at least one target');
-            return;
+        setQuickSearching(true);
+        setError(null);
+        setQuickMatches([]);
+        setQuickBaseline(null);
+        setQuickTargets([]);
+
+        try {
+            const { data } = await apiCall(
+                `/api/validate/infrastructure/search-namespaces?keyword=${encodeURIComponent(quickKeyword)}&exact=${quickExactMatch}`
+            );
+
+            if (!data.matches || data.matches.length === 0) {
+                setError(`No namespaces found matching "${quickKeyword}"`);
+                setQuickSearching(false);
+                return;
+            }
+
+            setQuickMatches(data.matches);
+
+            // Auto-select first match as baseline
+            setQuickBaseline(data.matches[0]);
+
+            // Set remaining matches as targets
+            if (data.matches.length > 1) {
+                setQuickTargets(data.matches.slice(1));
+            } else {
+                setError('Only one namespace found. Need at least 2 namespaces for comparison.');
+            }
+
+        } catch (err) {
+            setError(err.message || 'Failed to search namespaces');
+        } finally {
+            setQuickSearching(false);
+        }
+    };
+
+    const handleQuickBaselineChange = (index) => {
+        const newBaseline = quickMatches[index];
+        const newTargets = quickMatches.filter((_, i) => i !== index);
+        setQuickBaseline(newBaseline);
+        setQuickTargets(newTargets);
+    };
+
+    const handleQuickTargetToggle = (match) => {
+        // Toggle target selection
+        const isSelected = quickTargets.some(t => t.vim === match.vim && t.namespace === match.namespace);
+        
+        if (isSelected) {
+            // Remove from targets
+            setQuickTargets(quickTargets.filter(t => !(t.vim === match.vim && t.namespace === match.namespace)));
+        } else {
+            // Add to targets
+            setQuickTargets([...quickTargets, match]);
+        }
+    };
+
+    const handleValidate = async () => {
+        // Get baseline and targets based on mode
+        let baselineStr, targetStrs;
+        
+        if (validationMode === 'quick') {
+            // Quick validation mode
+            if (!quickBaseline) {
+                setError('Please search and select a baseline');
+                return;
+            }
+            if (quickTargets.length === 0) {
+                setError('No targets found. Please search for namespaces.');
+                return;
+            }
+            
+            baselineStr = `${quickBaseline.vim}/${quickBaseline.namespace}`;
+            targetStrs = quickTargets.map(t => `${t.vim}/${t.namespace}`);
+        } else {
+            // Manual mode
+            if (!baseline || !baselineNamespace) {
+                setError('Please select baseline VIM and namespace');
+                return;
+            }
+
+            const validTargets = targets.filter(t => t.vim && t.namespace);
+            if (validTargets.length === 0) {
+                setError('Please add at least one target');
+                return;
+            }
+            
+            baselineStr = `${baseline}/${baselineNamespace}`;
+            targetStrs = validTargets.map(t => `${t.vim}/${t.namespace}`);
         }
 
         setError(null);
@@ -144,9 +243,6 @@ const InfrastructureValidatePage = () => {
         setResult(null);
 
         try {
-            const baselineStr = `${baseline}/${baselineNamespace}`;
-            const targetStrs = validTargets.map(t => `${t.vim}/${t.namespace}`);
-
             const { data } = await apiCall('/api/validate/infrastructure', {
                 method: 'POST',
                 body: JSON.stringify({
@@ -193,6 +289,45 @@ const InfrastructureValidatePage = () => {
         poll();
     };
 
+    const handleExport = async (format) => {
+        if (!jobId) {
+            setError('No validation job available');
+            return;
+        }
+
+        try {
+            const url = `${API_BASE_PATH}/validate/infrastructure/export?job_id=${jobId}&format=${format}`;
+            const response = await fetch(url);
+            
+            if (!response.ok) {
+                throw new Error('Export failed');
+            }
+
+            // Get filename from Content-Disposition header
+            const contentDisposition = response.headers.get('Content-Disposition');
+            let filename = `infra-validation-${jobId}.${format}`;
+            if (contentDisposition) {
+                const matches = /filename=([^;]+)/.exec(contentDisposition);
+                if (matches && matches[1]) {
+                    filename = matches[1];
+                }
+            }
+
+            // Download file
+            const blob = await response.blob();
+            const downloadUrl = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = downloadUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(downloadUrl);
+            document.body.removeChild(a);
+        } catch (err) {
+            setError('Failed to export: ' + err.message);
+        }
+    };
+
     const renderResultSummary = () => {
         if (!result || !result.summary) return null;
 
@@ -203,10 +338,30 @@ const InfrastructureValidatePage = () => {
 
         return (
             <div className="card" style={{ marginTop: '20px' }}>
-                <div className="card-header">
-                    <h3 className="card-title">Validation Results</h3>
-                    <div style={{ marginTop: '8px' }}>
-                        <strong>Baseline:</strong> {summary.baseline}
+                <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                        <h3 className="card-title">Validation Results</h3>
+                        <div style={{ marginTop: '8px' }}>
+                            <strong>Baseline:</strong> {summary.baseline}
+                        </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                        <button
+                            className="btn btn-primary"
+                            onClick={() => handleExport('xlsx')}
+                            disabled={!jobId}
+                            title="Export to Excel"
+                        >
+                            Export Excel
+                        </button>
+                        <button
+                            className="btn btn-primary"
+                            onClick={() => handleExport('csv')}
+                            disabled={!jobId}
+                            title="Export to CSV"
+                        >
+                            Export CSV
+                        </button>
                     </div>
                 </div>
                 <div style={{ padding: '20px' }}>
@@ -372,6 +527,188 @@ const InfrastructureValidatePage = () => {
                     <h3 className="card-title">Validation Configuration</h3>
                 </div>
                 <div style={{ padding: '20px' }}>
+                    {/* Mode Selection */}
+                    <div style={{ marginBottom: '20px' }}>
+                        <div style={{ 
+                            display: 'flex', 
+                            gap: '12px',
+                            padding: '4px',
+                            backgroundColor: 'var(--bg-secondary)',
+                            borderRadius: '8px',
+                            width: 'fit-content'
+                        }}>
+                            <button
+                                onClick={() => setValidationMode('manual')}
+                                style={{
+                                    padding: '8px 20px',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    backgroundColor: validationMode === 'manual' ? 'var(--primary-color)' : 'transparent',
+                                    color: validationMode === 'manual' ? 'white' : 'var(--text-primary)',
+                                    fontWeight: validationMode === 'manual' ? '600' : '400',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s'
+                                }}
+                            >
+                                Manual Selection
+                            </button>
+                            <button
+                                onClick={() => setValidationMode('quick')}
+                                style={{
+                                    padding: '8px 20px',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    backgroundColor: validationMode === 'quick' ? 'var(--primary-color)' : 'transparent',
+                                    color: validationMode === 'quick' ? 'white' : 'var(--text-primary)',
+                                    fontWeight: validationMode === 'quick' ? '600' : '400',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s'
+                                }}
+                            >
+                                🚀 Quick Validation
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Quick Validation Mode */}
+                    {validationMode === 'quick' && (
+                        <div>
+                            <div style={{ 
+                                padding: '16px', 
+                                backgroundColor: 'var(--info-light)', 
+                                borderRadius: '8px',
+                                marginBottom: '20px',
+                                border: '1px solid var(--info-color)'
+                            }}>
+                                <p style={{ margin: 0, fontSize: '14px', color: 'var(--text-primary)' }}>
+                                    <strong>Quick Validation:</strong> Enter a namespace keyword and we'll automatically search 
+                                    across all VIMs to find matching namespaces. The first match will be set as baseline, 
+                                    and others as targets.
+                                </p>
+                            </div>
+
+                            <div style={{ marginBottom: '20px' }}>
+                                <label className="form-label">Namespace Keyword</label>
+                                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                                    <input
+                                        type="text"
+                                        className="form-input"
+                                        placeholder="e.g., app-prod, staging, dev..."
+                                        value={quickKeyword}
+                                        onChange={(e) => setQuickKeyword(e.target.value)}
+                                        onKeyPress={(e) => e.key === 'Enter' && handleQuickSearch()}
+                                        style={{ flex: 1 }}
+                                    />
+                                    <label style={{ 
+                                        display: 'flex', 
+                                        alignItems: 'center', 
+                                        gap: '8px',
+                                        cursor: 'pointer',
+                                        whiteSpace: 'nowrap',
+                                        fontSize: '14px'
+                                    }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={quickExactMatch}
+                                            onChange={(e) => setQuickExactMatch(e.target.checked)}
+                                            style={{ width: '16px', height: '16px' }}
+                                        />
+                                        Exact Match
+                                    </label>
+                                    <button
+                                        className="btn btn-primary"
+                                        onClick={handleQuickSearch}
+                                        disabled={quickSearching || !quickKeyword.trim()}
+                                    >
+                                        {quickSearching ? (
+                                            <>
+                                                <Loader size={16} className="spinner" style={{ marginRight: '8px' }} />
+                                                Searching...
+                                            </>
+                                        ) : (
+                                            'Search'
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Search Results */}
+                            {quickMatches.length > 0 && (
+                                <div style={{ marginTop: '20px' }}>
+                                    <h4 style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '12px' }}>
+                                        Found {quickMatches.length} namespace(s)
+                                    </h4>
+
+                                    {/* Baseline Selection */}
+                                    <div style={{ marginBottom: '16px' }}>
+                                        <label className="form-label">Baseline (Reference)</label>
+                                        <select
+                                            className="form-input"
+                                            value={quickMatches.findIndex(m => m === quickBaseline)}
+                                            onChange={(e) => handleQuickBaselineChange(parseInt(e.target.value))}
+                                        >
+                                            {quickMatches.map((match, index) => (
+                                                <option key={index} value={index}>
+                                                    {match.vim} / {match.namespace} ({match.endpoint})
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {/* Targets Preview */}
+                                    <div>
+                                        <label className="form-label">
+                                            Targets ({quickTargets.length} selected)
+                                        </label>
+                                        <div style={{ 
+                                            maxHeight: '200px', 
+                                            overflowY: 'auto',
+                                            border: '1px solid var(--border)',
+                                            borderRadius: '6px',
+                                            padding: '8px'
+                                        }}>
+                                            {quickMatches.filter(m => m !== quickBaseline).map((match, index) => {
+                                                const isSelected = quickTargets.some(t => 
+                                                    t.vim === match.vim && t.namespace === match.namespace
+                                                );
+                                                return (
+                                                    <label
+                                                        key={index}
+                                                        style={{
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: '8px',
+                                                            padding: '8px',
+                                                            cursor: 'pointer',
+                                                            borderRadius: '4px',
+                                                            backgroundColor: isSelected ? 'var(--success-light)' : 'transparent'
+                                                        }}
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={isSelected}
+                                                            onChange={() => handleQuickTargetToggle(match)}
+                                                            style={{ width: '16px', height: '16px' }}
+                                                        />
+                                                        <span style={{ fontSize: '14px' }}>
+                                                            <strong>{match.vim}</strong> / {match.namespace}
+                                                            <span style={{ color: 'var(--text-muted)', marginLeft: '8px' }}>
+                                                                ({match.endpoint})
+                                                            </span>
+                                                        </span>
+                                                    </label>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Manual Mode */}
+                    {validationMode === 'manual' && (
+                        <div>
                     {/* Baseline Selection */}
                     <div style={{ marginBottom: '20px' }}>
                         <h4 style={{ marginBottom: '12px', fontSize: '14px', fontWeight: 'bold' }}>
@@ -486,12 +823,23 @@ const InfrastructureValidatePage = () => {
                             <span>{error}</span>
                         </div>
                     )}
+                        </div>
+                    )}
 
+                    {/* Common Error Display */}
+                    {error && (
+                        <div className="alert alert-error" style={{ marginTop: '16px' }}>
+                            <XCircle size={20} />
+                            <span>{error}</span>
+                        </div>
+                    )}
+
+                    {/* Validation Button */}
                     <div style={{ marginTop: '20px' }}>
                         <button
                             className="btn btn-primary"
                             onClick={handleValidate}
-                            disabled={validating || !baseline || !baselineNamespace}
+                            disabled={validating || (validationMode === 'manual' ? (!baseline || !baselineNamespace) : (!quickBaseline || quickTargets.length === 0))}
                             style={{ minWidth: '150px' }}
                         >
                             {validating ? (
@@ -506,6 +854,11 @@ const InfrastructureValidatePage = () => {
                                 </>
                             )}
                         </button>
+                        {validationMode === 'quick' && quickBaseline && quickTargets.length > 0 && (
+                            <span style={{ marginLeft: '12px', fontSize: '14px', color: 'var(--text-muted)' }}>
+                                Ready to validate: 1 baseline + {quickTargets.length} target(s)
+                            </span>
+                        )}
                     </div>
                 </div>
             </div>

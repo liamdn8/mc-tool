@@ -16,13 +16,15 @@ type InfraValidationHandler struct {
 	BaseHandler
 	executablePath string
 	jobManager     *models.JobManager
+	kubeconfigPath string // Custom kubeconfig path from CLI or env
 }
 
 // NewInfraValidationHandler creates a new infrastructure validation handler
-func NewInfraValidationHandler(executablePath string, jobManager *models.JobManager) *InfraValidationHandler {
+func NewInfraValidationHandler(executablePath string, jobManager *models.JobManager, kubeconfigPath string) *InfraValidationHandler {
 	return &InfraValidationHandler{
 		executablePath: executablePath,
 		jobManager:     jobManager,
+		kubeconfigPath: kubeconfigPath,
 	}
 }
 
@@ -64,56 +66,70 @@ func (h *InfraValidationHandler) HandleInfraValidate(w http.ResponseWriter, r *h
 }
 
 // HandleGetInfraVIMs handles GET /api/validate/infrastructure/vims
+// Returns list of VIMs (contexts) from kubeconfig
 func (h *InfraValidationHandler) HandleGetInfraVIMs(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		h.RespondError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
-	// Load infra config from ~/.mc-tool/infra-config.yaml
-	config, err := infravalidation.LoadDefaultInfraConfig()
+	// Load contexts from kubeconfig (use custom path if provided, otherwise default ~/.kube/config)
+	contexts, err := infravalidation.LoadKubeconfigContexts(h.kubeconfigPath)
 	if err != nil {
-		h.RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to load infra config: %v", err))
+		h.RespondError(w, http.StatusInternalServerError,
+			fmt.Sprintf("Failed to load kubeconfig contexts: %v", err))
 		return
 	}
 
-	// Convert config to response format
+	// Get current context
+	currentContext, _ := infravalidation.GetCurrentKubeconfigContext(h.kubeconfigPath)
+
+	// Convert contexts to VIM format
 	vims := []map[string]interface{}{}
-	for name, siteConfig := range config.Sites {
-		vims = append(vims, map[string]interface{}{
-			"name":     name,
-			"endpoint": siteConfig.Endpoint,
-			"insecure": siteConfig.Insecure,
-		})
+	for _, ctx := range contexts {
+		vim := map[string]interface{}{
+			"name":    ctx,
+			"context": ctx,
+			"current": ctx == currentContext,
+		}
+		vims = append(vims, vim)
+	}
+
+	configPath := h.kubeconfigPath
+	if configPath == "" {
+		configPath = "~/.kube/config (default)"
 	}
 
 	h.RespondJSON(w, map[string]interface{}{
-		"vims": vims,
+		"vims":           vims,
+		"count":          len(vims),
+		"currentContext": currentContext,
+		"configPath":     configPath,
 	})
 }
 
 // HandleGetNamespaces handles GET /api/validate/infrastructure/namespaces?vim=vim1
+// vim parameter is the kubeconfig context name
 func (h *InfraValidationHandler) HandleGetNamespaces(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		h.RespondError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
-	vimName := r.URL.Query().Get("vim")
-	if vimName == "" {
-		h.RespondError(w, http.StatusBadRequest, "vim parameter is required")
+	contextName := r.URL.Query().Get("vim")
+	if contextName == "" {
+		h.RespondError(w, http.StatusBadRequest, "vim parameter (context name) is required")
 		return
 	}
 
-	// Load VIM config
-	vimConfig, err := infravalidation.LoadSiteConfig(vimName)
-	if err != nil {
-		h.RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to load VIM config: %v", err))
-		return
+	// Create site config from context
+	siteConfig := infravalidation.SiteConfig{
+		Context:        contextName,
+		KubeconfigPath: h.kubeconfigPath,
 	}
 
 	// Create K8s client
-	client, err := infravalidation.NewK8sClient(vimConfig)
+	client, err := infravalidation.NewK8sClient(siteConfig)
 	if err != nil {
 		h.RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to create K8s client: %v", err))
 		return
@@ -150,6 +166,138 @@ func (h *InfraValidationHandler) HandleGetInfraHistory(w http.ResponseWriter, r 
 	})
 }
 
+// HandleSearchNamespaces handles GET /api/validate/infrastructure/search-namespaces?keyword=app&exact=false
+func (h *InfraValidationHandler) HandleSearchNamespaces(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		h.RespondError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	keyword := r.URL.Query().Get("keyword")
+	exactMatch := r.URL.Query().Get("exact") == "true"
+
+	if keyword == "" {
+		h.RespondError(w, http.StatusBadRequest, "keyword parameter is required")
+		return
+	}
+
+	// Load kubeconfig contexts
+	contexts, err := infravalidation.LoadKubeconfigContexts(h.kubeconfigPath)
+	if err != nil {
+		h.RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to load kubeconfig contexts: %v", err))
+		return
+	}
+
+	// Search across all contexts
+	type NamespaceMatch struct {
+		Vim       string `json:"vim"`
+		Namespace string `json:"namespace"`
+		Context   string `json:"context"`
+	}
+
+	var matches []NamespaceMatch
+
+	for _, contextName := range contexts {
+		// Create site config from context
+		siteConfig := infravalidation.SiteConfig{
+			Context:        contextName,
+			KubeconfigPath: h.kubeconfigPath,
+		}
+
+		// Create K8s client
+		client, err := infravalidation.NewK8sClient(siteConfig)
+		if err != nil {
+			// Skip contexts that fail to connect
+			continue
+		}
+
+		// List namespaces
+		namespaces, err := client.ListNamespaces()
+		if err != nil {
+			// Skip contexts that fail to list namespaces
+			continue
+		}
+
+		// Filter namespaces
+		for _, ns := range namespaces {
+			matched := false
+			if exactMatch {
+				matched = ns == keyword
+			} else {
+				matched = strings.Contains(strings.ToLower(ns), strings.ToLower(keyword))
+			}
+
+			if matched {
+				matches = append(matches, NamespaceMatch{
+					Vim:       contextName,
+					Namespace: ns,
+					Context:   contextName,
+				})
+			}
+		}
+	}
+
+	h.RespondJSON(w, map[string]interface{}{
+		"matches": matches,
+		"count":   len(matches),
+	})
+}
+
+// HandleDiscoverResources handles GET /api/validate/infrastructure/discover-resources?vim=xxx&namespace=yyy
+func (h *InfraValidationHandler) HandleDiscoverResources(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		h.RespondError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	contextName := r.URL.Query().Get("vim")
+	namespace := r.URL.Query().Get("namespace")
+
+	if contextName == "" || namespace == "" {
+		h.RespondError(w, http.StatusBadRequest, "vim (context name) and namespace parameters are required")
+		return
+	}
+
+	// Create site config from context
+	siteConfig := infravalidation.SiteConfig{
+		Context:        contextName,
+		KubeconfigPath: h.kubeconfigPath,
+	}
+
+	// Create K8s client
+	client, err := infravalidation.NewK8sClient(siteConfig)
+	if err != nil {
+		h.RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to create K8s client: %v", err))
+		return
+	}
+
+	// Discover all resources in the namespace
+	resourceMap, err := client.GetAllResources(r.Context(), namespace)
+	if err != nil {
+		h.RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to discover resources: %v", err))
+		return
+	}
+
+	// Format response
+	type ResourceSummary struct {
+		Kind  string `json:"kind"`
+		Count int    `json:"count"`
+	}
+
+	var summaries []ResourceSummary
+	for kind, resources := range resourceMap {
+		summaries = append(summaries, ResourceSummary{
+			Kind:  kind,
+			Count: len(resources),
+		})
+	}
+
+	h.RespondJSON(w, map[string]interface{}{
+		"resources": summaries,
+		"total":     len(summaries),
+	})
+}
+
 // HandleGetDiff handles GET /api/validate/infrastructure/diff?baseline=site1/ns1&target=site2/ns2&resource_type=Deployment&resource_name=app
 func (h *InfraValidationHandler) HandleGetDiff(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -180,24 +328,15 @@ func (h *InfraValidationHandler) HandleGetDiff(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// Load infra config
-	infraConfig, err := infravalidation.LoadDefaultInfraConfig()
-	if err != nil {
-		h.RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to load infra config: %v", err))
-		return
+	// Create site configs from context names
+	baselineSiteConfig := infravalidation.SiteConfig{
+		Context:        baselineSite,
+		KubeconfigPath: h.kubeconfigPath,
 	}
 
-	// Get site configs
-	baselineSiteConfig, ok := infraConfig.Sites[baselineSite]
-	if !ok {
-		h.RespondError(w, http.StatusBadRequest, fmt.Sprintf("Site %s not found", baselineSite))
-		return
-	}
-
-	targetSiteConfig, ok := infraConfig.Sites[targetSite]
-	if !ok {
-		h.RespondError(w, http.StatusBadRequest, fmt.Sprintf("Site %s not found", targetSite))
-		return
+	targetSiteConfig := infravalidation.SiteConfig{
+		Context:        targetSite,
+		KubeconfigPath: h.kubeconfigPath,
 	}
 
 	// Create K8s clients

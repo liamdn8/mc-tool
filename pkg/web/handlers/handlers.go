@@ -22,7 +22,7 @@ type Handlers struct {
 }
 
 // NewHandlers creates and initializes all handlers
-func NewHandlers(executablePath string, staticFiles embed.FS, minioService *services.MinIOService, replicationService *services.ReplicationService, jobManager *models.JobManager, terminalService *services.TerminalService) *Handlers {
+func NewHandlers(executablePath string, staticFiles embed.FS, minioService *services.MinIOService, replicationService *services.ReplicationService, jobManager *models.JobManager, terminalService *services.TerminalService, kubeconfigPath string) *Handlers {
 	operationsService := services.NewOperationsService(minioService, replicationService)
 	perftestService := services.NewPerftestService()
 
@@ -36,6 +36,6 @@ func NewHandlers(executablePath string, staticFiles embed.FS, minioService *serv
 		Operations:      NewOperationsHandler(operationsService),
 		Terminal:        NewTerminalHandler(terminalService),
 		Perftest:        NewPerftestHandler(perftestService),
-		InfraValidation: NewInfraValidationHandler(executablePath, jobManager),
+		InfraValidation: NewInfraValidationHandler(executablePath, jobManager, kubeconfigPath),
 	}
 }

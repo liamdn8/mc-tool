@@ -32,12 +32,16 @@ type ClusterNamespace struct {
 	Namespace string `yaml:"namespace" json:"namespace"`
 }
 
-// SiteConfig represents a Kubernetes cluster configuration
+// SiteConfig represents a Kubernetes cluster configuration using kubeconfig
 type SiteConfig struct {
-	Name     string `yaml:"name" json:"name"`
-	Endpoint string `yaml:"endpoint" json:"endpoint"`
-	Token    string `yaml:"token" json:"token"`
-	Insecure bool   `yaml:"insecure" json:"insecure"` // Skip TLS verification
+	Name           string `yaml:"name" json:"name"`
+	Context        string `yaml:"context" json:"context"`               // Kubeconfig context name
+	KubeconfigPath string `yaml:"kubeconfigPath" json:"kubeconfigPath"` // Path to kubeconfig file (optional, defaults to ~/.kube/config)
+
+	// Legacy fields (deprecated, will be removed)
+	Endpoint string `yaml:"endpoint,omitempty" json:"endpoint,omitempty"`
+	Token    string `yaml:"token,omitempty" json:"token,omitempty"`
+	Insecure bool   `yaml:"insecure,omitempty" json:"insecure,omitempty"`
 }
 
 // InfraConfig represents the sites configuration file

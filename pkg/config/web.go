@@ -16,6 +16,7 @@ type WebConfig struct {
 	LogFormat           string // text, json
 	DataDir             string
 	ReferenceConfigsDir string
+	KubeconfigPath      string // Custom kubeconfig path for infrastructure validation
 }
 
 // LoadWebConfig loads configuration from environment variables
@@ -29,6 +30,7 @@ func LoadWebConfig() *WebConfig {
 		LogFormat:           getEnv("LOG_FORMAT", "text"),
 		DataDir:             getEnv("DATA_DIR", "./data"),
 		ReferenceConfigsDir: getEnv("REFERENCE_CONFIGS_DIR", "/app/reference-configs"),
+		KubeconfigPath:      getEnv("KUBECONFIG", ""), // Use standard KUBECONFIG env var
 	}
 }
 

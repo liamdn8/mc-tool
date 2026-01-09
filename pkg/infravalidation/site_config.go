@@ -64,11 +64,15 @@ func validateInfraConfig(config *InfraConfig) error {
 			site.Name = name
 			config.Sites[name] = site
 		}
-		if site.Endpoint == "" {
-			return fmt.Errorf("site %s: endpoint is required", name)
+
+		// Either context or endpoint must be specified
+		if site.Context == "" && site.Endpoint == "" {
+			return fmt.Errorf("site %s: either context or endpoint must be specified", name)
 		}
-		if site.Token == "" {
-			return fmt.Errorf("site %s: token is required", name)
+
+		// If using legacy endpoint mode, token is required
+		if site.Endpoint != "" && site.Token == "" && site.Context == "" {
+			return fmt.Errorf("site %s: token is required when using endpoint", name)
 		}
 	}
 
@@ -110,6 +114,76 @@ func ParseSiteNamespace(input string) (site, namespace string, err error) {
 	}
 
 	return site, namespace, nil
+}
+
+// LoadKubeconfigContexts loads available contexts from kubeconfig file
+func LoadKubeconfigContexts(kubeconfigPath string) ([]string, error) {
+	if kubeconfigPath == "" {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get home directory: %w", err)
+		}
+		kubeconfigPath = filepath.Join(homeDir, ".kube", "config")
+	}
+
+	// Check if file exists
+	if _, err := os.Stat(kubeconfigPath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("kubeconfig file not found: %s", kubeconfigPath)
+	}
+
+	// Read kubeconfig file
+	data, err := os.ReadFile(kubeconfigPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read kubeconfig: %w", err)
+	}
+
+	// Parse kubeconfig
+	var config struct {
+		Contexts []struct {
+			Name string `yaml:"name"`
+		} `yaml:"contexts"`
+	}
+
+	if err := yaml.Unmarshal(data, &config); err != nil {
+		return nil, fmt.Errorf("failed to parse kubeconfig: %w", err)
+	}
+
+	var contexts []string
+	for _, ctx := range config.Contexts {
+		contexts = append(contexts, ctx.Name)
+	}
+
+	if len(contexts) == 0 {
+		return nil, fmt.Errorf("no contexts found in kubeconfig")
+	}
+
+	return contexts, nil
+}
+
+// GetCurrentKubeconfigContext gets the current context from kubeconfig
+func GetCurrentKubeconfigContext(kubeconfigPath string) (string, error) {
+	if kubeconfigPath == "" {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("failed to get home directory: %w", err)
+		}
+		kubeconfigPath = filepath.Join(homeDir, ".kube", "config")
+	}
+
+	data, err := os.ReadFile(kubeconfigPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read kubeconfig: %w", err)
+	}
+
+	var config struct {
+		CurrentContext string `yaml:"current-context"`
+	}
+
+	if err := yaml.Unmarshal(data, &config); err != nil {
+		return "", fmt.Errorf("failed to parse kubeconfig: %w", err)
+	}
+
+	return config.CurrentContext, nil
 }
 
 // splitTwo splits string by separator, expecting exactly 2 parts
